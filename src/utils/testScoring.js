@@ -50,6 +50,7 @@ export function calculateScore(questions, answers) {
   const passed = percentage >= 70 // Default pass threshold
 
   return {
+    score: correct,
     correct,
     incorrect,
     unanswered,

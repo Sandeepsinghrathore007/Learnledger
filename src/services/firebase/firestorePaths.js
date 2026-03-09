@@ -34,3 +34,7 @@ export const userAIChatDocRef = (userId, chatId) => doc(db, 'users', userId, 'ai
 
 export const userActivityCol = (userId) => collection(db, 'users', userId, 'activity')
 export const userActivityDocRef = (userId, activityId) => doc(db, 'users', userId, 'activity', activityId)
+
+export const userExamGroupsCol = (userId) => collection(db, 'users', userId, 'examGroups')
+export const userExamGroupDocRef = (userId, examGroupId) =>
+  doc(db, 'users', userId, 'examGroups', examGroupId)

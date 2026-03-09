@@ -12,6 +12,14 @@ import { auth, authPersistenceReady, db } from './firebaseConfig'
 
 const USERS_COLLECTION = 'users'
 
+function getCurrentHostname() {
+  if (typeof window === 'undefined' || !window.location?.hostname) {
+    return 'your deployed domain'
+  }
+
+  return window.location.hostname
+}
+
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase()
 }
@@ -128,6 +136,8 @@ export function mapFirebaseAuthError(error) {
       return 'Popup was blocked by browser. Please allow popups and try again.'
     case 'auth/cancelled-popup-request':
       return 'Google sign-in was cancelled. Please try again.'
+    case 'auth/unauthorized-domain':
+      return `Google sign-in is blocked because "${getCurrentHostname()}" is not added in Firebase Authentication -> Settings -> Authorized domains. Add that hostname in Firebase Console and try again.`
     case 'auth/operation-not-allowed':
       return 'Google login is not enabled for this Firebase project.'
     default:

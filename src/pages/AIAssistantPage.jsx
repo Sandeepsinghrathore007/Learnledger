@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { uid } from '@/utils/id'
+import { saveAIChat } from '@/services/firebase/aiService'
 import { askStudyAssistant } from '@/services/firebase/aiAssistantService'
 import { getRelevantPdfReferenceMaterial } from '@/services/firebase/pdfKnowledgeService'
 import { XIcon } from '@/components/ui/Icons'
@@ -272,6 +273,9 @@ export default function AIAssistantPage({ user, subjects, onUpdateSubject, initi
       const modelUsed = response?.meta?.modelUsed || null
       const provider = response?.meta?.provider || null
       const cacheHit = Boolean(response?.meta?.cacheHit)
+      const createdAt = new Date().toISOString()
+      const subjectId = selectedSubject?.id || null
+      const subjectName = selectedSubject?.name || null
 
       setMessages((prev) => [
         ...prev,
@@ -281,15 +285,33 @@ export default function AIAssistantPage({ user, subjects, onUpdateSubject, initi
           text,
           structured,
           language,
-          subjectId: selectedSubject?.id || '',
+          subjectId: subjectId || '',
           contextLabel,
-          createdAt: new Date().toISOString(),
+          createdAt,
           modelUsed,
           provider,
           cacheHit,
           referenceLabel,
         },
       ])
+
+      if (user?.uid) {
+        try {
+          await saveAIChat(user.uid, {
+            question: trimmedQuestion,
+            response: text,
+            subjectId,
+            subjectName,
+            subjectContext: contextLabel,
+            language,
+            modelUsed,
+            provider,
+            createdAt,
+          })
+        } catch (saveError) {
+          console.warn('Failed to save AI chat:', saveError)
+        }
+      }
     } catch (err) {
       setError(err.message || 'Failed to get AI response.')
     } finally {
@@ -337,6 +359,8 @@ export default function AIAssistantPage({ user, subjects, onUpdateSubject, initi
         id: uid(),
         name: topicName,
         questionsCount: 0,
+        isCompleted: false,
+        completedAt: null,
         notes: [note],
       }
 

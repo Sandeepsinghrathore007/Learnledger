@@ -26,10 +26,33 @@ function toIso(value) {
 
 function normalizeTest(snapshot) {
   const data = snapshot.data()
+  const totalQuestions = Number.isFinite(data.totalQuestions)
+    ? data.totalQuestions
+    : Array.isArray(data.questions)
+      ? data.questions.length
+      : 0
+  const correctAnswers = Number.isFinite(data.correct)
+    ? data.correct
+    : Number.isFinite(data.score)
+      ? data.score
+      : totalQuestions > 0 && Number.isFinite(data.percentage)
+        ? Math.round((data.percentage / 100) * totalQuestions)
+        : 0
+  const unanswered = Number.isFinite(data.unanswered)
+    ? data.unanswered
+    : Math.max(0, totalQuestions - correctAnswers - (Number.isFinite(data.incorrect) ? data.incorrect : 0))
+  const incorrect = Number.isFinite(data.incorrect)
+    ? data.incorrect
+    : Math.max(0, totalQuestions - correctAnswers - unanswered)
 
   return {
     id: snapshot.id,
     ...data,
+    score: correctAnswers,
+    correct: correctAnswers,
+    incorrect,
+    unanswered,
+    totalQuestions,
     createdAt: toIso(data.createdAt) || data.createdAt || null,
     updatedAt: toIso(data.updatedAt) || data.updatedAt || null,
     startTime: toIso(data.startTime) || data.startTime || null,
@@ -130,7 +153,18 @@ export async function saveTestResult(userId, testAttempt) {
     config: testAttempt.config || {},
     questions: Array.isArray(testAttempt.questions) ? testAttempt.questions : [],
     answers: testAttempt.answers || {},
-    score: Number.isFinite(testAttempt.score) ? testAttempt.score : 0,
+    score: Number.isFinite(testAttempt.correct)
+      ? testAttempt.correct
+      : Number.isFinite(testAttempt.score)
+        ? testAttempt.score
+        : 0,
+    correct: Number.isFinite(testAttempt.correct)
+      ? testAttempt.correct
+      : Number.isFinite(testAttempt.score)
+        ? testAttempt.score
+        : 0,
+    incorrect: Number.isFinite(testAttempt.incorrect) ? testAttempt.incorrect : 0,
+    unanswered: Number.isFinite(testAttempt.unanswered) ? testAttempt.unanswered : 0,
     totalQuestions: Number.isFinite(testAttempt.totalQuestions)
       ? testAttempt.totalQuestions
       : Array.isArray(testAttempt.questions)
@@ -139,6 +173,7 @@ export async function saveTestResult(userId, testAttempt) {
     percentage: Number.isFinite(testAttempt.percentage) ? testAttempt.percentage : 0,
     passed: Boolean(testAttempt.passed),
     timeTaken: Number.isFinite(testAttempt.timeTaken) ? testAttempt.timeTaken : 0,
+    results: Array.isArray(testAttempt.results) ? testAttempt.results : [],
     startTime: testAttempt.startTime || null,
     endTime: testAttempt.endTime || null,
     completedAt,

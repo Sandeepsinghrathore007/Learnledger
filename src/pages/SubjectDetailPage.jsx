@@ -121,7 +121,14 @@ export default function SubjectDetailPage({
       ...subj,
       topics: [
         ...subj.topics,
-        { id: uid(), name: newTopicName.trim(), questionsCount: 0, notes: [] },
+        {
+          id: uid(),
+          name: newTopicName.trim(),
+          questionsCount: 0,
+          isCompleted: false,
+          completedAt: null,
+          notes: [],
+        },
       ],
     })
     setNewTopicName('')
@@ -130,6 +137,23 @@ export default function SubjectDetailPage({
 
   const handleDeleteTopic = (topicId) =>
     save({ ...subj, topics: subj.topics.filter(t => t.id !== topicId) })
+
+  const handleToggleTopicComplete = (topicId) => {
+    const now = new Date().toISOString()
+
+    save({
+      ...subj,
+      topics: subj.topics.map((topic) =>
+        topic.id !== topicId
+          ? topic
+          : {
+              ...topic,
+              isCompleted: !topic.isCompleted,
+              completedAt: topic.isCompleted ? null : now,
+            }
+      ),
+    })
+  }
 
   // ── NOTE ACTIONS ──────────────────────────────────────────────────────────
   const handleAddNote = (topicId) => {
@@ -515,6 +539,7 @@ export default function SubjectDetailPage({
               onOpenNote={(note, topicId) => setOpenNote({ note, topicId })}
               onDeleteNote={handleDeleteNote}
               onDeleteTopic={handleDeleteTopic}
+              onToggleComplete={handleToggleTopicComplete}
             />
           ))}
         </div>

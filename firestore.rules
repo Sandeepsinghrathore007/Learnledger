@@ -13,6 +13,7 @@ service cloud.firestore {
       return type in [
         'note_created',
         'topic_created',
+        'topic_completed',
         'test_taken',
         'ai_question'
       ];
@@ -63,6 +64,11 @@ service cloud.firestore {
           isOwner(userId) &&
           request.resource.data.userId == userId &&
           validActivityType(request.resource.data.type);
+      }
+
+      match /examGroups/{examGroupId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && request.resource.data.userId == userId;
       }
     }
 

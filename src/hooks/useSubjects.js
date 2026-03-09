@@ -82,6 +82,8 @@ function topicIsDifferent(previousTopic, nextTopic) {
   return (
     String(previousTopic.name || '').trim() !== String(nextTopic.name || '').trim() ||
     (previousTopic.questionsCount || 0) !== (nextTopic.questionsCount || 0) ||
+    Boolean(previousTopic.isCompleted) !== Boolean(nextTopic.isCompleted) ||
+    (previousTopic.completedAt || null) !== (nextTopic.completedAt || null) ||
     previousNotesLength !== nextNotesLength
   )
 }
@@ -105,6 +107,8 @@ function buildSubjects(subjectDocs, topicDocs, noteDocs) {
       subjectId: topic.subjectId,
       name: topic.name || 'Untitled Topic',
       questionsCount: topic.questionsCount || 0,
+      isCompleted: Boolean(topic.isCompleted),
+      completedAt: topic.completedAt || null,
       notes,
       createdAt: topic.createdAt || null,
       updatedAt: topic.updatedAt || null,
@@ -402,6 +406,8 @@ export function useSubjects(user) {
           name: nextTopic.name,
           questionsCount: nextTopic.questionsCount || 0,
           notesCount: nextTopic.notes.length,
+          isCompleted: Boolean(nextTopic.isCompleted),
+          completedAt: nextTopic.completedAt || null,
         })
 
         await safeLogActivity(user.uid, {
@@ -416,7 +422,18 @@ export function useSubjects(user) {
           name: nextTopic.name,
           questionsCount: nextTopic.questionsCount || 0,
           notesCount: nextTopic.notes.length,
+          isCompleted: Boolean(nextTopic.isCompleted),
+          completedAt: nextTopic.isCompleted ? nextTopic.completedAt || new Date().toISOString() : null,
         })
+
+        if (!previousTopic.isCompleted && nextTopic.isCompleted) {
+          await safeLogActivity(user.uid, {
+            type: ACTIVITY_TYPES.TOPIC_COMPLETED,
+            subjectId: nextSubject.id,
+            topicId: nextTopic.id,
+            timestamp: nextTopic.completedAt || nextTopic.updatedAt || new Date().toISOString(),
+          })
+        }
       }
 
       const previousNotes = toSafeArray(previousTopic?.notes)

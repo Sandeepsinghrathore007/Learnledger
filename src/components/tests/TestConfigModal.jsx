@@ -300,8 +300,8 @@ export default function TestConfigModal({
           }}>
             Number of Questions
           </label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[5, 10, 15, 20].map(count => (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {[5, 10, 15, 20, 50].map(count => (
               <button
                 key={count}
                 type="button"

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import SubjectsPage from "@/pages/SubjectsPage";
+import AnalyticsPage from "@/pages/AnalyticsPage";
 import SubjectDetailPage from "@/pages/SubjectDetailPage";
 import NotesPage from "@/pages/NotesPage";
 import MockTestsPage from "@/pages/MockTestsPage";
@@ -360,6 +361,14 @@ export default function App() {
     if (isMobile) setMobileNavOpen(false);
   };
 
+  const handleOpenSubjectFromAnalytics = (subject) => {
+    if (!subject) return;
+
+    setSelected(subject);
+    setActivePage("subjects");
+    if (isMobile) setMobileNavOpen(false);
+  };
+
   const renderPage = () => {
     if (authLoading) {
       return <LoadingView message="Checking your Firebase session..." />;
@@ -393,6 +402,16 @@ export default function App() {
           user={authUser}
           subjects={subjects}
           onUpdateSubject={updateSubject}
+        />
+      );
+    }
+
+    if (activePage === "analytics") {
+      return (
+        <AnalyticsPage
+          user={authUser}
+          subjects={subjects}
+          onOpenSubject={handleOpenSubjectFromAnalytics}
         />
       );
     }

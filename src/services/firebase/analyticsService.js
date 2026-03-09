@@ -1,5 +1,6 @@
 import {
   getDocs,
+  onSnapshot,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore'
@@ -9,6 +10,7 @@ import { userActivityCol, userActivityDocRef } from './firestorePaths'
 export const ACTIVITY_TYPES = Object.freeze({
   NOTE_CREATED: 'note_created',
   TOPIC_CREATED: 'topic_created',
+  TOPIC_COMPLETED: 'topic_completed',
   TEST_TAKEN: 'test_taken',
   AI_QUESTION: 'ai_question',
 })
@@ -61,6 +63,25 @@ function mapActivityDoc(snapshot) {
     ...data,
     timestamp,
   }
+}
+
+export function subscribeToActivity(userId, onNext, onError) {
+  return onSnapshot(
+    userActivityCol(userId),
+    (snapshot) => {
+      const items = snapshot.docs
+        .map(mapActivityDoc)
+        .sort((a, b) => {
+          if (a.date === b.date) {
+            return (a.occurredAt || '').localeCompare(b.occurredAt || '')
+          }
+          return a.date.localeCompare(b.date)
+        })
+
+      onNext(items)
+    },
+    onError
+  )
 }
 
 export async function logActivity(userId, payload) {
@@ -141,6 +162,7 @@ export async function getDailyActivityHeatmap(userId, options = {}) {
       types: {
         [ACTIVITY_TYPES.NOTE_CREATED]: 0,
         [ACTIVITY_TYPES.TOPIC_CREATED]: 0,
+        [ACTIVITY_TYPES.TOPIC_COMPLETED]: 0,
         [ACTIVITY_TYPES.TEST_TAKEN]: 0,
         [ACTIVITY_TYPES.AI_QUESTION]: 0,
       },
@@ -164,6 +186,7 @@ export async function getDailyActivityHeatmap(userId, options = {}) {
         types: {
           [ACTIVITY_TYPES.NOTE_CREATED]: 0,
           [ACTIVITY_TYPES.TOPIC_CREATED]: 0,
+          [ACTIVITY_TYPES.TOPIC_COMPLETED]: 0,
           [ACTIVITY_TYPES.TEST_TAKEN]: 0,
           [ACTIVITY_TYPES.AI_QUESTION]: 0,
         },
@@ -233,6 +256,7 @@ export async function getActivityCounts(userId, options = {}) {
   const counts = {
     notesCreatedCount: 0,
     topicsCreatedCount: 0,
+    topicsCompletedCount: 0,
     testsTakenCount: 0,
     aiInteractionsCount: 0,
   }
@@ -240,6 +264,7 @@ export async function getActivityCounts(userId, options = {}) {
   logs.forEach((log) => {
     if (log.type === ACTIVITY_TYPES.NOTE_CREATED) counts.notesCreatedCount += 1
     if (log.type === ACTIVITY_TYPES.TOPIC_CREATED) counts.topicsCreatedCount += 1
+    if (log.type === ACTIVITY_TYPES.TOPIC_COMPLETED) counts.topicsCompletedCount += 1
     if (log.type === ACTIVITY_TYPES.TEST_TAKEN) counts.testsTakenCount += 1
     if (log.type === ACTIVITY_TYPES.AI_QUESTION) counts.aiInteractionsCount += 1
   })

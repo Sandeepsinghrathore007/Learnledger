@@ -42,6 +42,8 @@ function normalizeTopic(snapshot) {
     name: data.name || 'Untitled Topic',
     questionsCount: Number.isFinite(data.questionsCount) ? data.questionsCount : 0,
     notesCount: Number.isFinite(data.notesCount) ? data.notesCount : 0,
+    isCompleted: Boolean(data.isCompleted),
+    completedAt: toIso(data.completedAt),
     createdAt: toIso(data.createdAt),
     updatedAt: toIso(data.updatedAt),
   }
@@ -96,6 +98,8 @@ export async function createTopic(userId, topicInput) {
     name: String(topicInput.name || '').trim() || 'Untitled Topic',
     questionsCount: Number.isFinite(topicInput.questionsCount) ? topicInput.questionsCount : 0,
     notesCount: Number.isFinite(topicInput.notesCount) ? topicInput.notesCount : 0,
+    isCompleted: Boolean(topicInput.isCompleted),
+    completedAt: topicInput.completedAt || null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
@@ -122,6 +126,11 @@ export async function updateTopic(userId, subjectId, topicId, updates) {
 
   if (Object.prototype.hasOwnProperty.call(payload, 'name')) {
     payload.name = String(payload.name || '').trim() || 'Untitled Topic'
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'isCompleted')) {
+    payload.isCompleted = Boolean(payload.isCompleted)
+    payload.completedAt = payload.isCompleted ? payload.completedAt || serverTimestamp() : null
   }
 
   await updateDoc(userTopicDocRef(userId, subjectId, topicId), payload)
