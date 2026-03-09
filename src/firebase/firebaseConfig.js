@@ -15,31 +15,43 @@ const firebaseConfig = {
 
 const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'appId']
 const missingKeys = requiredKeys.filter((key) => !firebaseConfig[key])
+const isFirebaseConfigured = missingKeys.length === 0
+const firebaseConfigError = isFirebaseConfigured
+  ? ''
+  : `Firebase config is missing: ${missingKeys.join(', ')}. Set VITE_FIREBASE_* variables in your .env file or GitHub Actions secrets.`
 
-if (missingKeys.length > 0) {
-  console.warn(
-    `Firebase config is missing: ${missingKeys.join(', ')}. ` +
-    'Set VITE_FIREBASE_* variables in your .env file.'
-  )
+if (!isFirebaseConfigured) {
+  console.warn(firebaseConfigError)
 }
 
-export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig)
-export const auth = getAuth(app)
-export const db = initializeFirestore(app, {
-  // Helps in environments where WebChannel streams are blocked by browser/network policies.
-  experimentalAutoDetectLongPolling: true,
-  useFetchStreams: false,
-})
-export const functions = getFunctions(app, import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'us-central1')
+export const app = isFirebaseConfigured
+  ? getApps().length > 0
+    ? getApp()
+    : initializeApp(firebaseConfig)
+  : null
 
-export const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch((error) => {
-  console.error('Failed to set Firebase auth persistence:', error)
-})
+export const auth = app ? getAuth(app) : null
+export const db = app
+  ? initializeFirestore(app, {
+      // Helps in environments where WebChannel streams are blocked by browser/network policies.
+      experimentalAutoDetectLongPolling: true,
+      useFetchStreams: false,
+    })
+  : null
+export const functions = app
+  ? getFunctions(app, import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'us-central1')
+  : null
+
+export const authPersistenceReady = auth
+  ? setPersistence(auth, browserLocalPersistence).catch((error) => {
+      console.error('Failed to set Firebase auth persistence:', error)
+    })
+  : Promise.resolve()
 
 let analyticsPromise = null
 
 export async function getFirebaseAnalytics() {
-  if (typeof window === 'undefined') {
+  if (typeof window === 'undefined' || !app) {
     return null
   }
 
@@ -58,4 +70,5 @@ export async function getFirebaseAnalytics() {
   return analyticsPromise
 }
 
+export { firebaseConfigError, isFirebaseConfigured, missingKeys }
 export { firebaseConfig }

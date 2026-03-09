@@ -13,6 +13,11 @@ import SubjectFormModal from "@/components/subjects/SubjectFormModal";
 import { useSubjects } from "@/hooks/useSubjects";
 import { NAV_ITEMS } from "@/constants/navigation";
 import { BG } from "@/constants/theme";
+import {
+  firebaseConfigError,
+  isFirebaseConfigured,
+  missingKeys,
+} from "@/services/firebase/firebaseConfig";
 import { logoutUser, observeAuthState } from "@/services/firebase/authService";
 import { uid } from "@/utils/id";
 
@@ -91,6 +96,97 @@ function GuestAIBlockedView({ onOpenLogin }) {
   );
 }
 
+function FirebaseSetupView() {
+  const isGitHubPages =
+    typeof window !== "undefined" && window.location.hostname.endsWith("github.io");
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: BG,
+        display: "grid",
+        placeItems: "center",
+        padding: "24px",
+      }}
+    >
+      <div
+        style={{
+          width: "min(760px, 100%)",
+          border: "1px solid rgba(239,68,68,0.25)",
+          borderRadius: "16px",
+          background: "rgba(20,12,40,0.92)",
+          padding: "22px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+        }}
+      >
+        <h1
+          style={{
+            margin: "0 0 10px",
+            color: "#f5edff",
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: "24px",
+            fontWeight: "800",
+          }}
+        >
+          Firebase setup is incomplete
+        </h1>
+        <p
+          style={{
+            margin: "0 0 14px",
+            color: "#d1c4ef",
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: "14px",
+            lineHeight: 1.7,
+          }}
+        >
+          {firebaseConfigError}
+        </p>
+        <div
+          style={{
+            borderRadius: "12px",
+            border: "1px solid rgba(139,92,246,0.24)",
+            background: "rgba(139,92,246,0.08)",
+            padding: "14px",
+            color: "#efe7ff",
+            fontFamily: "'Fira Code', monospace",
+            fontSize: "12px",
+            lineHeight: 1.7,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {`Missing keys: ${missingKeys.join(", ")}
+
+Required build variables:
+VITE_FIREBASE_API_KEY
+VITE_FIREBASE_AUTH_DOMAIN
+VITE_FIREBASE_PROJECT_ID
+VITE_FIREBASE_APP_ID
+
+Optional but recommended:
+VITE_FIREBASE_STORAGE_BUCKET
+VITE_FIREBASE_MESSAGING_SENDER_ID
+VITE_FIREBASE_MEASUREMENT_ID
+VITE_FIREBASE_FUNCTIONS_REGION`}
+        </div>
+        <p
+          style={{
+            margin: "14px 0 0",
+            color: "#bba8e4",
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: "13px",
+            lineHeight: 1.7,
+          }}
+        >
+          {isGitHubPages
+            ? "For GitHub Pages, add these values in GitHub repository Settings -> Secrets and variables -> Actions, then rerun the Deploy to GitHub Pages workflow on main."
+            : "For local development, add these values to your .env file and restart the Vite dev server."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [activePage, setActivePage] = useState("subjects");
   const [collapsed, setCollapsed] = useState(false);
@@ -128,6 +224,11 @@ export default function App() {
   } = useSubjects(authUser);
 
   useEffect(() => {
+    if (!isFirebaseConfigured) {
+      setAuthLoading(false);
+      return undefined;
+    }
+
     const unsubscribe = observeAuthState((user) => {
       setAuthUser(user);
       setAuthLoading(false);
@@ -361,6 +462,10 @@ export default function App() {
 
     return <ComingSoonPage pageId={activePage} />;
   };
+
+  if (!isFirebaseConfigured) {
+    return <FirebaseSetupView />;
+  }
 
   return (
     <div className="flex min-h-screen" style={{ background: BG }}>

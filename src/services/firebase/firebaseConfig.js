@@ -4,6 +4,9 @@ export {
   authPersistenceReady,
   db,
   firebaseConfig,
+  firebaseConfigError,
   functions,
   getFirebaseAnalytics,
+  isFirebaseConfigured,
+  missingKeys,
 } from '@/firebase/firebaseConfig'
