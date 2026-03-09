@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { auth, authPersistenceReady, db } from './firebaseConfig'
+import { isGitHubPagesHost } from '@/utils/runtimeRecovery'
 
 const USERS_COLLECTION = 'users'
 
@@ -137,7 +138,9 @@ export function mapFirebaseAuthError(error) {
     case 'auth/cancelled-popup-request':
       return 'Google sign-in was cancelled. Please try again.'
     case 'auth/unauthorized-domain':
-      return `Google sign-in is blocked because "${getCurrentHostname()}" is not added in Firebase Authentication -> Settings -> Authorized domains. Add that hostname in Firebase Console and try again.`
+      return isGitHubPagesHost(getCurrentHostname())
+        ? `Google sign-in is blocked because "${getCurrentHostname()}" is not added in Firebase Authentication -> Settings -> Authorized domains. Add that hostname in Firebase Console. If you already added it, refresh the deployed app once to clear cached files and try again.`
+        : `Google sign-in is blocked because "${getCurrentHostname()}" is not added in Firebase Authentication -> Settings -> Authorized domains. Add that hostname in Firebase Console and try again.`
     case 'auth/operation-not-allowed':
       return 'Google login is not enabled for this Firebase project.'
     default:

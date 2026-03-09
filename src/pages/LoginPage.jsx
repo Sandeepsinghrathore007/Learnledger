@@ -4,8 +4,8 @@ import {
   loginWithEmail,
   mapFirebaseAuthError,
 } from '@/services/firebase/authService'
-import { firebaseConfig } from '@/services/firebase/firebaseConfig'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
+import { resetCachedDeployedApp } from '@/utils/runtimeRecovery'
 
 function GoogleIcon() {
   return (
@@ -28,14 +28,6 @@ function GoogleIcon() {
       />
     </svg>
   )
-}
-
-function getCurrentHostname() {
-  if (typeof window === 'undefined' || !window.location?.hostname) {
-    return 'unknown'
-  }
-
-  return window.location.hostname
 }
 
 export default function LoginPage({ onSwitchToSignup, onLoginSuccess = () => {} }) {
@@ -84,6 +76,14 @@ export default function LoginPage({ onSwitchToSignup, onLoginSuccess = () => {} 
       setNotice('Signed in with Google.')
       onLoginSuccess(user)
     } catch (authError) {
+      if (authError?.code === 'auth/unauthorized-domain') {
+        const didResetCache = await resetCachedDeployedApp()
+
+        if (didResetCache) {
+          return
+        }
+      }
+
       setError(mapFirebaseAuthError(authError))
     } finally {
       setIsSubmitting(false)
@@ -242,25 +242,6 @@ export default function LoginPage({ onSwitchToSignup, onLoginSuccess = () => {} 
               Create account
             </button>
           </p>
-        </div>
-
-        <div
-          style={{
-            marginTop: '12px',
-            borderRadius: '10px',
-            border: `1px solid ${BORDER}`,
-            background: 'rgba(255,255,255,0.03)',
-            padding: '10px',
-            color: TEXT3,
-            fontFamily: "'Fira Code', monospace",
-            fontSize: '11px',
-            lineHeight: 1.6,
-            wordBreak: 'break-word',
-          }}
-        >
-          <div>Host: {getCurrentHostname()}</div>
-          <div>Firebase project: {firebaseConfig?.projectId || 'not set'}</div>
-          <div>Auth domain: {firebaseConfig?.authDomain || 'not set'}</div>
         </div>
       </div>
     </div>

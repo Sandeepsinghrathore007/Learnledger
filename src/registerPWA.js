@@ -9,8 +9,11 @@ export function registerPWA() {
 
   didRegister = true
 
-  registerSW({
+  const updateSW = registerSW({
     immediate: true,
+    onNeedRefresh() {
+      updateSW(true)
+    },
     onRegisterError(error) {
       console.error('PWA service worker registration failed:', error)
     },
