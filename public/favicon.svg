@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title>LearnLedger</title>
+  <desc>LearnLedger app icon</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="55%" stop-color="#5b21b6"/>
+      <stop offset="100%" stop-color="#12082b"/>
+    </linearGradient>
+    <linearGradient id="book" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff3d6"/>
+      <stop offset="100%" stop-color="#ffd166"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="url(#bg)"/>
+  <path d="M63 68c0-12 10-22 22-22h80c16 0 28 12 28 28v108c0 15-12 27-27 27H91c-15 0-28-11-28-26V68z" fill="rgba(7,1,19,0.36)"/>
+  <path d="M84 58h77c11 0 20 9 20 20v95c0 12-9 21-21 21H95c-12 0-21-9-21-21V68c0-6 4-10 10-10z" fill="url(#book)"/>
+  <path d="M97 82h61" stroke="#5b21b6" stroke-width="12" stroke-linecap="round"/>
+  <path d="M97 111h45" stroke="#7c3aed" stroke-width="12" stroke-linecap="round" opacity="0.9"/>
+  <path d="M97 140h55" stroke="#8b5cf6" stroke-width="12" stroke-linecap="round" opacity="0.85"/>
+  <path d="M84 168c11-8 22-12 34-12 16 0 31 7 43 18 7 6 17 5 23-2l11-13v24c0 15-12 27-27 27H91c-15 0-28-11-28-26v-22l21 6z" fill="#12082b" opacity="0.88"/>
+</svg>
