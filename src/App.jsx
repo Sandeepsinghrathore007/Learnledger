@@ -11,6 +11,7 @@ import SignupPage from "@/pages/SignupPage";
 import ComingSoonPage from "@/pages/ComingSoonPage";
 import SubjectFormModal from "@/components/subjects/SubjectFormModal";
 import { useSubjects } from "@/hooks/useSubjects";
+import { usePWAInstallPrompt } from "@/hooks/usePWAInstallPrompt";
 import { NAV_ITEMS } from "@/constants/navigation";
 import { BG } from "@/constants/theme";
 import {
@@ -202,6 +203,9 @@ export default function App() {
 
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [installPending, setInstallPending] = useState(false);
+  const [installNotice, setInstallNotice] = useState("");
+  const { canInstall, installApp, lastOutcome } = usePWAInstallPrompt();
 
   const {
     subjects,
@@ -263,6 +267,16 @@ export default function App() {
   }, [isMobile]);
 
   useEffect(() => {
+    if (!installNotice) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setInstallNotice("");
+    }, 3200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [installNotice]);
+
+  useEffect(() => {
     if (activePage !== "notes" || !openNoteContext) return;
 
     const subject = subjects.find(
@@ -311,6 +325,29 @@ export default function App() {
       setActivePage("subjects");
     } catch (logoutError) {
       console.error("Failed to logout:", logoutError);
+    }
+  };
+
+  const handleInstallApp = async () => {
+    if (installPending) return;
+
+    setInstallPending(true);
+
+    try {
+      const result = await installApp();
+
+      if (result.outcome === "accepted") {
+        setInstallNotice("Install prompt accepted.");
+      } else if (result.outcome === "dismissed") {
+        setInstallNotice("Install prompt dismissed.");
+      } else if (result.outcome === "unavailable") {
+        setInstallNotice("Install is not available on this browser yet.");
+      }
+    } catch (error) {
+      console.error("Failed to trigger install prompt:", error);
+      setInstallNotice("Failed to open install prompt.");
+    } finally {
+      setInstallPending(false);
     }
   };
 
@@ -507,9 +544,32 @@ export default function App() {
           pageTitle={pageTitle}
           showMenuButton={isMobile}
           onMenuClick={() => setMobileNavOpen((value) => !value)}
+          canInstall={canInstall}
+          onInstallClick={handleInstallApp}
+          isInstallPending={installPending}
         />
 
         <div className="flex-1 min-w-0 px-4 py-5 sm:px-6 sm:py-6 lg:px-[30px] lg:py-[28px]">
+          {installNotice && (
+            <div
+              style={{
+                border: "1px solid rgba(139,92,246,0.28)",
+                background:
+                  lastOutcome === "dismissed"
+                    ? "rgba(245,158,11,0.08)"
+                    : "rgba(139,92,246,0.08)",
+                borderRadius: "10px",
+                color: lastOutcome === "dismissed" ? "#fcd34d" : "#d7c8ff",
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "12px",
+                padding: "9px 10px",
+                marginBottom: "12px",
+              }}
+            >
+              {installNotice}
+            </div>
+          )}
+
           {authUser && error && (
             <div
               style={{

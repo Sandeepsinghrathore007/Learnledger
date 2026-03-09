@@ -29,7 +29,32 @@ function MenuIcon() {
   )
 }
 
-export default function TopBar({ pageTitle, showMenuButton = false, onMenuClick = () => {} }) {
+function InstallIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ width: '15px', height: '15px' }}
+    >
+      <path d="M12 3v10" />
+      <path d="m8 9 4 4 4-4" />
+      <path d="M5 17v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1" />
+    </svg>
+  )
+}
+
+export default function TopBar({
+  pageTitle,
+  showMenuButton = false,
+  onMenuClick = () => {},
+  canInstall = false,
+  onInstallClick = () => {},
+  isInstallPending = false,
+}) {
   const today = new Date().toLocaleDateString('en-IN', {
     weekday: 'long',
     month:   'long',
@@ -81,6 +106,36 @@ export default function TopBar({ pageTitle, showMenuButton = false, onMenuClick 
           {today}
         </p>
         </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        {canInstall && (
+          <button
+            type="button"
+            onClick={onInstallClick}
+            disabled={isInstallPending}
+            style={{
+              border: `1px solid ${BORDER}`,
+              borderRadius: '999px',
+              padding: '8px 12px',
+              background: isInstallPending
+                ? 'rgba(124,58,237,0.12)'
+                : 'linear-gradient(135deg,rgba(139,92,246,0.18),rgba(79,70,229,0.16))',
+              color: '#e9ddff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+              fontFamily: "'DM Sans',sans-serif",
+              fontSize: '12px',
+              fontWeight: '700',
+              letterSpacing: '-0.1px',
+              opacity: isInstallPending ? 0.7 : 1,
+            }}
+            aria-label="Install LearnLedger app"
+          >
+            <InstallIcon />
+            <span>{isInstallPending ? 'Opening...' : 'Install App'}</span>
+          </button>
+        )}
       </div>
     </header>
   )
