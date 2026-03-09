@@ -1,0 +1,232 @@
+/**
+ * global.css — Global styles for Learnledger.
+ *
+ * Includes:
+ *  - Tailwind base directives
+ *  - Custom animations used across the app
+ *  - Shared CSS class patterns (floating toolbar, tooltip, toast)
+ *  - Scrollbar styling
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── FONT SMOOTHING ─────────────────────────────────────────────────────────── */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  box-sizing: border-box;
+}
+
+body,
+#root {
+  background: #070510;
+  margin: 0;
+  padding: 0;
+  font-family: 'DM Sans', 'Noto Sans Devanagari', sans-serif;
+  overflow-x: hidden;
+}
+
+/* Text selection highlight */
+::selection {
+  background: rgba(139, 92, 246, 0.38);
+  color: #fff;
+}
+
+/* ── SCROLLBAR ───────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.2);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.4);
+}
+
+/* ── ANIMATIONS ─────────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: translateX(-50%) scale(0.9) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) scale(1)   translateY(0);   }
+}
+
+/* ── ANIMATION UTILITY CLASSES ──────────────────────────────────────────────── */
+.animate-fade-up    { animation: fadeUp    0.28s ease both; }
+.animate-fade-in    { animation: fadeIn    0.22s ease both; }
+.animate-scale-in   { animation: scaleIn  0.18s ease both; }
+.animate-slide-right{ animation: slideRight 0.22s ease both; }
+.animate-pop-in     { animation: popIn    0.14s ease both; }
+
+/* ── TIPTAP NOTE EDITOR ─────────────────────────────────────────────────────── */
+.learnledger-tiptap-shell .ProseMirror {
+  min-height: 480px;
+  padding: 22px 24px 26px;
+  color: #ede6ff;
+  font-size: 15px;
+  line-height: 1.8;
+  font-family: 'DM Sans', 'Noto Sans Devanagari', sans-serif;
+  white-space: pre-wrap;
+}
+.learnledger-tiptap-shell .ProseMirror:focus {
+  outline: none;
+}
+.learnledger-tiptap-shell .ProseMirror > *:first-child {
+  margin-top: 0;
+}
+.learnledger-tiptap-shell .ProseMirror > *:last-child {
+  margin-bottom: 0;
+}
+.learnledger-tiptap-shell .ProseMirror h1,
+.learnledger-tiptap-shell .ProseMirror h2,
+.learnledger-tiptap-shell .ProseMirror h3 {
+  color: #f2ebff;
+  margin: 1rem 0 0.45rem;
+  line-height: 1.25;
+}
+.learnledger-tiptap-shell .ProseMirror h1 {
+  font-size: 2rem;
+  font-weight: 800;
+}
+.learnledger-tiptap-shell .ProseMirror h2 {
+  font-size: 1.55rem;
+  font-weight: 700;
+}
+.learnledger-tiptap-shell .ProseMirror h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.learnledger-tiptap-shell .ProseMirror p {
+  margin: 0.55rem 0;
+}
+.learnledger-tiptap-shell .ProseMirror ul,
+.learnledger-tiptap-shell .ProseMirror ol {
+  margin: 0.7rem 0;
+  padding-left: 1.5rem;
+}
+.learnledger-tiptap-shell .ProseMirror blockquote {
+  border-left: 3px solid rgba(139, 92, 246, 0.5);
+  padding-left: 0.8rem;
+  margin: 0.8rem 0;
+  color: #b7abdd;
+}
+.learnledger-tiptap-shell .ProseMirror code {
+  background: rgba(139, 92, 246, 0.16);
+  border: 1px solid rgba(139, 92, 246, 0.22);
+  border-radius: 5px;
+  padding: 1px 5px;
+  color: #e9deff;
+  font-size: 0.9em;
+}
+.learnledger-tiptap-shell .ProseMirror pre {
+  background: #0a0817;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 12px;
+  padding: 14px;
+  color: #d8cbff;
+  overflow-x: auto;
+}
+.learnledger-tiptap-shell .ProseMirror pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: 13px;
+}
+
+/* ── TOOLTIP ────────────────────────────────────────────────────────────────── */
+.tip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.tip-wrap .tip-label {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1c1830;
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  color: #c4b5f5;
+  font-size: 10.5px;
+  font-family: 'DM Sans', sans-serif;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.tip-wrap:hover .tip-label {
+  opacity: 1;
+}
+
+/* ── TOAST NOTIFICATION ─────────────────────────────────────────────────────── */
+.toast-notification {
+  animation: slideRight 0.22s ease both;
+}
+
+/* ── FORM INPUTS (shared base style) ───────────────────────────────────────── */
+.learnledger-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(139, 92, 246, 0.04);
+  border: 1px solid rgba(139, 92, 246, 0.12);
+  border-radius: 10px;
+  color: #ede6ff;
+  font-family: 'DM Sans', 'Noto Sans Devanagari', sans-serif;
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.learnledger-input:focus {
+  border-color: rgba(139, 92, 246, 0.24);
+}
+
+/* ── SELECT DROPDOWN READABILITY ─────────────────────────────────────────── */
+select.learnledger-input {
+  background-color: rgba(139, 92, 246, 0.06);
+  color: #ede6ff;
+}
+
+select.learnledger-input option {
+  background: #19142a;
+  color: #ede6ff;
+}
+
+select.learnledger-input option:checked {
+  background: #2c1f4f;
+  color: #ffffff;
+}
+
+/* ── BUTTON BASE ────────────────────────────────────────────────────────────── */
+button {
+  outline: none;
+  cursor: pointer;
+}
