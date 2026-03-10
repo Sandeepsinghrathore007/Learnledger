@@ -2,7 +2,7 @@
 
 Learnledger is a study management web app built with React, Vite, and Firebase.
 
-## Features
+## Features - 
 
 - Subject and topic management
 - Notes and study materials
@@ -10,7 +10,7 @@ Learnledger is a study management web app built with React, Vite, and Firebase.
 - AI-generated mock tests
 - PDF-backed AI study context
 
-## Tech Stack
+## Tech Stack 
 
 - React
 - Vite
