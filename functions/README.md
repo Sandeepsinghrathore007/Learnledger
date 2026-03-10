@@ -25,6 +25,8 @@ firebase functions:secrets:set GEMINI_API_KEY
 
 Do not inject `VITE_OPENROUTER_API_KEY` or `VITE_GEMINI_API_KEY` into the frontend build for GitHub Pages. Public static builds should call this backend instead. If a browser key was already exposed, rotate it before redeploying.
 
+Firebase Functions secrets require the Firebase project to be on the Blaze plan. On the free plan, this backend path cannot be deployed.
+
 ## Optional Runtime Config (environment variables)
 
 - `FUNCTION_REGION` (default: `us-central1`)

@@ -29,3 +29,5 @@ npm run dev
 Use `VITE_AI_ASSISTANT_MODE=functions` for deployed builds. The repo already includes a Firebase callable backend in [`functions/src/index.js`](/home/sandeepsingh/Desktop/LearnLedger/studyos/functions/src/index.js) so AI provider keys stay off the client.
 
 Do not pass `VITE_OPENROUTER_API_KEY` or `VITE_GEMINI_API_KEY` into a public static build such as GitHub Pages. If those keys were already exposed, rotate them in the provider dashboards before redeploying.
+
+Firebase Functions deployment requires the project to be on the Blaze plan. If you stay on the free plan, the practical fallback for GitHub Pages is direct browser mode with rotated provider keys and referrer restrictions.
