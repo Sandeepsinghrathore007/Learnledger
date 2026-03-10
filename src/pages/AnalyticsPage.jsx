@@ -249,7 +249,7 @@ function EmptyCard({ title, description, action = null }) {
   )
 }
 
-function MetricChip({ label, value }) {
+function MetricChip({ label, value, helper = '' }) {
   return (
     <div
       style={{
@@ -281,6 +281,19 @@ function MetricChip({ label, value }) {
       >
         {value}
       </div>
+      {helper ? (
+        <div
+          style={{
+            color: TEXT3,
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: '10.5px',
+            marginTop: '4px',
+            lineHeight: 1.4,
+          }}
+        >
+          {helper}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -480,11 +493,21 @@ function ExamGroupCard({ group, onEdit, onDelete, onOpenSubject }) {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          gap: '12px',
+        }}
+      >
         <MetricChip label="Topics" value={formatValue(group.totalTopics)} />
         <MetricChip label="Tests" value={formatValue(group.testsTaken)} />
         <MetricChip label="Avg Score" value={formatPercent(group.averageScore)} />
-        <MetricChip label="AI Usage" value={formatValue(group.aiPracticeUsage)} />
+        <MetricChip
+          label="AI Usage"
+          value={formatValue(group.aiPracticeUsage)}
+          helper="AI chats + solved Qs"
+        />
         <MetricChip label="Questions" value={formatValue(group.questionsAttempted)} />
         <MetricChip label="Questions Solved" value={formatValue(group.aiQuestionsAttempted)} />
       </div>

@@ -1,5 +1,8 @@
 import { compactWhitespace, trimToLength } from './text.js'
 
+const DEVANAGARI_REGEX = /[\u0900-\u097F]/g
+const LATIN_REGEX = /[A-Za-z]/g
+
 function tryParseJson(rawText) {
   try {
     return JSON.parse(rawText)
@@ -83,7 +86,43 @@ function parseKeyPoints(value) {
   return []
 }
 
-export function parseStructuredStudyResponse(rawText) {
+function countMatches(value, pattern) {
+  return (String(value || '').match(pattern) || []).length
+}
+
+function containsDevanagari(value) {
+  return countMatches(value, DEVANAGARI_REGEX) > 0
+}
+
+function validateStructuredAnswerLanguage(answer, language) {
+  if (String(language || '').trim().toLowerCase() !== 'hindi') {
+    return
+  }
+
+  const fields = [
+    ['title', answer.title],
+    ['explanation', answer.explanation],
+    ['example', answer.example],
+    ['summary', answer.summary],
+    ...answer.keyPoints.map((point, index) => [`keyPoints[${index}]`, point]),
+  ]
+
+  for (const [fieldName, value] of fields) {
+    if (!containsDevanagari(value)) {
+      throw new Error(`AI response field "${fieldName}" must be written in Hindi script`)
+    }
+  }
+
+  const combinedText = fields.map(([, value]) => String(value || '')).join(' ')
+  const devanagariCount = countMatches(combinedText, DEVANAGARI_REGEX)
+  const latinCount = countMatches(combinedText, LATIN_REGEX)
+
+  if (devanagariCount < 24 || latinCount > devanagariCount) {
+    throw new Error('AI returned Hindi in Roman script')
+  }
+}
+
+export function parseStructuredStudyResponse(rawText, options = {}) {
   const jsonText = extractJsonBlock(rawText)
   const parsed = tryParseJson(jsonText) ?? tryParseJson(repairJsonText(jsonText))
 
@@ -101,11 +140,14 @@ export function parseStructuredStudyResponse(rawText) {
     throw new Error('AI response was incomplete for required note fields')
   }
 
-  return {
+  const answer = {
     title,
     explanation,
     keyPoints,
     example,
     summary,
   }
+
+  validateStructuredAnswerLanguage(answer, options.language)
+  return answer
 }

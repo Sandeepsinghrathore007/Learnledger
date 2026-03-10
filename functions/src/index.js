@@ -93,6 +93,7 @@ export const askStudyAssistant = onCall(
         modelOrder,
         systemPrompt,
         userPrompt,
+        language: payload.language,
         maxOutputTokens: APP_CONFIG.maxOutputTokens,
         timeoutMs: APP_CONFIG.requestTimeoutMs,
       })

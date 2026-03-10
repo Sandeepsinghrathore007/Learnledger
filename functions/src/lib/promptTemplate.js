@@ -40,6 +40,14 @@ export function getLanguageLabel(language) {
   return LANGUAGE_MAP[normalizeLanguage(language)]
 }
 
+function getLanguageInstruction(language) {
+  if (normalizeLanguage(language) === 'hindi') {
+    return 'For Hindi responses, every value must use Devanagari script. Never write Hindi in Roman or Latin letters. Use English only for unavoidable code, formulas, or proper nouns.'
+  }
+
+  return 'Use natural English for every value.'
+}
+
 export function buildStudyPrompts({ language, subjectContext, question, referenceLabel, referenceMaterial }) {
   const languageLabel = getLanguageLabel(language)
   const contextLabel = subjectContext || 'General study context'
@@ -48,6 +56,7 @@ export function buildStudyPrompts({ language, subjectContext, question, referenc
     'You are LearnLedger AI Assistant inside the LearnLedger study platform.',
     'If the student asks who you are, describe yourself as LearnLedger AI Assistant.',
     `Write all fields in ${languageLabel}.`,
+    getLanguageInstruction(language),
     'Return only one valid JSON object with these exact keys and no extras:',
     '{"title":"", "explanation":"", "keyPoints":[], "example":"", "summary":""}',
     'Keep answers concise and useful for study notes:',

@@ -140,6 +140,7 @@ export async function generateStructuredAnswerWithModelOrder({
   modelOrder,
   systemPrompt,
   userPrompt,
+  language,
   maxOutputTokens,
   timeoutMs,
 }) {
@@ -177,7 +178,7 @@ export async function generateStructuredAnswerWithModelOrder({
         })
       }
 
-      const parsed = parseStructuredStudyResponse(rawResponse.text)
+      const parsed = parseStructuredStudyResponse(rawResponse.text, { language })
 
       return {
         answer: parsed,

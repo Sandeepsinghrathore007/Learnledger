@@ -15,6 +15,24 @@ const LANGUAGE_OPTIONS = [
   { id: 'hindi', label: 'Hindi' },
 ]
 
+function getStructuredAnswerLabels(language = 'english') {
+  if (language === 'hindi') {
+    return {
+      keyPoints: 'मुख्य बिंदु',
+      shortExplanation: 'संक्षिप्त व्याख्या',
+      example: 'उदाहरण',
+      summary: 'सारांश',
+    }
+  }
+
+  return {
+    keyPoints: 'Key Points',
+    shortExplanation: 'Short Explanation',
+    example: 'Example',
+    summary: 'Summary',
+  }
+}
+
 function escapeHtml(text = '') {
   return String(text)
     .replaceAll('&', '&amp;')
@@ -93,52 +111,55 @@ function toStructuredNotePayload(answer) {
   }
 }
 
-function formatStructuredAnswer(answer) {
+function formatStructuredAnswer(answer, language = 'english') {
   const normalized = normalizeStructuredAnswer(answer)
   if (!normalized) return ''
+  const labels = getStructuredAnswerLabels(language)
 
   return [
     normalized.title,
     '',
     normalized.explanation,
     '',
-    'Key Points:',
+    `${labels.keyPoints}:`,
     ...normalized.keyPoints.map((point) => `- ${point}`),
     '',
-    `Example: ${normalized.example}`,
+    `${labels.example}: ${normalized.example}`,
     '',
-    `Summary: ${normalized.summary}`,
+    `${labels.summary}: ${normalized.summary}`,
   ].join('\n')
 }
 
-function buildStructuredNoteHtml(data) {
+function buildStructuredNoteHtml(data, language = 'english') {
+  const labels = getStructuredAnswerLabels(language)
   const keyPointsHtml = data.keyPoints
     .map((point) => `<li>${escapeHtml(point)}</li>`)
     .join('')
 
   return [
     `<h1>${escapeHtml(data.topicTitle)}</h1>`,
-    '<h2>Short Explanation</h2>',
+    `<h2>${escapeHtml(labels.shortExplanation)}</h2>`,
     `<p>${escapeHtml(data.shortExplanation)}</p>`,
-    '<h2>Key Points</h2>',
+    `<h2>${escapeHtml(labels.keyPoints)}</h2>`,
     `<ul>${keyPointsHtml}</ul>`,
-    '<h2>Example or Illustration</h2>',
+    `<h2>${escapeHtml(labels.example)}</h2>`,
     `<p>${escapeHtml(data.example)}</p>`,
-    '<h2>Summary</h2>',
+    `<h2>${escapeHtml(labels.summary)}</h2>`,
     `<p>${escapeHtml(data.summary)}</p>`,
   ].join('')
 }
 
-function buildStructuredBlocks(data) {
+function buildStructuredBlocks(data, language = 'english') {
+  const labels = getStructuredAnswerLabels(language)
   return [
     { id: uid(), type: 'h1', text: data.topicTitle },
-    { id: uid(), type: 'h2', text: 'Short Explanation' },
+    { id: uid(), type: 'h2', text: labels.shortExplanation },
     { id: uid(), type: 'p', text: data.shortExplanation },
-    { id: uid(), type: 'h2', text: 'Key Points' },
+    { id: uid(), type: 'h2', text: labels.keyPoints },
     { id: uid(), type: 'bullet', text: data.keyPoints.join('\n') },
-    { id: uid(), type: 'h2', text: 'Example or Illustration' },
+    { id: uid(), type: 'h2', text: labels.example },
     { id: uid(), type: 'p', text: data.example },
-    { id: uid(), type: 'h2', text: 'Summary' },
+    { id: uid(), type: 'h2', text: labels.summary },
     { id: uid(), type: 'p', text: data.summary },
   ]
 }
@@ -269,7 +290,7 @@ export default function AIAssistantPage({ user, subjects, onUpdateSubject, initi
         throw new Error('AI returned an invalid response format. Please try again.')
       }
 
-      const text = formatStructuredAnswer(structured)
+      const text = formatStructuredAnswer(structured, language)
       const modelUsed = response?.meta?.modelUsed || null
       const provider = response?.meta?.provider || null
       const cacheHit = Boolean(response?.meta?.cacheHit)
@@ -344,8 +365,8 @@ export default function AIAssistantPage({ user, subjects, onUpdateSubject, initi
       const note = {
         id: uid(),
         title: topicName,
-        content: buildStructuredNoteHtml(structured),
-        blocks: buildStructuredBlocks(structured),
+        content: buildStructuredNoteHtml(structured, assistantMessage.language),
+        blocks: buildStructuredBlocks(structured, assistantMessage.language),
         tags: ['ai-generated'],
         isFavorite: false,
         isPinned: false,

@@ -9,7 +9,7 @@ const DIRECT_MODE = String(import.meta.env.VITE_AI_ASSISTANT_MODE || '').trim().
 const ALLOW_UNSAFE_DIRECT = String(import.meta.env.VITE_AI_ASSISTANT_ALLOW_UNSAFE_DIRECT || '').trim().toLowerCase() === 'true'
 const HAS_FRONTEND_AI_KEY = Boolean(String(import.meta.env.VITE_OPENROUTER_API_KEY || '').trim())
 
-const DIRECT_CACHE_KEY = 'learnledger.ai-assistant.cache.v3'
+const DIRECT_CACHE_KEY = 'learnledger.ai-assistant.cache.v4'
 const DIRECT_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7
 const DIRECT_CACHE_MAX_ITEMS = 60
 const MAX_QUESTION_CHARS = 400
@@ -17,6 +17,10 @@ const MAX_CONTEXT_CHARS = 120
 const MAX_REFERENCE_LABEL_CHARS = 120
 const MAX_REFERENCE_MATERIAL_CHARS = 3_600
 const MAX_OUTPUT_TOKENS = 320
+const MAX_DIRECT_GENERATION_ATTEMPTS = 2
+const DIRECT_CACHE_VERSION = 'study-assistant-v2'
+const DEVANAGARI_REGEX = /[\u0900-\u097F]/g
+const LATIN_REGEX = /[A-Za-z]/g
 
 function trimToLength(value, maxChars) {
   return String(value || '').trim().slice(0, maxChars)
@@ -45,15 +49,53 @@ function normalizeRequestPayload(payload) {
   }
 }
 
+function countMatches(value, pattern) {
+  return (String(value || '').match(pattern) || []).length
+}
+
+function containsDevanagari(value) {
+  return countMatches(value, DEVANAGARI_REGEX) > 0
+}
+
+function validateStructuredAnswerLanguage(answer, language) {
+  if (!answer || language !== 'hindi') return
+
+  const fields = [
+    ['title', answer.title],
+    ['explanation', answer.explanation],
+    ['example', answer.example],
+    ['summary', answer.summary],
+    ...answer.keyPoints.map((point, index) => [`keyPoints[${index}]`, point]),
+  ]
+
+  for (const [fieldName, value] of fields) {
+    if (!containsDevanagari(value)) {
+      throw new Error(`AI response field "${fieldName}" must be written in Hindi script.`)
+    }
+  }
+
+  const combinedText = fields.map(([, value]) => String(value || '')).join(' ')
+  const devanagariCount = countMatches(combinedText, DEVANAGARI_REGEX)
+  const latinCount = countMatches(combinedText, LATIN_REGEX)
+
+  if (devanagariCount < 24 || latinCount > devanagariCount) {
+    throw new Error('AI returned Hindi in English letters. Please try again.')
+  }
+}
+
 function buildStudyPrompts({ language, subjectContext, question, referenceLabel, referenceMaterial }) {
   const languageLabel = language === 'hindi' ? 'Hindi' : 'English'
   const contextLabel = subjectContext || 'General study context'
+  const scriptInstruction = language === 'hindi'
+    ? 'For Hindi responses, every value must use Devanagari script. Never write Hindi in Roman or Latin letters. Use English only for unavoidable code, formulas, or proper nouns.'
+    : 'Use natural English for every value.'
 
   return {
     systemPrompt: [
       'You are LearnLedger AI Assistant inside the LearnLedger study platform.',
       'If the student asks who you are, describe yourself as LearnLedger AI Assistant.',
       `Write all fields in ${languageLabel}.`,
+      scriptInstruction,
       'Return only one valid JSON object with these exact keys and no extras:',
       '{"title":"", "explanation":"", "keyPoints":[], "example":"", "summary":""}',
       'Keep answers concise and useful for study notes:',
@@ -191,6 +233,7 @@ function shouldUseDirectFrontendAI() {
 
 function createCacheKey(payload) {
   return JSON.stringify({
+    v: DIRECT_CACHE_VERSION,
     q: payload.question.toLowerCase(),
     c: payload.subjectContext.toLowerCase(),
     l: payload.language,
@@ -268,35 +311,50 @@ async function askStudyAssistantDirect(payload) {
   }
 
   const { systemPrompt, userPrompt } = buildStudyPrompts(payload)
-  let generated
-  try {
-    generated = await generateTextFromAI({
-      systemPrompt,
-      userPrompt,
-      temperature: 0.2,
-      maxTokens: MAX_OUTPUT_TOKENS,
-    })
-  } catch (error) {
-    throw new Error(mapDirectAIError(error))
+  let lastError = null
+
+  for (let attempt = 0; attempt < MAX_DIRECT_GENERATION_ATTEMPTS; attempt += 1) {
+    const effectiveSystemPrompt = attempt === 0
+      ? systemPrompt
+      : [
+          systemPrompt,
+          'Regenerate the full JSON now.',
+          'If the selected language is Hindi, every field must contain Devanagari script and must not be Romanized.',
+        ].join('\n')
+
+    try {
+      const generated = await generateTextFromAI({
+        systemPrompt: effectiveSystemPrompt,
+        userPrompt,
+        temperature: 0.2,
+        maxTokens: MAX_OUTPUT_TOKENS,
+      })
+
+      const parsed = extractJsonObject(generated.text)
+      const answer = normalizeStructuredAnswer(parsed)
+      if (!answer) {
+        throw new Error('AI returned an invalid response format. Please try again.')
+      }
+
+      validateStructuredAnswerLanguage(answer, payload.language)
+
+      const response = {
+        answer,
+        meta: {
+          cacheHit: false,
+          modelUsed: generated.modelUsed || null,
+          provider: generated.provider || 'direct',
+        },
+      }
+
+      writeCachedAssistantResponse(payload, response)
+      return response
+    } catch (error) {
+      lastError = error
+    }
   }
 
-  const parsed = extractJsonObject(generated.text)
-  const answer = normalizeStructuredAnswer(parsed)
-  if (!answer) {
-    throw new Error('AI returned an invalid response format. Please try again.')
-  }
-
-  const response = {
-    answer,
-    meta: {
-      cacheHit: false,
-      modelUsed: generated.modelUsed || null,
-      provider: generated.provider || 'direct',
-    },
-  }
-
-  writeCachedAssistantResponse(payload, response)
-  return response
+  throw new Error(mapDirectAIError(lastError))
 }
 
 async function askStudyAssistantCallableBackend(payload) {

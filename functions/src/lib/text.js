@@ -1,5 +1,7 @@
 import crypto from 'node:crypto'
 
+const ASSISTANT_CACHE_VERSION = 'study-assistant-v2'
+
 export function compactWhitespace(value = '') {
   return String(value).replace(/\s+/g, ' ').trim()
 }
@@ -16,6 +18,7 @@ export function normalizeForHash(value = '') {
 
 export function buildCacheKey({ question, subjectContext, language, referenceId = '', referenceLabel = '' }) {
   const normalized = [
+    ASSISTANT_CACHE_VERSION,
     normalizeForHash(question),
     normalizeForHash(subjectContext),
     normalizeForHash(language),
@@ -26,6 +29,7 @@ export function buildCacheKey({ question, subjectContext, language, referenceId 
 
   return {
     hash,
+    cacheVersion: ASSISTANT_CACHE_VERSION,
     normalizedQuestion: normalizeForHash(question),
     normalizedSubjectContext: normalizeForHash(subjectContext),
     normalizedLanguage: normalizeForHash(language),
