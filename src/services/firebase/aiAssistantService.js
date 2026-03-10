@@ -7,10 +7,7 @@ const askStudyAssistantCallable = httpsCallable(functions, 'askStudyAssistant')
 
 const DIRECT_MODE = String(import.meta.env.VITE_AI_ASSISTANT_MODE || '').trim().toLowerCase()
 const ALLOW_UNSAFE_DIRECT = String(import.meta.env.VITE_AI_ASSISTANT_ALLOW_UNSAFE_DIRECT || '').trim().toLowerCase() === 'true'
-const HAS_FRONTEND_AI_KEY = Boolean(
-  String(import.meta.env.VITE_OPENROUTER_API_KEY || '').trim() ||
-  String(import.meta.env.VITE_GEMINI_API_KEY || '').trim()
-)
+const HAS_FRONTEND_AI_KEY = Boolean(String(import.meta.env.VITE_OPENROUTER_API_KEY || '').trim())
 
 const DIRECT_CACHE_KEY = 'learnledger.ai-assistant.cache.v3'
 const DIRECT_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7
@@ -111,18 +108,19 @@ function mapDirectAIError(error) {
   const normalized = rawMessage.toLowerCase()
 
   if (normalized.includes('reported as leaked')) {
-    return 'A browser AI key in this build was blocked as leaked. Rotate that provider key and move AI requests to Firebase Functions for public deployments.'
+    return 'The configured OpenRouter key was blocked as leaked. Replace VITE_OPENROUTER_API_KEY in GitHub secrets and redeploy GitHub Pages.'
   }
 
   if (normalized.includes('user not found')) {
-    return 'The configured browser AI key is invalid or revoked. Replace it or switch the app to Firebase Functions mode.'
+    return 'The configured OpenRouter key is invalid or revoked. Replace VITE_OPENROUTER_API_KEY and redeploy GitHub Pages.'
   }
 
-  if (
-    normalized.includes('not supported for generatecontent') ||
-    normalized.includes('not found for api version')
-  ) {
-    return 'The configured Gemini model is unavailable for the current API endpoint. Update the model override or use the Firebase Functions backend.'
+  if (normalized.includes('no ai api key configured')) {
+    return 'OpenRouter key is missing in this build. Set VITE_OPENROUTER_API_KEY and redeploy GitHub Pages.'
+  }
+
+  if (normalized.includes('no auth credentials found') || normalized.includes('unauthorized')) {
+    return 'OpenRouter rejected the configured API key. Replace VITE_OPENROUTER_API_KEY and redeploy GitHub Pages.'
   }
 
   return rawMessage || 'Browser AI request failed.'

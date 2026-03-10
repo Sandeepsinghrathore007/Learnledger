@@ -26,8 +26,8 @@ npm run dev
 
 ## AI Assistant Deployment
 
-Use `VITE_AI_ASSISTANT_MODE=functions` for deployed builds. The repo already includes a Firebase callable backend in [`functions/src/index.js`](/home/sandeepsingh/Desktop/LearnLedger/studyos/functions/src/index.js) so AI provider keys stay off the client.
+The current GitHub Pages deployment uses `VITE_AI_ASSISTANT_MODE=direct` with `VITE_OPENROUTER_API_KEY`. That keeps the AI assistant working on the Firebase free plan, but the key is still part of the public client build.
 
-Do not pass `VITE_OPENROUTER_API_KEY` or `VITE_GEMINI_API_KEY` into a public static build such as GitHub Pages. If those keys were already exposed, rotate them in the provider dashboards before redeploying.
+If the OpenRouter key is rotated, update the GitHub Actions secret `VITE_OPENROUTER_API_KEY` and redeploy GitHub Pages.
 
-Firebase Functions deployment requires the project to be on the Blaze plan. If you stay on the free plan, the practical fallback for GitHub Pages is direct browser mode with rotated provider keys and referrer restrictions.
+Firebase Functions deployment requires the project to be on the Blaze plan. If you upgrade later, the backend path in [`functions/src/index.js`](/home/sandeepsingh/Desktop/LearnLedger/studyos/functions/src/index.js) is already wired for OpenRouter.

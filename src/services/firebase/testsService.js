@@ -11,10 +11,7 @@ import { isGitHubPagesHost } from '@/utils/runtimeRecovery'
 import { ACTIVITY_TYPES, logActivity } from './analyticsService'
 import { userTestDocRef, userTestsCol } from './firestorePaths'
 
-const HAS_FRONTEND_AI_KEY = Boolean(
-  String(import.meta.env.VITE_OPENROUTER_API_KEY || '').trim() ||
-  String(import.meta.env.VITE_GEMINI_API_KEY || '').trim()
-)
+const HAS_FRONTEND_AI_KEY = Boolean(String(import.meta.env.VITE_OPENROUTER_API_KEY || '').trim())
 
 function toDate(value) {
   if (!value) return null
@@ -98,7 +95,7 @@ export function subscribeToTests(userId, onNext, onError) {
 export async function generateTest({ config, subjects, userId = null }) {
   if (isGitHubPagesHost() && !HAS_FRONTEND_AI_KEY) {
     throw new Error(
-      'AI mock tests are not enabled in this public build yet. Move test generation to Firebase Functions or use a private build with direct AI keys.'
+      'AI mock tests are not enabled in this public build yet. Add a direct OpenRouter key to the build first.'
     )
   }
 

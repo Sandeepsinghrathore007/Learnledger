@@ -1,4 +1,4 @@
-import { GEMINI_API_URL, OPENROUTER_API_URL } from '../lib/config.js'
+import { OPENROUTER_API_URL } from '../lib/config.js'
 import { STUDY_RESPONSE_SCHEMA } from '../lib/promptTemplate.js'
 import { parseStructuredStudyResponse } from '../lib/responseParser.js'
 
@@ -30,22 +30,6 @@ function extractOpenRouterText(data) {
       })
       .join('')
       .trim()
-  }
-
-  return ''
-}
-
-function extractGeminiText(data) {
-  const candidates = Array.isArray(data?.candidates) ? data.candidates : []
-
-  for (const candidate of candidates) {
-    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : []
-    const text = parts
-      .map((part) => (typeof part?.text === 'string' ? part.text : ''))
-      .join('')
-      .trim()
-
-    if (text) return text
   }
 
   return ''
@@ -142,78 +126,6 @@ async function callOpenRouter({
   }
 }
 
-async function callGemini({
-  apiKey,
-  model,
-  systemPrompt,
-  userPrompt,
-  maxOutputTokens,
-  timeoutMs,
-  withJsonMode,
-}) {
-  const generationConfig = {
-    temperature: 0.2,
-    maxOutputTokens,
-  }
-
-  if (withJsonMode) {
-    generationConfig.responseMimeType = 'application/json'
-    generationConfig.responseJsonSchema = STUDY_RESPONSE_SCHEMA
-  }
-
-  const response = await fetchWithTimeout(
-    `${GEMINI_API_URL}/${model}:generateContent`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: `${systemPrompt}\n\n${userPrompt}`.trim(),
-              },
-            ],
-          },
-        ],
-        generationConfig,
-      }),
-    },
-    timeoutMs
-  )
-
-  const rawText = await response.text()
-
-  if (!response.ok) {
-    const message = parseErrorMessage(response.status, rawText)
-    const err = new Error(message)
-    err.httpStatus = response.status
-    err.rawText = rawText
-    throw err
-  }
-
-  let data
-  try {
-    data = JSON.parse(rawText)
-  } catch {
-    throw new Error('Provider returned invalid JSON response')
-  }
-
-  const text = extractGeminiText(data)
-  if (!text) {
-    throw new Error('Provider returned empty response')
-  }
-
-  return {
-    text,
-    usage: data?.usageMetadata || null,
-  }
-}
-
 function isSchemaModeUnsupported(error) {
   const message = String(error?.message || '').toLowerCase()
   return (
@@ -223,20 +135,7 @@ function isSchemaModeUnsupported(error) {
   )
 }
 
-function isGeminiJsonModeUnsupported(error) {
-  const message = String(error?.message || '').toLowerCase()
-  return (
-    message.includes('responsemimetype') ||
-    message.includes('response_mime_type') ||
-    message.includes('responsejsonschema') ||
-    message.includes('response_json_schema') ||
-    message.includes('responseschema') ||
-    message.includes('application/json') ||
-    message.includes('unsupported')
-  )
-}
-
-async function generateStructuredAnswerWithOpenRouterModelOrder({
+export async function generateStructuredAnswerWithModelOrder({
   apiKey,
   modelOrder,
   systemPrompt,
@@ -293,112 +192,4 @@ async function generateStructuredAnswerWithOpenRouterModelOrder({
   }
 
   throw new Error(`AI generation failed for all models. ${errors.join(' | ')}`)
-}
-
-async function generateStructuredAnswerWithGeminiModelOrder({
-  apiKey,
-  modelOrder,
-  systemPrompt,
-  userPrompt,
-  maxOutputTokens,
-  timeoutMs,
-}) {
-  const errors = []
-
-  for (const model of modelOrder) {
-    if (!model) continue
-
-    try {
-      let rawResponse
-
-      try {
-        rawResponse = await callGemini({
-          apiKey,
-          model,
-          systemPrompt,
-          userPrompt,
-          maxOutputTokens,
-          timeoutMs,
-          withJsonMode: true,
-        })
-      } catch (error) {
-        if (!isGeminiJsonModeUnsupported(error)) {
-          throw error
-        }
-
-        rawResponse = await callGemini({
-          apiKey,
-          model,
-          systemPrompt,
-          userPrompt,
-          maxOutputTokens,
-          timeoutMs,
-          withJsonMode: false,
-        })
-      }
-
-      const parsed = parseStructuredStudyResponse(rawResponse.text)
-
-      return {
-        answer: parsed,
-        modelUsed: model,
-        provider: 'gemini',
-        usage: rawResponse.usage,
-        rawText: rawResponse.text,
-      }
-    } catch (error) {
-      errors.push(`[${model}] ${error?.message || 'Unknown provider error'}`)
-    }
-  }
-
-  throw new Error(`AI generation failed for all Gemini models. ${errors.join(' | ')}`)
-}
-
-export async function generateStructuredAnswerWithProviderFallback({
-  openRouterApiKey,
-  geminiApiKey,
-  openRouterModelOrder,
-  geminiModelOrder,
-  systemPrompt,
-  userPrompt,
-  maxOutputTokens,
-  timeoutMs,
-}) {
-  const providerErrors = []
-
-  if (openRouterApiKey && Array.isArray(openRouterModelOrder) && openRouterModelOrder.length > 0) {
-    try {
-      return await generateStructuredAnswerWithOpenRouterModelOrder({
-        apiKey: openRouterApiKey,
-        modelOrder: openRouterModelOrder,
-        systemPrompt,
-        userPrompt,
-        maxOutputTokens,
-        timeoutMs,
-      })
-    } catch (error) {
-      providerErrors.push(`OpenRouter: ${error?.message || 'Unknown provider error'}`)
-    }
-  }
-
-  if (geminiApiKey && Array.isArray(geminiModelOrder) && geminiModelOrder.length > 0) {
-    try {
-      return await generateStructuredAnswerWithGeminiModelOrder({
-        apiKey: geminiApiKey,
-        modelOrder: geminiModelOrder,
-        systemPrompt,
-        userPrompt,
-        maxOutputTokens,
-        timeoutMs,
-      })
-    } catch (error) {
-      providerErrors.push(`Gemini: ${error?.message || 'Unknown provider error'}`)
-    }
-  }
-
-  if (!openRouterApiKey && !geminiApiKey) {
-    throw new Error('No backend AI provider secret is configured.')
-  }
-
-  throw new Error(`AI generation failed for all providers. ${providerErrors.join(' | ')}`)
 }

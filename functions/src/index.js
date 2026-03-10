@@ -2,11 +2,11 @@ import { getApps, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import * as logger from 'firebase-functions/logger'
-import { generateStructuredAnswerWithProviderFallback } from './services/aiProviderService.js'
+import { generateStructuredAnswerWithModelOrder } from './services/aiProviderService.js'
 import { createAssistantCacheIdentity, readCachedAssistantResponse, writeCachedAssistantResponse } from './services/cacheService.js'
 import { persistAssistantInteraction } from './services/loggingService.js'
 import { enforceAIRateLimit } from './services/rateLimitService.js'
-import { APP_CONFIG, GEMINI_API_KEY, OPENROUTER_API_KEY } from './lib/config.js'
+import { APP_CONFIG, OPENROUTER_API_KEY } from './lib/config.js'
 import { buildModelOrder } from './lib/modelStrategy.js'
 import { buildStudyPrompts } from './lib/promptTemplate.js'
 import { estimateTokenBundle } from './lib/text.js'
@@ -23,7 +23,7 @@ export const askStudyAssistant = onCall(
     region: APP_CONFIG.region,
     timeoutSeconds: 60,
     memory: '256MiB',
-    secrets: [OPENROUTER_API_KEY, GEMINI_API_KEY],
+    secrets: [OPENROUTER_API_KEY],
   },
   async (request) => {
     if (!request.auth?.uid) {
@@ -75,26 +75,22 @@ export const askStudyAssistant = onCall(
       }
     }
 
-    const openRouterApiKey = OPENROUTER_API_KEY.value()
-    const geminiApiKey = GEMINI_API_KEY.value()
-    if (!openRouterApiKey && !geminiApiKey) {
-      throw new HttpsError('failed-precondition', 'OPENROUTER_API_KEY or GEMINI_API_KEY secret must be configured.')
+    const apiKey = OPENROUTER_API_KEY.value()
+    if (!apiKey) {
+      throw new HttpsError('failed-precondition', 'OPENROUTER_API_KEY secret is not configured.')
     }
 
     const { systemPrompt, userPrompt } = buildStudyPrompts(payload)
-    const openRouterModelOrder = buildModelOrder(APP_CONFIG, payload.question, payload.subjectContext)
-    const geminiModelOrder = APP_CONFIG.geminiModels
+    const modelOrder = buildModelOrder(APP_CONFIG, payload.question, payload.subjectContext)
 
-    if (openRouterModelOrder.length === 0 && geminiModelOrder.length === 0) {
+    if (modelOrder.length === 0) {
       throw new HttpsError('failed-precondition', 'No AI model is configured for assistant requests.')
     }
 
     try {
-      const generated = await generateStructuredAnswerWithProviderFallback({
-        openRouterApiKey,
-        geminiApiKey,
-        openRouterModelOrder,
-        geminiModelOrder,
+      const generated = await generateStructuredAnswerWithModelOrder({
+        apiKey,
+        modelOrder,
         systemPrompt,
         userPrompt,
         maxOutputTokens: APP_CONFIG.maxOutputTokens,
