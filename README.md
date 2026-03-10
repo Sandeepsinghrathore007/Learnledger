@@ -23,3 +23,9 @@ Learnledger is a study management web app built with React, Vite, and Firebase.
 npm install
 npm run dev
 ```
+
+## AI Assistant Deployment
+
+Use `VITE_AI_ASSISTANT_MODE=functions` for deployed builds. The repo already includes a Firebase callable backend in [`functions/src/index.js`](/home/sandeepsingh/Desktop/LearnLedger/studyos/functions/src/index.js) so AI provider keys stay off the client.
+
+Do not pass `VITE_OPENROUTER_API_KEY` or `VITE_GEMINI_API_KEY` into a public static build such as GitHub Pages. If those keys were already exposed, rotate them in the provider dashboards before redeploying.

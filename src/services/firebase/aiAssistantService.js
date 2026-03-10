@@ -1,10 +1,12 @@
 import { httpsCallable } from 'firebase/functions'
 import { generateTextFromAI } from '@/utils/aiClient'
 import { functions } from './firebaseConfig'
+import { isGitHubPagesHost } from '@/utils/runtimeRecovery'
 
 const askStudyAssistantCallable = httpsCallable(functions, 'askStudyAssistant')
 
 const DIRECT_MODE = String(import.meta.env.VITE_AI_ASSISTANT_MODE || '').trim().toLowerCase()
+const ALLOW_UNSAFE_DIRECT = String(import.meta.env.VITE_AI_ASSISTANT_ALLOW_UNSAFE_DIRECT || '').trim().toLowerCase() === 'true'
 const HAS_FRONTEND_AI_KEY = Boolean(
   String(import.meta.env.VITE_OPENROUTER_API_KEY || '').trim() ||
   String(import.meta.env.VITE_GEMINI_API_KEY || '').trim()
@@ -98,10 +100,32 @@ function mapAssistantCallableError(error) {
   }
 
   if (code === 'functions/internal' && (!rawMessage || normalized === 'internal')) {
-    return 'AI backend setup incomplete. Use a frontend AI key or deploy the Firebase backend.'
+    return 'AI backend setup incomplete. Configure and deploy the Firebase Functions backend.'
   }
 
   return rawMessage || 'Failed to reach AI assistant backend.'
+}
+
+function mapDirectAIError(error) {
+  const rawMessage = String(error?.message || '').trim()
+  const normalized = rawMessage.toLowerCase()
+
+  if (normalized.includes('reported as leaked')) {
+    return 'A browser AI key in this build was blocked as leaked. Rotate that provider key and move AI requests to Firebase Functions for public deployments.'
+  }
+
+  if (normalized.includes('user not found')) {
+    return 'The configured browser AI key is invalid or revoked. Replace it or switch the app to Firebase Functions mode.'
+  }
+
+  if (
+    normalized.includes('not supported for generatecontent') ||
+    normalized.includes('not found for api version')
+  ) {
+    return 'The configured Gemini model is unavailable for the current API endpoint. Update the model override or use the Firebase Functions backend.'
+  }
+
+  return rawMessage || 'Browser AI request failed.'
 }
 
 function extractJsonObject(rawText) {
@@ -160,7 +184,10 @@ function normalizeStructuredAnswer(rawAnswer) {
 
 function shouldUseDirectFrontendAI() {
   if (DIRECT_MODE === 'functions') return false
-  if (DIRECT_MODE === 'direct') return true
+  if (DIRECT_MODE === 'direct') {
+    return !isGitHubPagesHost() || ALLOW_UNSAFE_DIRECT
+  }
+  if (isGitHubPagesHost()) return false
   return HAS_FRONTEND_AI_KEY
 }
 
@@ -243,12 +270,17 @@ async function askStudyAssistantDirect(payload) {
   }
 
   const { systemPrompt, userPrompt } = buildStudyPrompts(payload)
-  const generated = await generateTextFromAI({
-    systemPrompt,
-    userPrompt,
-    temperature: 0.2,
-    maxTokens: MAX_OUTPUT_TOKENS,
-  })
+  let generated
+  try {
+    generated = await generateTextFromAI({
+      systemPrompt,
+      userPrompt,
+      temperature: 0.2,
+      maxTokens: MAX_OUTPUT_TOKENS,
+    })
+  } catch (error) {
+    throw new Error(mapDirectAIError(error))
+  }
 
   const parsed = extractJsonObject(generated.text)
   const answer = normalizeStructuredAnswer(parsed)
