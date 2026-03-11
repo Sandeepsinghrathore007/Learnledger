@@ -11,10 +11,33 @@
 
 import { NAV_ITEMS, PAGE_DESCRIPTIONS } from '@/constants/navigation'
 import { BORDER } from '@/constants/theme'
+import {
+  AIAssistantIcon,
+  AnalyticsIcon,
+  ConstructionIcon,
+  MockTestsIcon,
+  NoteIcon,
+  SubjectsIcon,
+} from '@/components/ui/Icons'
+
+const NAV_ICONS = {
+  subjects: SubjectsIcon,
+  notes: NoteIcon,
+  tests: MockTestsIcon,
+  ai: AIAssistantIcon,
+  analytics: AnalyticsIcon,
+}
 
 export default function ComingSoonPage({ pageId }) {
-  const navItem = NAV_ITEMS.find(n => n.id === pageId) ?? { icon: '🚧', label: pageId }
+  const navItem = NAV_ITEMS.find(n => n.id === pageId) ?? {
+    icon: 'construction',
+    label: pageId,
+    iconColor: '#d8ccff',
+    iconBg: 'rgba(124,58,237,0.16)',
+    iconBorder: 'rgba(124,58,237,0.22)',
+  }
   const description = PAGE_DESCRIPTIONS[pageId] ?? ''
+  const Icon = NAV_ICONS[navItem.icon] || ConstructionIcon
 
   return (
     <div style={{
@@ -25,12 +48,15 @@ export default function ComingSoonPage({ pageId }) {
       {/* Icon card */}
       <div style={{
         width: '78px', height: '78px', borderRadius: '20px',
-        background: 'linear-gradient(135deg,rgba(124,58,237,0.16),rgba(79,70,229,0.08))',
-        border: '1px solid rgba(124,58,237,0.22)',
+        background: `linear-gradient(135deg,${navItem.iconBg},rgba(79,70,229,0.08))`,
+        border: `1px solid ${navItem.iconBorder}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: '34px', marginBottom: '18px',
+        marginBottom: '18px',
+        color: navItem.iconColor,
       }}>
-        {navItem.icon}
+        <span style={{ width: '34px', height: '34px', display: 'inline-flex' }}>
+          <Icon />
+        </span>
       </div>
 
       <h2 style={{
@@ -56,8 +82,14 @@ export default function ComingSoonPage({ pageId }) {
         borderRadius: '9px', padding: '8px 16px',
         color: '#5a5175', fontSize: '12.5px',
         fontFamily: "'DM Sans',sans-serif",
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '8px',
       }}>
-        🚧 Coming in a future phase
+        <span style={{ width: '14px', height: '14px', display: 'inline-flex' }}>
+          <ConstructionIcon />
+        </span>
+        <span>Coming in a future phase</span>
       </div>
     </div>
   )

@@ -104,3 +104,55 @@ export const EyeIcon = () => (
     <circle cx="12" cy="12" r="3" />
   </svg>
 )
+
+export const SubjectsIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H20v13.5A2.5 2.5 0 0 0 17.5 15H4z" />
+    <path d="M6.5 20A2.5 2.5 0 0 1 4 17.5V6.5" />
+    <path d="M8 8h8" />
+    <path d="M8 11h8" />
+  </svg>
+)
+
+export const MockTestsIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <path d="M9 3h6" />
+    <path d="M10 8h8" />
+    <path d="M10 12h8" />
+    <path d="M10 16h5" />
+    <path d="M8 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-2" />
+    <path d="m6.5 11 1.5 1.5 3-3" />
+  </svg>
+)
+
+export const AIAssistantIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <rect x="5" y="7" width="14" height="10" rx="3" />
+    <path d="M9 7V5a3 3 0 0 1 6 0v2" />
+    <circle cx="10" cy="12" r="1" fill="currentColor" stroke="none" />
+    <circle cx="14" cy="12" r="1" fill="currentColor" stroke="none" />
+    <path d="M9.5 15c1 .8 4 .8 5 0" />
+    <path d="M12 17v2" />
+  </svg>
+)
+
+export const AnalyticsIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <path d="M4 19h16" />
+    <path d="M7 16V9" />
+    <path d="M12 16V5" />
+    <path d="M17 16v-4" />
+    <path d="m5 13 4-4 3 2 5-5" />
+  </svg>
+)
+
+export const ConstructionIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <path d="M3 21h18" />
+    <path d="m6 21 3-9" />
+    <path d="m18 21-3-9" />
+    <path d="M7 12h10" />
+    <path d="m8 12 2-5h4l2 5" />
+    <path d="M12 4V3" />
+  </svg>
+)

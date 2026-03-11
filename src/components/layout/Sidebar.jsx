@@ -1,6 +1,21 @@
 import { NAV_ITEMS } from '@/constants/navigation'
 import { BG, BORDER, BORDER2, SURF2, TEXT1, TEXT2, TEXT3, ACCENT } from '@/constants/theme'
-import { BackIcon } from '@/components/ui/Icons'
+import {
+  AIAssistantIcon,
+  AnalyticsIcon,
+  BackIcon,
+  MockTestsIcon,
+  NoteIcon,
+  SubjectsIcon,
+} from '@/components/ui/Icons'
+
+const NAV_ICONS = {
+  subjects: SubjectsIcon,
+  notes: NoteIcon,
+  tests: MockTestsIcon,
+  ai: AIAssistantIcon,
+  analytics: AnalyticsIcon,
+}
 
 function getUserInitial(user) {
   const source = user?.displayName || user?.email || 'User'
@@ -86,8 +101,9 @@ export default function Sidebar({
       </div>
 
       <nav style={{ flex: 1, padding: '9px 6px', overflowY: 'auto' }}>
-        {NAV_ITEMS.map(({ id, label, icon }) => {
+        {NAV_ITEMS.map(({ id, label, icon, iconColor, iconBg, iconBorder }) => {
           const isActive = activePage === id
+          const Icon = NAV_ICONS[icon] || NoteIcon
           return (
             <button
               key={id}
@@ -137,7 +153,25 @@ export default function Sidebar({
                   borderRadius: '0 4px 4px 0',
                 }} />
               )}
-              <span style={{ fontSize: '15px', flexShrink: 0 }}>{icon}</span>
+              <span style={{
+                width: '28px',
+                height: '28px',
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '9px',
+                background: isActive
+                  ? `linear-gradient(135deg,${iconBg},rgba(255,255,255,0.03))`
+                  : iconBg,
+                border: `1px solid ${iconBorder}`,
+                color: iconColor,
+                boxShadow: isActive ? `0 10px 24px ${iconBg}` : 'none',
+              }}>
+                <span style={{ width: '15px', height: '15px', display: 'inline-flex' }}>
+                  <Icon />
+                </span>
+              </span>
               {!isCompact && (
                 <span style={{
                   fontSize: '13px',
