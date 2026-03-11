@@ -398,10 +398,6 @@ export default function SubjectDetailPage({
         ...subjectRef.current,
         pdfs: [...(subjectRef.current.pdfs ?? []), pendingPdf],
       })
-      setPdfFeedback({
-        type: 'notice',
-        text: 'PDF saved. LearnLedger will clean and prepare it only when you use Ask AI.',
-      })
     } catch (error) {
       console.error('Failed to store PDF:', error)
 
