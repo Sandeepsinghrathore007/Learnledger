@@ -23,13 +23,18 @@ export function isComplexQuestion(question, subjectContext = '') {
   return COMPLEXITY_HINTS.some((hint) => text.includes(hint))
 }
 
-export function buildModelOrder({ smallModel, largeModel }, question, subjectContext) {
+export function buildModelOrder(
+  { smallModel, largeModel },
+  question,
+  subjectContext,
+  { hasReferenceMaterial = false } = {}
+) {
   const unique = Array.from(new Set([smallModel, largeModel].filter(Boolean)))
   if (unique.length <= 1) return unique
 
   const complex = isComplexQuestion(question, subjectContext)
 
-  if (complex) {
+  if (complex || hasReferenceMaterial) {
     return [largeModel, smallModel].filter(Boolean)
   }
 

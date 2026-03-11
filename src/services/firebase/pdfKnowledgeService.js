@@ -15,8 +15,10 @@ import {
 } from './firestorePaths'
 import {
   buildPdfReferenceMaterial,
+  extractPdfKnowledgeFromFile,
   selectRelevantPdfChunks,
 } from '@/utils/pdfKnowledge'
+import { getPdfBinaryFile } from '@/utils/pdfBinaryStore'
 
 const LOCAL_CACHE_KEY = 'learnledger.pdf-knowledge.cache.v1'
 const LOCAL_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7
@@ -202,19 +204,97 @@ export async function deletePdfKnowledge(userId, subjectId, pdfId) {
   clearLocalKnowledgeCache(userId, subjectId, pdfId)
 }
 
+function buildRuntimeKnowledge(pdfId, pdfName, knowledge) {
+  return {
+    ...knowledge,
+    pdfId,
+    pdfName: pdfName || 'Attached PDF',
+    chunkCount: Array.isArray(knowledge?.chunks) ? knowledge.chunks.length : 0,
+  }
+}
+
+export async function ensurePdfKnowledge({
+  userId,
+  subjectId,
+  pdfId,
+  pdfName = '',
+}) {
+  if (!subjectId || !pdfId) {
+    throw new Error('ensurePdfKnowledge requires subjectId and pdfId.')
+  }
+
+  if (userId) {
+    const existing = await getPdfKnowledge(userId, subjectId, pdfId)
+    if (existing) {
+      return {
+        knowledge: existing,
+        preparedNow: false,
+      }
+    }
+  }
+
+  const file = await getPdfBinaryFile({ userId, subjectId, pdfId })
+  if (!file) {
+    throw new Error('The original PDF is not available on this device. Re-upload it before asking AI.')
+  }
+
+  const extracted = await extractPdfKnowledgeFromFile(file)
+  if (!extracted.summary && extracted.chunks.length === 0) {
+    throw new Error('No readable text was found in this PDF.')
+  }
+
+  if (!userId) {
+    return {
+      knowledge: buildRuntimeKnowledge(pdfId, pdfName || file.name, extracted),
+      preparedNow: true,
+    }
+  }
+
+  const savedKnowledge = await savePdfKnowledge({
+    userId,
+    subjectId,
+    pdf: {
+      id: pdfId,
+      name: pdfName || file.name,
+    },
+    knowledge: extracted,
+  })
+
+  return {
+    knowledge: savedKnowledge,
+    preparedNow: true,
+  }
+}
+
 export async function getRelevantPdfReferenceMaterial({
   userId,
   subjectId,
   pdfId,
+  pdfName = '',
   question,
   extraContext = '',
+  prepareIfMissing = false,
 }) {
-  const knowledge = await getPdfKnowledge(userId, subjectId, pdfId)
+  let knowledge = userId ? await getPdfKnowledge(userId, subjectId, pdfId) : null
+  let preparedNow = false
+
+  if (!knowledge && prepareIfMissing) {
+    const prepared = await ensurePdfKnowledge({
+      userId,
+      subjectId,
+      pdfId,
+      pdfName,
+    })
+    knowledge = prepared.knowledge
+    preparedNow = prepared.preparedNow
+  }
+
   if (!knowledge) {
     return {
       knowledge: null,
       referenceMaterial: '',
       selectedChunks: [],
+      preparedNow,
     }
   }
 
@@ -227,6 +307,7 @@ export async function getRelevantPdfReferenceMaterial({
   return {
     knowledge,
     selectedChunks,
+    preparedNow,
     referenceMaterial: buildPdfReferenceMaterial({
       pdfName: knowledge.pdfName || 'Attached PDF',
       summary: knowledge.summary,

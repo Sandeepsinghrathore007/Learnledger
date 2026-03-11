@@ -27,9 +27,13 @@ import TestResultsView    from '@/components/tests/TestResultsView'
 import { BackIcon, PlusIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT3 } from '@/constants/theme'
 import { uid }            from '@/utils/id'
-import { extractPdfKnowledgeFromFile } from '@/utils/pdfKnowledge'
 import { getTotalNotes }  from '@/utils/subjectStats'
-import { deletePdfKnowledge, savePdfKnowledge } from '@/services/firebase/pdfKnowledgeService'
+import { deletePdfKnowledge } from '@/services/firebase/pdfKnowledgeService'
+import {
+  deletePdfBinary,
+  MAX_PDF_FILE_BYTES,
+  storePdfBinary,
+} from '@/utils/pdfBinaryStore'
 import { subscribeToTests } from '@/services/firebase/testsService'
 
 function formatTestDateTime(value) {
@@ -47,6 +51,17 @@ function formatTestDateTime(value) {
 
 function isTestCompletedForSubject(test, subjectId) {
   return test?.metadata?.subjects?.some((item) => item.id === subjectId)
+}
+
+function formatPdfSize(sizeBytes) {
+  const bytes = Number(sizeBytes || 0)
+  if (!Number.isFinite(bytes) || bytes <= 0) return '1 KB'
+  if (bytes >= 1024 * 1024) {
+    const megabytes = bytes / (1024 * 1024)
+    return `${megabytes >= 10 ? Math.round(megabytes) : megabytes.toFixed(1)} MB`
+  }
+
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
 export default function SubjectDetailPage({
@@ -68,6 +83,7 @@ export default function SubjectDetailPage({
   const [testsError, setTestsError] = useState('')
   const [showCompletedTests, setShowCompletedTests] = useState(false)
   const [openTestReview, setOpenTestReview] = useState(null)
+  const [pdfFeedback, setPdfFeedback] = useState(null)
 
   const totalNotes = getTotalNotes(subj)
 
@@ -106,6 +122,16 @@ export default function SubjectDetailPage({
 
     return () => unsubscribe()
   }, [user?.uid, subj?.id])
+
+  useEffect(() => {
+    if (!pdfFeedback?.text) return undefined
+
+    const timeoutId = window.setTimeout(() => {
+      setPdfFeedback(null)
+    }, 4200)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [pdfFeedback])
 
   /** Push local state up and keep local copy in sync */
   const save = async (updated) => {
@@ -330,77 +356,72 @@ export default function SubjectDetailPage({
   // ── PDF ACTIONS ───────────────────────────────────────────────────────────
   const handleAddPdf = async (file) => {
     if (!file) return
+    setPdfFeedback(null)
+
+    if (file.size > MAX_PDF_FILE_BYTES) {
+      setPdfFeedback({
+        type: 'error',
+        text: `PDF must be 20 MB or smaller. "${file.name}" is ${formatPdfSize(file.size)}.`,
+      })
+      return
+    }
 
     const pdfId = uid()
     const previewUrl = URL.createObjectURL(file)
-    const pendingPdf = {
-      id: pdfId,
-      name: file.name,
-      url: previewUrl,
-      size: `${Math.max(1, Math.round(file.size / 1024))} KB`,
-      addedAt: new Date().toLocaleDateString(),
-      aiStatus: 'processing',
-      summary: '',
-      preview: '',
-      pageCount: 0,
-      chunkCount: 0,
-    }
+    let binaryStored = false
 
     try {
+      await storePdfBinary({
+        userId: user?.uid || null,
+        subjectId: subjectRef.current.id,
+        pdfId,
+        file,
+      })
+      binaryStored = true
+
+      const pendingPdf = {
+        id: pdfId,
+        name: file.name,
+        url: previewUrl,
+        size: formatPdfSize(file.size),
+        sizeBytes: file.size,
+        addedAt: new Date().toLocaleDateString(),
+        aiStatus: 'deferred',
+        summary: '',
+        preview: '',
+        pageCount: 0,
+        chunkCount: 0,
+        storageType: 'indexeddb',
+      }
+
       await save({
         ...subjectRef.current,
         pdfs: [...(subjectRef.current.pdfs ?? []), pendingPdf],
       })
-
-      const knowledge = await extractPdfKnowledgeFromFile(file)
-      if (!knowledge.summary && knowledge.chunks.length === 0) {
-        throw new Error('No readable text was found in this PDF.')
-      }
-
-      if (user?.uid) {
-        await savePdfKnowledge({
-          userId: user.uid,
-          subjectId: subjectRef.current.id,
-          pdf: pendingPdf,
-          knowledge,
-        })
-      }
-
-      const readyPdf = {
-        ...pendingPdf,
-        summary: knowledge.summary,
-        preview: knowledge.preview,
-        pageCount: knowledge.pageCount,
-        chunkCount: knowledge.chunks.length,
-        aiStatus: 'ready',
-        aiReadyAt: new Date().toISOString(),
-      }
-
-      await save({
-        ...subjectRef.current,
-        pdfs: (subjectRef.current.pdfs ?? []).map((pdf) =>
-          pdf.id === pdfId ? readyPdf : pdf
-        ),
+      setPdfFeedback({
+        type: 'notice',
+        text: 'PDF saved. LearnLedger will clean and prepare it only when you use Ask AI.',
       })
     } catch (error) {
-      console.error('Failed to prepare PDF for AI:', error)
+      console.error('Failed to store PDF:', error)
 
-      if ((subjectRef.current.pdfs ?? []).some((pdf) => pdf.id === pdfId)) {
-        await save({
-          ...subjectRef.current,
-          pdfs: (subjectRef.current.pdfs ?? []).map((pdf) =>
-            pdf.id === pdfId
-              ? {
-                  ...pdf,
-                  aiStatus: 'error',
-                  aiError: error?.message || 'Unable to prepare this PDF for AI.',
-                }
-              : pdf
-          ),
-        })
-      } else {
-        URL.revokeObjectURL(previewUrl)
+      if (binaryStored) {
+        try {
+          await deletePdfBinary({
+            userId: user?.uid || null,
+            subjectId: subjectRef.current.id,
+            pdfId,
+          })
+        } catch (cleanupError) {
+          console.error('Failed to clean up cached PDF binary:', cleanupError)
+        }
       }
+
+      URL.revokeObjectURL(previewUrl)
+      setPdfFeedback({
+        type: 'error',
+        text: error?.message || 'Unable to save this PDF.',
+      })
     }
   }
 
@@ -422,6 +443,16 @@ export default function SubjectDetailPage({
         console.error('Failed to delete PDF knowledge:', error)
       }
     }
+
+    try {
+      await deletePdfBinary({
+        userId: user?.uid || null,
+        subjectId: subjectRef.current.id,
+        pdfId: id,
+      })
+    } catch (error) {
+      console.error('Failed to delete cached PDF binary:', error)
+    }
   }
 
   const handleAskAIForPdf = (pdf) => {
@@ -432,6 +463,7 @@ export default function SubjectDetailPage({
       subjectName: subjectRef.current.name,
       pdfId: pdf.id,
       pdfName: pdf.name,
+      pdfStatus: pdf.aiStatus || 'deferred',
       typedContext: `Use the attached PDF "${pdf.name}" as the main study source.`,
     })
   }
@@ -681,6 +713,7 @@ export default function SubjectDetailPage({
         onAdd={handleAddPdf}
         onDelete={handleDeletePdf}
         onAskAI={handleAskAIForPdf}
+        feedback={pdfFeedback}
       />
 
       {/* Add Topic modal */}

@@ -1,8 +1,8 @@
 /**
  * PdfPanel.jsx — Upload, list, view, and delete PDF study materials per subject.
  *
- * PDFs are stored as object URLs (local preview only).
- * In Phase 9 (Firebase), these will be replaced with Storage upload URLs.
+ * PDFs use object URLs for preview, while the original file is cached locally
+ * so AI preparation can be deferred until the student actually asks a question.
  *
  * Props:
  *   pdfs     {Array}    — Array of { id, name, url, size, addedAt, aiStatus, summary }
@@ -10,6 +10,7 @@
  *   onAdd    {Function} — (file) called after user selects a file
  *   onDelete {Function} — (id) remove a PDF
  *   onAskAI  {Function} — (pdf) open AI assistant with this PDF as context
+ *   feedback {Object}   — Optional inline status message for upload/prep events
  *
  * State:
  *   viewing {Object|null} — Currently open PDF in the full-screen viewer
@@ -23,7 +24,7 @@ import { SURFACE, SURF2, BORDER, BORDER2, TEXT1, TEXT3 } from '@/constants/theme
 function getAiStatusMeta(pdf) {
   if (pdf.aiStatus === 'processing') {
     return {
-      label: 'AI indexing...',
+      label: 'Preparing compressed PDF context...',
       buttonLabel: 'Preparing AI',
       canAsk: false,
     }
@@ -46,13 +47,13 @@ function getAiStatusMeta(pdf) {
   }
 
   return {
-    label: 'AI unavailable • re-upload to enable',
+    label: 'AI on demand • parsed only when you ask',
     buttonLabel: 'Ask AI',
-    canAsk: false,
+    canAsk: true,
   }
 }
 
-export default function PdfPanel({ pdfs, color, onAdd, onDelete, onAskAI }) {
+export default function PdfPanel({ pdfs, color, onAdd, onDelete, onAskAI, feedback = null }) {
   const inputRef       = useRef(null)
   const [viewing, setViewing] = useState(null)
 
@@ -109,6 +110,27 @@ export default function PdfPanel({ pdfs, color, onAdd, onDelete, onAskAI }) {
         />
       </div>
 
+      {feedback?.text && (
+        <div
+          style={{
+            marginBottom: '12px',
+            borderRadius: '10px',
+            padding: '10px 12px',
+            border: feedback.type === 'error'
+              ? '1px solid rgba(239,68,68,0.24)'
+              : `1px solid ${color}28`,
+            background: feedback.type === 'error'
+              ? 'rgba(239,68,68,0.08)'
+              : `${color}10`,
+            color: feedback.type === 'error' ? '#fca5a5' : TEXT1,
+            fontSize: '12px',
+            fontFamily: "'DM Sans',sans-serif",
+          }}
+        >
+          {feedback.text}
+        </div>
+      )}
+
       {/* Empty state */}
       {pdfs.length === 0 ? (
         <div
@@ -123,7 +145,7 @@ export default function PdfPanel({ pdfs, color, onAdd, onDelete, onAskAI }) {
             Upload PDFs — textbooks, reference material, past papers
           </p>
           <p style={{ color: TEXT3, fontFamily: "'DM Sans',sans-serif", fontSize: '11px', marginTop: '4px', opacity: 0.6 }}>
-            Upload once and reuse the PDF as AI context later
+            Max 20 MB. Upload once, then prepare AI context only when needed.
           </p>
         </div>
       ) : (
@@ -167,7 +189,7 @@ export default function PdfPanel({ pdfs, color, onAdd, onDelete, onAskAI }) {
                   <div style={{ color: TEXT3, fontSize: '11px', fontFamily: "'DM Sans',sans-serif" }}>
                     {pdf.size} · Added {pdf.addedAt}
                   </div>
-                  <div style={{ color: pdf.aiStatus === 'ready' ? color : TEXT3, fontSize: '11px', fontFamily: "'DM Sans',sans-serif", marginTop: '4px' }}>
+                  <div style={{ color: aiStatus.canAsk ? color : TEXT3, fontSize: '11px', fontFamily: "'DM Sans',sans-serif", marginTop: '4px' }}>
                     {aiStatus.label}
                   </div>
                 </div>

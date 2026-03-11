@@ -177,6 +177,32 @@ function uniqueTopicName(baseName, existingTopics) {
   return candidate
 }
 
+function buildPreparedSubject(subject, pdfId, knowledge) {
+  if (!subject?.id || !pdfId) return null
+
+  const nextPdfs = (subject.pdfs || []).map((pdf) => {
+    if (pdf.id !== pdfId) return pdf
+
+    return {
+      ...pdf,
+      aiStatus: 'ready',
+      aiError: null,
+      summary: knowledge?.summary || pdf.summary || '',
+      preview: knowledge?.preview || pdf.preview || '',
+      pageCount: Number.isFinite(knowledge?.pageCount) ? knowledge.pageCount : (pdf.pageCount || 0),
+      chunkCount: Array.isArray(knowledge?.chunks)
+        ? knowledge.chunks.length
+        : (knowledge?.chunkCount || pdf.chunkCount || 0),
+      aiReadyAt: pdf.aiReadyAt || new Date().toISOString(),
+    }
+  })
+
+  return {
+    ...subject,
+    pdfs: nextPdfs,
+  }
+}
+
 export default function AIAssistantPage({ user, subjects, onUpdateSubject, initialContext = null }) {
   const [language, setLanguage] = useState('english')
   const [selectedSubjectId, setSelectedSubjectId] = useState('')
@@ -206,12 +232,15 @@ export default function AIAssistantPage({ user, subjects, onUpdateSubject, initi
             subjectId: initialContext.subjectId || '',
             pdfId: initialContext.pdfId,
             pdfName: initialContext.pdfName || 'Attached PDF',
+            pdfStatus: initialContext.pdfStatus || 'deferred',
           }
         : null
     )
     setNotice(
       initialContext.pdfId
-        ? `Using stored PDF context from "${initialContext.pdfName}".`
+        ? initialContext.pdfStatus === 'ready'
+          ? `Using stored PDF context from "${initialContext.pdfName}".`
+          : `Using "${initialContext.pdfName}" as PDF context. It will be cleaned only when you ask your first question.`
         : 'AI context updated.'
     )
     setError('')
@@ -251,6 +280,7 @@ export default function AIAssistantPage({ user, subjects, onUpdateSubject, initi
       let referenceMaterial = ''
       let referenceLabel = ''
       let referenceId = null
+      let pdfPreparedNotice = ''
 
       if (activePdfContext?.pdfId) {
         if (!user?.uid || !selectedSubject?.id) {
@@ -261,17 +291,40 @@ export default function AIAssistantPage({ user, subjects, onUpdateSubject, initi
           userId: user.uid,
           subjectId: selectedSubject.id,
           pdfId: activePdfContext.pdfId,
+          pdfName: activePdfContext.pdfName,
           question: trimmedQuestion,
           extraContext: typedContext,
+          prepareIfMissing: true,
         })
 
         if (!pdfReference.referenceMaterial) {
-          throw new Error('This PDF is not AI-ready yet. Wait for indexing or re-upload it.')
+          throw new Error('This PDF could not be prepared for AI. Re-upload it and try again.')
         }
 
         referenceMaterial = pdfReference.referenceMaterial
         referenceLabel = `PDF: ${activePdfContext.pdfName}`
         referenceId = activePdfContext.pdfId
+
+        if (pdfReference.preparedNow || activePdfContext.pdfStatus !== 'ready') {
+          const updatedSubject = buildPreparedSubject(
+            selectedSubject,
+            activePdfContext.pdfId,
+            pdfReference.knowledge
+          )
+
+          if (updatedSubject) {
+            await onUpdateSubject(updatedSubject)
+          }
+
+          setActivePdfContext((previous) => (
+            previous && previous.pdfId === activePdfContext.pdfId
+              ? { ...previous, pdfStatus: 'ready' }
+              : previous
+          ))
+          if (pdfReference.preparedNow) {
+            pdfPreparedNotice = `Prepared compressed PDF context for "${activePdfContext.pdfName}". Only relevant excerpts are sent to AI.`
+          }
+        }
       }
 
       const response = await askStudyAssistant({
@@ -332,6 +385,10 @@ export default function AIAssistantPage({ user, subjects, onUpdateSubject, initi
         } catch (saveError) {
           console.warn('Failed to save AI chat:', saveError)
         }
+      }
+
+      if (pdfPreparedNotice) {
+        setNotice(pdfPreparedNotice)
       }
     } catch (err) {
       setError(err.message || 'Failed to get AI response.')
@@ -443,7 +500,9 @@ export default function AIAssistantPage({ user, subjects, onUpdateSubject, initi
               PDF AI Context
             </div>
             <div style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', marginTop: '3px' }}>
-              Using stored excerpts from {activePdfContext.pdfName}. Only the most relevant parts are sent to AI.
+              {activePdfContext.pdfStatus === 'ready'
+                ? `Using stored excerpts from ${activePdfContext.pdfName}. Only the most relevant parts are sent to AI.`
+                : `Using ${activePdfContext.pdfName}. LearnLedger will clean it on your first question and only send compressed relevant excerpts to AI.`}
             </div>
           </div>
           <button

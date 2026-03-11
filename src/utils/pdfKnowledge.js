@@ -2,11 +2,12 @@ import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mj
 
 GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString()
 
-const MAX_STORED_TEXT_CHARS = 24_000
-const DEFAULT_CHUNK_SIZE = 1_100
-const DEFAULT_CHUNK_OVERLAP = 180
-const DEFAULT_REFERENCE_MAX_CHARS = 3_600
-const DEFAULT_REFERENCE_MAX_CHUNKS = 4
+const MAX_STORED_TEXT_CHARS = 18_000
+const DEFAULT_CHUNK_SIZE = 900
+const DEFAULT_CHUNK_OVERLAP = 140
+const DEFAULT_REFERENCE_MAX_CHARS = 2_800
+const DEFAULT_REFERENCE_MAX_CHUNKS = 3
+const LINE_POSITION_ROUNDING = 2
 
 const STOP_WORDS = new Set([
   'a',
@@ -42,6 +43,14 @@ const STOP_WORDS = new Set([
   'your',
 ])
 
+const REFERENCE_HEADINGS = new Set([
+  'references',
+  'reference',
+  'bibliography',
+  'works cited',
+  'sources',
+])
+
 function normalizeWhitespace(text) {
   return String(text || '')
     .replace(/\u0000/g, ' ')
@@ -49,7 +58,132 @@ function normalizeWhitespace(text) {
     .trim()
 }
 
-function buildExtractiveSummary(text, maxChars = 520) {
+function normalizeBorderCandidate(text) {
+  return normalizeWhitespace(text)
+    .toLowerCase()
+    .replace(/\b\d+\b/g, '#')
+}
+
+function roundLinePosition(value) {
+  return Math.round(Number(value || 0) * LINE_POSITION_ROUNDING) / LINE_POSITION_ROUNDING
+}
+
+function isPageNumberLine(text) {
+  const normalized = normalizeWhitespace(text).toLowerCase()
+  if (!normalized) return false
+
+  return (
+    /^\d+$/.test(normalized) ||
+    /^-?\s*\d+\s*-?$/.test(normalized) ||
+    /^page\s+\d+(\s+of\s+\d+)?$/.test(normalized) ||
+    /^[ivxlcdm]{1,8}$/.test(normalized)
+  )
+}
+
+function isReferenceHeading(text) {
+  const normalized = normalizeWhitespace(text)
+    .toLowerCase()
+    .replace(/[:.]+$/, '')
+
+  return REFERENCE_HEADINGS.has(normalized)
+}
+
+function dedupeConsecutiveLines(lines) {
+  const result = []
+
+  lines.forEach((line) => {
+    if (!line || result[result.length - 1] === line) return
+    result.push(line)
+  })
+
+  return result
+}
+
+function extractPageLines(textContent) {
+  const rows = new Map()
+  const items = Array.isArray(textContent?.items) ? textContent.items : []
+
+  items.forEach((item) => {
+    const text = normalizeWhitespace('str' in item ? item.str : '')
+    if (!text) return
+
+    const transform = Array.isArray(item.transform) ? item.transform : []
+    const x = Number(transform[4] || 0)
+    const y = roundLinePosition(transform[5] || 0)
+    const key = String(y)
+    const row = rows.get(key) || { y, parts: [] }
+
+    row.parts.push({ x, text })
+    rows.set(key, row)
+  })
+
+  return Array.from(rows.values())
+    .sort((left, right) => right.y - left.y)
+    .map((row) =>
+      normalizeWhitespace(
+        row.parts
+          .sort((left, right) => left.x - right.x)
+          .map((part) => part.text)
+          .join(' ')
+      )
+    )
+    .filter(Boolean)
+}
+
+function collectRepeatedBorderLines(pageLines) {
+  if (pageLines.length < 2) return new Set()
+
+  const counts = new Map()
+
+  pageLines.forEach((lines) => {
+    const seen = new Set()
+    const borderLines = [...lines.slice(0, 2), ...lines.slice(-2)]
+
+    borderLines.forEach((line) => {
+      const normalized = normalizeBorderCandidate(line)
+      if (!normalized || normalized.length < 4 || isPageNumberLine(line)) return
+      seen.add(normalized)
+    })
+
+    seen.forEach((normalized) => {
+      counts.set(normalized, (counts.get(normalized) || 0) + 1)
+    })
+  })
+
+  const minHits = Math.max(2, Math.ceil(pageLines.length * 0.35))
+
+  return new Set(
+    Array.from(counts.entries())
+      .filter(([, count]) => count >= minHits)
+      .map(([normalized]) => normalized)
+  )
+}
+
+function buildCompressedLines(pageLines) {
+  const repeatedBorderLines = collectRepeatedBorderLines(pageLines)
+
+  const cleaned = pageLines.flatMap((lines) =>
+    lines.filter((line) => {
+      if (!line) return false
+      if (isPageNumberLine(line)) return false
+      return !repeatedBorderLines.has(normalizeBorderCandidate(line))
+    })
+  )
+
+  const withoutReferences = (() => {
+    const referenceStartIndex = cleaned.findIndex((line, index) => {
+      if (index < Math.floor(cleaned.length * 0.6)) return false
+      return isReferenceHeading(line)
+    })
+
+    if (referenceStartIndex === -1) return cleaned
+    return cleaned.slice(0, referenceStartIndex)
+  })()
+
+  return dedupeConsecutiveLines(withoutReferences)
+}
+
+function buildExtractiveSummary(text, maxChars = 420) {
   const normalized = normalizeWhitespace(text)
   if (!normalized) return ''
 
@@ -182,33 +316,29 @@ export async function extractPdfKnowledgeFromFile(file) {
     isEvalSupported: false,
   })
   const pdfDocument = await documentTask.promise
-
-  const pageTexts = []
+  const pageLines = []
 
   for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
     const page = await pdfDocument.getPage(pageNumber)
     const textContent = await page.getTextContent()
-    const pageText = normalizeWhitespace(
-      textContent.items
-        .map((item) => ('str' in item ? item.str : ''))
-        .join(' ')
-    )
+    const lines = extractPageLines(textContent)
 
-    if (pageText) {
-      pageTexts.push(pageText)
+    if (lines.length > 0) {
+      pageLines.push(lines)
     }
   }
 
-  const fullText = pageTexts.join('\n\n')
-  const storedText = fullText.slice(0, MAX_STORED_TEXT_CHARS)
+  const compressedLines = buildCompressedLines(pageLines)
+  const compressedText = compressedLines.join('\n')
+  const storedText = compressedText.slice(0, MAX_STORED_TEXT_CHARS)
   const chunks = splitIntoChunks(storedText)
 
   return {
     pageCount: pdfDocument.numPages,
-    fullTextLength: fullText.length,
+    fullTextLength: compressedText.length,
     storedCharCount: storedText.length,
     summary: buildExtractiveSummary(storedText),
-    preview: storedText.slice(0, 800),
+    preview: storedText.slice(0, 700),
     chunks,
   }
 }
@@ -223,7 +353,7 @@ export function buildPdfReferenceMaterial({
   ]
 
   if (summary) {
-    parts.push(`Stored Summary: ${summary}`)
+    parts.push(`Compressed Summary: ${summary}`)
   }
 
   if (Array.isArray(chunks) && chunks.length > 0) {

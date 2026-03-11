@@ -81,7 +81,14 @@ export const askStudyAssistant = onCall(
     }
 
     const { systemPrompt, userPrompt } = buildStudyPrompts(payload)
-    const modelOrder = buildModelOrder(APP_CONFIG, payload.question, payload.subjectContext)
+    const modelOrder = buildModelOrder(
+      APP_CONFIG,
+      payload.question,
+      payload.subjectContext,
+      {
+        hasReferenceMaterial: Boolean(payload.referenceMaterial),
+      }
+    )
 
     if (modelOrder.length === 0) {
       throw new HttpsError('failed-precondition', 'No AI model is configured for assistant requests.')
