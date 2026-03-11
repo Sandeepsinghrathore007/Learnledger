@@ -141,7 +141,7 @@ export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <span style={{ color: TEXT3, fontSize: '11px', fontFamily: "'DM Sans',sans-serif", textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            AI Performance
+            Performance
           </span>
           <AiScoreBadge score={subject.aiScore} tests={subject.testsAttempted} size="small" />
         </div>

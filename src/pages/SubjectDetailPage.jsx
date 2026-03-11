@@ -780,7 +780,7 @@ function SubjectBanner({ subject, totalNotes }) {
           ))}
           <div className="col-span-2 sm:col-span-1" style={{ marginLeft: 0 }}>
             <div style={{ color: '#5a5175', fontSize: '10px', fontFamily: "'DM Sans',sans-serif", marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-              AI Performance
+              Performance
             </div>
             <AiScoreBadge score={subject.aiScore} tests={subject.testsAttempted} />
           </div>
