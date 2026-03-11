@@ -5,7 +5,7 @@
  * We position it manually so the project stays within the requested package set.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { TextSelection } from '@tiptap/pm/state'
 import { BORDER, TEXT1 } from '@/constants/theme'
 import {
@@ -85,11 +85,19 @@ const FLOATING_BUTTONS = [
   },
 ]
 
+const TOOLBAR_MARGIN = 12
+const TOOLBAR_OFFSET = 10
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max)
+}
+
 export default function FloatingToolbar({ editor, subjectColor, containerRef }) {
+  const toolbarRef = useRef(null)
   const [position, setPosition] = useState({ visible: false, top: 0, left: 0 })
 
   const updatePosition = useCallback(() => {
-    if (!editor || !containerRef?.current) {
+    if (!editor || !containerRef?.current || !toolbarRef.current) {
       setPosition((prev) => (prev.visible ? { ...prev, visible: false } : prev))
       return
     }
@@ -105,9 +113,23 @@ export default function FloatingToolbar({ editor, subjectColor, containerRef }) 
     const start = view.coordsAtPos(selection.from)
     const end = view.coordsAtPos(selection.to)
     const frameRect = containerRef.current.getBoundingClientRect()
+    const toolbarRect = toolbarRef.current.getBoundingClientRect()
+    const selectionLeft = Math.min(start.left, end.left)
+    const selectionRight = Math.max(start.right, end.right)
+    const selectionTop = Math.min(start.top, end.top) - frameRect.top
+    const selectionBottom = Math.max(start.bottom, end.bottom) - frameRect.top
+    const anchorLeft = (selectionLeft + selectionRight) / 2 - frameRect.left
+    const maxLeft = Math.max(TOOLBAR_MARGIN, frameRect.width - toolbarRect.width - TOOLBAR_MARGIN)
+    const maxTop = Math.max(TOOLBAR_MARGIN, frameRect.height - toolbarRect.height - TOOLBAR_MARGIN)
 
-    const nextLeft = (start.left + end.right) / 2 - frameRect.left
-    const nextTop = Math.max(start.top - frameRect.top - 10, 12)
+    const nextLeft = clamp(anchorLeft - toolbarRect.width / 2, TOOLBAR_MARGIN, maxLeft)
+    const preferredTop = selectionTop - toolbarRect.height - TOOLBAR_OFFSET
+    const fallbackTop = selectionBottom + TOOLBAR_OFFSET
+    const nextTop = clamp(
+      preferredTop < TOOLBAR_MARGIN ? fallbackTop : preferredTop,
+      TOOLBAR_MARGIN,
+      maxTop,
+    )
 
     setPosition({ visible: true, top: nextTop, left: nextLeft })
   }, [containerRef, editor])
@@ -140,24 +162,28 @@ export default function FloatingToolbar({ editor, subjectColor, containerRef }) 
     }
   }, [editor, updatePosition])
 
-  if (!position.visible) return null
-
   return (
     <div
+      ref={toolbarRef}
+      aria-hidden={!position.visible}
       style={{
         position: 'absolute',
         top: `${position.top}px`,
         left: `${position.left}px`,
-        transform: 'translate(-50%, -100%)',
         zIndex: 20,
         display: 'flex',
         alignItems: 'center',
         gap: '4px',
+        flexWrap: 'wrap',
+        maxWidth: 'calc(100% - 24px)',
         background: '#141126',
         border: `1px solid ${BORDER}`,
         borderRadius: '10px',
         padding: '4px',
         boxShadow: '0 14px 32px rgba(0,0,0,0.45)',
+        opacity: position.visible ? 1 : 0,
+        visibility: position.visible ? 'visible' : 'hidden',
+        pointerEvents: position.visible ? 'auto' : 'none',
       }}
     >
       {FLOATING_BUTTONS.map((button) => {
