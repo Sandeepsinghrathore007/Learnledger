@@ -16,15 +16,6 @@ export const NAV_ITEMS = [
     comingSoon: false,
   },
   {
-    id: 'notes',
-    label: 'Notes',
-    icon: 'notes',
-    iconColor: '#fbbf24',
-    iconBg: 'rgba(251,191,36,0.14)',
-    iconBorder: 'rgba(251,191,36,0.28)',
-    comingSoon: false,
-  },
-  {
     id: 'questions',
     label: 'Mock Tests',
     icon: 'tests',
@@ -56,7 +47,6 @@ export const NAV_ITEMS = [
 // Description text for coming-soon placeholder pages
 export const PAGE_DESCRIPTIONS = {
   analytics: 'Track streaks, performance, and AI-driven study progress',
-  notes:     'Your notes across all subjects in one place',
   questions: 'AI-generated MCQs from your notes',
   ai:        'Generate questions, summaries, and study plans',
 }

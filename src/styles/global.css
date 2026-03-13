@@ -76,21 +76,35 @@ body,
   to   { opacity: 1; transform: translateX(-50%) scale(1)   translateY(0);   }
 }
 
+@keyframes aiPulse {
+  0%, 80%, 100% { opacity: 0.28; transform: scale(0.88); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
 /* ── ANIMATION UTILITY CLASSES ──────────────────────────────────────────────── */
 .animate-fade-up    { animation: fadeUp    0.28s ease both; }
 .animate-fade-in    { animation: fadeIn    0.22s ease both; }
 .animate-scale-in   { animation: scaleIn  0.18s ease both; }
 .animate-slide-right{ animation: slideRight 0.22s ease both; }
 .animate-pop-in     { animation: popIn    0.14s ease both; }
+.learnledger-ai-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #7c3aed;
+  display: inline-block;
+  animation: aiPulse 1s ease-in-out infinite;
+}
 
 /* ── TIPTAP NOTE EDITOR ─────────────────────────────────────────────────────── */
 .learnledger-tiptap-shell .ProseMirror {
   min-height: 480px;
   padding: 22px 24px 26px;
-  color: #ede6ff;
-  font-size: 15px;
-  line-height: 1.8;
-  font-family: 'DM Sans', 'Noto Sans Devanagari', sans-serif;
+  background: var(--note-editor-content-bg, transparent);
+  color: var(--note-editor-text, #ede6ff);
+  font-size: var(--note-editor-font-size, 15px);
+  line-height: var(--note-editor-line-height, 1.8);
+  font-family: var(--note-editor-font-family, 'DM Sans', 'Noto Sans Devanagari', sans-serif);
   white-space: pre-wrap;
 }
 .learnledger-tiptap-shell .ProseMirror:focus {
@@ -105,7 +119,7 @@ body,
 .learnledger-tiptap-shell .ProseMirror h1,
 .learnledger-tiptap-shell .ProseMirror h2,
 .learnledger-tiptap-shell .ProseMirror h3 {
-  color: #f2ebff;
+  color: var(--note-editor-heading, #f2ebff);
   margin: 1rem 0 0.45rem;
   line-height: 1.25;
 }
@@ -130,25 +144,25 @@ body,
   padding-left: 1.5rem;
 }
 .learnledger-tiptap-shell .ProseMirror blockquote {
-  border-left: 3px solid rgba(139, 92, 246, 0.5);
+  border-left: 3px solid var(--note-editor-quote-border, rgba(139, 92, 246, 0.5));
   padding-left: 0.8rem;
   margin: 0.8rem 0;
-  color: #b7abdd;
+  color: var(--note-editor-muted, #b7abdd);
 }
 .learnledger-tiptap-shell .ProseMirror code {
-  background: rgba(139, 92, 246, 0.16);
-  border: 1px solid rgba(139, 92, 246, 0.22);
+  background: var(--note-editor-inline-code-bg, rgba(139, 92, 246, 0.16));
+  border: 1px solid var(--note-editor-inline-code-border, rgba(139, 92, 246, 0.22));
   border-radius: 5px;
   padding: 1px 5px;
-  color: #e9deff;
+  color: var(--note-editor-inline-code-text, #e9deff);
   font-size: 0.9em;
 }
 .learnledger-tiptap-shell .ProseMirror pre {
-  background: #0a0817;
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: var(--note-editor-code-bg, #0a0817);
+  border: 1px solid var(--note-editor-code-border, rgba(139, 92, 246, 0.2));
   border-radius: 12px;
   padding: 14px;
-  color: #d8cbff;
+  color: var(--note-editor-code-text, #d8cbff);
   overflow-x: auto;
 }
 .learnledger-tiptap-shell .ProseMirror pre code {
@@ -157,6 +171,27 @@ body,
   padding: 0;
   color: inherit;
   font-size: 13px;
+}
+.learnledger-inline-note-title::placeholder {
+  color: rgba(237,230,255,0.25);
+}
+.learnledger-inline-note-body {
+  min-height: 60px;
+  color: #c4b5fd;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.learnledger-inline-note-body:focus {
+  outline: none;
+}
+.learnledger-inline-note-body > *:first-child {
+  margin-top: 0;
+}
+.learnledger-inline-note-body > *:last-child {
+  margin-bottom: 0;
+}
+.learnledger-inline-note-body p {
+  margin: 0.45rem 0;
 }
 
 /* ── TOOLTIP ────────────────────────────────────────────────────────────────── */

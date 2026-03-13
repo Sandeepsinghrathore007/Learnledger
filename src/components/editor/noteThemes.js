@@ -1,0 +1,201 @@
+export const NOTE_THEMES = {
+  midnight: {
+    id: 'midnight',
+    label: 'Midnight',
+    preview: 'linear-gradient(135deg, #20113d 0%, #080510 100%)',
+    accent: '#9b87f5',
+    panelBackground: 'rgba(17, 11, 32, 0.96)',
+    panelBorder: 'rgba(126, 92, 246, 0.18)',
+    titleInputBackground: 'rgba(139,92,246,0.08)',
+    titleInputBorder: 'rgba(139,92,246,0.24)',
+    titleInputText: '#f4eeff',
+    pillBackground: 'rgba(255,255,255,0.03)',
+    pillBorder: 'rgba(139,92,246,0.14)',
+    pillText: '#cabcf0',
+    pillActiveBackground: 'rgba(139,92,246,0.18)',
+    pillActiveBorder: 'rgba(139,92,246,0.34)',
+    pillActiveText: '#f6f1ff',
+    actionBackground: 'linear-gradient(135deg, rgba(139,92,246,0.28), rgba(124,58,237,0.18))',
+    actionBorder: 'rgba(167,139,250,0.4)',
+    actionText: '#f5efff',
+    editorFrameBackground:
+      'radial-gradient(circle at top right, rgba(155,135,245,0.12), transparent 32%), linear-gradient(180deg, #0d0818 0%, #070510 100%)',
+    editorFrameBorder: 'rgba(139,92,246,0.16)',
+    editorFrameShadow: '0 20px 60px rgba(5, 2, 16, 0.55)',
+    toolbarBackground: 'rgba(17, 12, 30, 0.88)',
+    toolbarBorder: 'rgba(139,92,246,0.12)',
+    toolbarButtonBackground: 'rgba(255,255,255,0.02)',
+    toolbarButtonBorder: 'rgba(139,92,246,0.14)',
+    toolbarButtonText: '#c9bdf0',
+    toolbarButtonActiveBackground: 'rgba(139,92,246,0.2)',
+    toolbarButtonActiveBorder: 'rgba(167,139,250,0.38)',
+    toolbarButtonActiveText: '#f7f2ff',
+    floatingBackground: '#141126',
+    floatingBorder: 'rgba(139,92,246,0.18)',
+    floatingText: '#b7abdd',
+    floatingActiveBackground: 'rgba(139,92,246,0.24)',
+    floatingActiveText: '#ffffff',
+    cssVars: {
+      '--note-editor-content-bg': 'transparent',
+      '--note-editor-text': '#ede6ff',
+      '--note-editor-heading': '#f7f2ff',
+      '--note-editor-muted': '#b7abdd',
+      '--note-editor-quote-border': 'rgba(167,139,250,0.55)',
+      '--note-editor-inline-code-bg': 'rgba(139,92,246,0.16)',
+      '--note-editor-inline-code-border': 'rgba(139,92,246,0.22)',
+      '--note-editor-inline-code-text': '#efe4ff',
+      '--note-editor-code-bg': '#0a0817',
+      '--note-editor-code-border': 'rgba(139,92,246,0.2)',
+      '--note-editor-code-text': '#d8cbff',
+      '--note-editor-font-family': "'DM Sans', 'Noto Sans Devanagari', sans-serif",
+      '--note-editor-line-height': '1.8',
+    },
+  },
+  paper: {
+    id: 'paper',
+    label: 'Paper',
+    preview: 'linear-gradient(135deg, #fffaf1 0%, #ead8b7 100%)',
+    accent: '#a56a2a',
+    panelBackground: 'rgba(251, 246, 236, 0.97)',
+    panelBorder: 'rgba(165,106,42,0.18)',
+    titleInputBackground: 'rgba(255,251,245,0.94)',
+    titleInputBorder: 'rgba(190,144,87,0.26)',
+    titleInputText: '#392716',
+    pillBackground: 'rgba(91,63,33,0.04)',
+    pillBorder: 'rgba(165,106,42,0.14)',
+    pillText: '#6b4a2a',
+    pillActiveBackground: 'rgba(165,106,42,0.12)',
+    pillActiveBorder: 'rgba(165,106,42,0.28)',
+    pillActiveText: '#4a2d12',
+    actionBackground: 'linear-gradient(135deg, rgba(203,150,90,0.2), rgba(165,106,42,0.15))',
+    actionBorder: 'rgba(165,106,42,0.28)',
+    actionText: '#5d3b18',
+    editorFrameBackground: 'linear-gradient(180deg, #fffaf2 0%, #f4ead7 100%)',
+    editorFrameBorder: 'rgba(198,161,117,0.32)',
+    editorFrameShadow: '0 22px 48px rgba(60, 40, 19, 0.12)',
+    toolbarBackground: 'rgba(255,248,238,0.92)',
+    toolbarBorder: 'rgba(190,144,87,0.2)',
+    toolbarButtonBackground: 'rgba(103,73,41,0.04)',
+    toolbarButtonBorder: 'rgba(165,106,42,0.14)',
+    toolbarButtonText: '#624121',
+    toolbarButtonActiveBackground: 'rgba(165,106,42,0.14)',
+    toolbarButtonActiveBorder: 'rgba(165,106,42,0.32)',
+    toolbarButtonActiveText: '#3d250d',
+    floatingBackground: '#fff9f0',
+    floatingBorder: 'rgba(165,106,42,0.16)',
+    floatingText: '#6c5339',
+    floatingActiveBackground: 'rgba(165,106,42,0.14)',
+    floatingActiveText: '#3a2511',
+    cssVars: {
+      '--note-editor-content-bg': 'transparent',
+      '--note-editor-text': '#352718',
+      '--note-editor-heading': '#1c1209',
+      '--note-editor-muted': '#7c6350',
+      '--note-editor-quote-border': '#c89255',
+      '--note-editor-inline-code-bg': '#efe2cf',
+      '--note-editor-inline-code-border': '#dcc0a1',
+      '--note-editor-inline-code-text': '#6b4216',
+      '--note-editor-code-bg': '#fbf4e8',
+      '--note-editor-code-border': '#dcc6a5',
+      '--note-editor-code-text': '#46301a',
+      '--note-editor-font-family': "Georgia, 'Times New Roman', 'Noto Serif', serif",
+      '--note-editor-line-height': '1.9',
+    },
+  },
+  sage: {
+    id: 'sage',
+    label: 'Sage',
+    preview: 'linear-gradient(135deg, #193227 0%, #0a120e 100%)',
+    accent: '#65a37a',
+    panelBackground: 'rgba(11, 24, 19, 0.96)',
+    panelBorder: 'rgba(104,163,122,0.18)',
+    titleInputBackground: 'rgba(101,163,122,0.08)',
+    titleInputBorder: 'rgba(101,163,122,0.22)',
+    titleInputText: '#edf7f0',
+    pillBackground: 'rgba(255,255,255,0.02)',
+    pillBorder: 'rgba(101,163,122,0.14)',
+    pillText: '#bdd9c4',
+    pillActiveBackground: 'rgba(101,163,122,0.18)',
+    pillActiveBorder: 'rgba(146,195,160,0.34)',
+    pillActiveText: '#f4fff7',
+    actionBackground: 'linear-gradient(135deg, rgba(101,163,122,0.24), rgba(65,120,85,0.2))',
+    actionBorder: 'rgba(146,195,160,0.36)',
+    actionText: '#effcf2',
+    editorFrameBackground:
+      'radial-gradient(circle at top right, rgba(101,163,122,0.14), transparent 30%), linear-gradient(180deg, #09130f 0%, #050c08 100%)',
+    editorFrameBorder: 'rgba(101,163,122,0.16)',
+    editorFrameShadow: '0 20px 58px rgba(2, 10, 7, 0.52)',
+    toolbarBackground: 'rgba(9, 20, 15, 0.88)',
+    toolbarBorder: 'rgba(101,163,122,0.14)',
+    toolbarButtonBackground: 'rgba(255,255,255,0.02)',
+    toolbarButtonBorder: 'rgba(101,163,122,0.14)',
+    toolbarButtonText: '#bdd9c4',
+    toolbarButtonActiveBackground: 'rgba(101,163,122,0.18)',
+    toolbarButtonActiveBorder: 'rgba(146,195,160,0.34)',
+    toolbarButtonActiveText: '#f3fff6',
+    floatingBackground: '#0e1913',
+    floatingBorder: 'rgba(101,163,122,0.18)',
+    floatingText: '#bdd9c4',
+    floatingActiveBackground: 'rgba(101,163,122,0.22)',
+    floatingActiveText: '#ffffff',
+    cssVars: {
+      '--note-editor-content-bg': 'transparent',
+      '--note-editor-text': '#e4f0e8',
+      '--note-editor-heading': '#f5fff7',
+      '--note-editor-muted': '#97b39f',
+      '--note-editor-quote-border': 'rgba(126,176,141,0.55)',
+      '--note-editor-inline-code-bg': 'rgba(101,163,122,0.12)',
+      '--note-editor-inline-code-border': 'rgba(101,163,122,0.2)',
+      '--note-editor-inline-code-text': '#ddf4e2',
+      '--note-editor-code-bg': '#0d1a14',
+      '--note-editor-code-border': 'rgba(101,163,122,0.18)',
+      '--note-editor-code-text': '#cde7d4',
+      '--note-editor-font-family': "'Trebuchet MS', 'DM Sans', 'Noto Sans Devanagari', sans-serif",
+      '--note-editor-line-height': '1.85',
+    },
+  },
+}
+
+export const NOTE_THEME_OPTIONS = Object.values(NOTE_THEMES)
+
+export const NOTE_FONT_SIZE_OPTIONS = [
+  {
+    id: 'small',
+    label: 'A-',
+    fontSize: '14px',
+    lineHeight: '1.75',
+  },
+  {
+    id: 'medium',
+    label: 'A',
+    fontSize: '15px',
+    lineHeight: '1.8',
+  },
+  {
+    id: 'large',
+    label: 'A+',
+    fontSize: '18px',
+    lineHeight: '1.9',
+  },
+]
+
+export function getNoteTheme(themeId) {
+  return NOTE_THEMES[themeId] || NOTE_THEMES.midnight
+}
+
+export function getNoteThemeId(themeId) {
+  return NOTE_THEMES[themeId] ? themeId : 'midnight'
+}
+
+export function getNoteFontSize(fontSizeId) {
+  return (
+    NOTE_FONT_SIZE_OPTIONS.find((option) => option.id === fontSizeId) ||
+    NOTE_FONT_SIZE_OPTIONS[1]
+  )
+}
+
+export function getNoteFontSizeId(fontSizeId) {
+  return NOTE_FONT_SIZE_OPTIONS.some((option) => option.id === fontSizeId)
+    ? fontSizeId
+    : 'medium'
+}

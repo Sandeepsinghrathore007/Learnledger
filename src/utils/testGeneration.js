@@ -8,6 +8,24 @@
  */
 
 const OPTION_IDS = ['a', 'b', 'c', 'd']
+const DEFAULT_PROMPT_OPTIONS = {
+  maxNotes: 8,
+  maxPdfs: 4,
+  noteCharLimit: 1000,
+  pdfCharLimit: 900,
+  totalContextChars: 9000,
+}
+
+function truncateText(value, maxChars) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (!text || !Number.isFinite(maxChars) || maxChars <= 0) return ''
+  if (text.length <= maxChars) return text
+  return `${text.slice(0, Math.max(0, maxChars - 1)).trimEnd()}...`
+}
+
+function clampPositiveInteger(value, fallback) {
+  return Number.isInteger(value) && value > 0 ? value : fallback
+}
 
 /**
  * Strip HTML tags from content to get plain text.
@@ -131,27 +149,55 @@ export function gatherContentForTest(config, subjects) {
  * @param {Object} content - Gathered content from gatherContentForTest
  * @returns {String} - Formatted prompt for AI
  */
-export function buildAIPrompt(config, content) {
+export function buildAIPrompt(config, content, promptOptions = {}) {
   const { questionCount, difficulty } = config
   const { notesContent, pdfContent, metadata } = content
+  const options = {
+    ...DEFAULT_PROMPT_OPTIONS,
+    ...(promptOptions && typeof promptOptions === 'object' ? promptOptions : {}),
+  }
+  const maxNotes = clampPositiveInteger(options.maxNotes, DEFAULT_PROMPT_OPTIONS.maxNotes)
+  const maxPdfs = clampPositiveInteger(options.maxPdfs, DEFAULT_PROMPT_OPTIONS.maxPdfs)
+  const noteCharLimit = clampPositiveInteger(options.noteCharLimit, DEFAULT_PROMPT_OPTIONS.noteCharLimit)
+  const pdfCharLimit = clampPositiveInteger(options.pdfCharLimit, DEFAULT_PROMPT_OPTIONS.pdfCharLimit)
+  let remainingBudget = clampPositiveInteger(
+    options.totalContextChars,
+    DEFAULT_PROMPT_OPTIONS.totalContextChars
+  )
 
   // Build context from notes
   let notesContext = ''
   if (notesContent.length > 0) {
     notesContext = 'NOTES CONTENT:\n\n'
-    notesContent.forEach((note, index) => {
-      notesContext += `--- Note ${index + 1}: ${note.title} (${note.subjectName} - ${note.topicName}) ---\n`
-      notesContext += `${note.content.slice(0, 1500)}\n\n` // Limit per note for token management
+
+    notesContent.slice(0, maxNotes).forEach((note, index) => {
+      if (remainingBudget <= 0) return
+
+      const noteHeader = `--- Note ${index + 1}: ${note.title} (${note.subjectName} - ${note.topicName}) ---\n`
+      const availableChars = Math.max(180, remainingBudget - noteHeader.length)
+      const trimmedContent = truncateText(note.content, Math.min(noteCharLimit, availableChars))
+      if (!trimmedContent) return
+
+      notesContext += `${noteHeader}${trimmedContent}\n\n`
+      remainingBudget -= noteHeader.length + trimmedContent.length
     })
   }
 
   // Build context from PDFs
   let pdfContext = ''
-  if (pdfContent.length > 0) {
+  if (pdfContent.length > 0 && remainingBudget > 0) {
     pdfContext = 'PDF SUMMARIES:\n\n'
-    pdfContent.forEach((pdf, index) => {
-      pdfContext += `--- PDF ${index + 1}: ${pdf.title} (${pdf.subjectName}) ---\n`
-      pdfContext += `${pdf.summary}\n\n`
+
+    pdfContent.slice(0, maxPdfs).forEach((pdf, index) => {
+      if (remainingBudget <= 0) return
+
+      const pdfHeader = `--- PDF ${index + 1}: ${pdf.title} (${pdf.subjectName}) ---\n`
+      const availableChars = Math.max(140, remainingBudget - pdfHeader.length)
+      const trimmedSummary = truncateText(pdf.summary, Math.min(pdfCharLimit, availableChars))
+      if (!trimmedSummary) return
+
+      pdfContext += `${pdfHeader}${trimmedSummary}\n\n`
+      remainingBudget -= pdfHeader.length + trimmedSummary.length
     })
   }
 
@@ -200,7 +246,7 @@ REQUIREMENTS:
 3. Questions should test understanding, application, and critical thinking.
 4. Include variety: definitions, calculations, applications, analysis.
 5. Make incorrect options plausible but clearly wrong.
-6. Provide a detailed explanation (2-3 sentences) for why the correct answer is right.
+6. Provide a concise explanation (1-2 short sentences) for why the correct answer is right.
 7. Base ALL questions on the actual content provided - do not add external information.
 8. For mixed difficulty, mark each question's difficulty level.
 9. correctAnswer must be one of: "a", "b", "c", "d" (lowercase).

@@ -164,25 +164,9 @@ export default function SubjectDetailPage({
   const handleDeleteTopic = (topicId) =>
     save({ ...subj, topics: subj.topics.filter(t => t.id !== topicId) })
 
-  const handleToggleTopicComplete = (topicId) => {
-    const now = new Date().toISOString()
-
-    save({
-      ...subj,
-      topics: subj.topics.map((topic) =>
-        topic.id !== topicId
-          ? topic
-          : {
-              ...topic,
-              isCompleted: !topic.isCompleted,
-              completedAt: topic.isCompleted ? null : now,
-            }
-      ),
-    })
-  }
-
   // ── NOTE ACTIONS ──────────────────────────────────────────────────────────
   const handleAddNote = (topicId) => {
+    const baseSubject = subjectRef.current
     const now = new Date().toISOString()
     const newNote = {
       id:     uid(),
@@ -190,6 +174,8 @@ export default function SubjectDetailPage({
       content: '<p></p>',
       blocks: [{ id: uid(), type: 'p', text: '' }],
       tags: [],
+      theme: 'midnight',
+      fontSize: 'medium',
       isFavorite: false,
       isPinned: false,
       linkedNotes: [],
@@ -198,8 +184,8 @@ export default function SubjectDetailPage({
       lastOpenedAt: now,
     }
     const updated = {
-      ...subj,
-      topics: subj.topics.map(t =>
+      ...baseSubject,
+      topics: baseSubject.topics.map(t =>
         t.id !== topicId ? t : { ...t, notes: [...t.notes, newNote] }
       ),
     }
@@ -212,6 +198,8 @@ export default function SubjectDetailPage({
     const noteWithMeta = {
       ...updatedNote,
       tags: Array.isArray(updatedNote.tags) ? updatedNote.tags : [],
+      theme: typeof updatedNote.theme === 'string' ? updatedNote.theme : 'midnight',
+      fontSize: typeof updatedNote.fontSize === 'string' ? updatedNote.fontSize : 'medium',
       createdAt: updatedNote.createdAt ?? now,
       updatedAt: now,
       lastOpenedAt: now,
@@ -479,9 +467,9 @@ export default function SubjectDetailPage({
     return (
       <Editor
         note={openNote.note}
-        subjectColor={subj.color}
         onBack={() => setOpenNote(null)}
         onSave={(updated) => handleSaveNote(openNote.topicId, updated)}
+        onCreateNote={() => handleAddNote(openNote.topicId)}
         allNotes={getAllNotes()}
         onAddLinkedNote={handleAddLinkedNote}
         onRemoveLinkedNote={handleRemoveLinkedNote}
@@ -567,7 +555,6 @@ export default function SubjectDetailPage({
               onOpenNote={(note, topicId) => setOpenNote({ note, topicId })}
               onDeleteNote={handleDeleteNote}
               onDeleteTopic={handleDeleteTopic}
-              onToggleComplete={handleToggleTopicComplete}
             />
           ))}
         </div>

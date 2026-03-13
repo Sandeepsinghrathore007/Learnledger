@@ -11,7 +11,6 @@
  *   onOpenNote   {Function} — (note, topicId) open existing note in editor
  *   onDeleteNote {Function} — (topicId, noteId) remove a note
  *   onDeleteTopic{Function} — (topicId) remove the topic
- *   onToggleComplete {Function} — (topicId) toggle completion state
  *
  * State:
  *   isOpen {boolean} — Whether the accordion panel is expanded
@@ -23,7 +22,7 @@ import { SURFACE, BORDER, BORDER2, TEXT1, TEXT2, TEXT3 } from '@/constants/theme
 
 export default function TopicAccordion({
   topic, subjectColor,
-  onAddNote, onOpenNote, onDeleteNote, onDeleteTopic, onToggleComplete,
+  onAddNote, onOpenNote, onDeleteNote, onDeleteTopic,
 }) {
   const [isOpen, setIsOpen] = useState(true)
 
@@ -67,22 +66,6 @@ export default function TopicAccordion({
           className="flex w-full justify-end gap-1.5 sm:w-auto"
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={() => onToggleComplete(topic.id)}
-            style={{
-              padding: '4px 10px',
-              borderRadius: '999px',
-              background: topic.isCompleted ? 'rgba(34,197,94,0.16)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${topic.isCompleted ? 'rgba(34,197,94,0.35)' : 'rgba(255,255,255,0.08)'}`,
-              color: topic.isCompleted ? '#86efac' : TEXT3,
-              fontSize: '11.5px',
-              fontFamily: "'DM Sans',sans-serif",
-              fontWeight: '700',
-            }}
-          >
-            {topic.isCompleted ? 'Completed' : 'Mark Done'}
-          </button>
-
           <button
             onClick={() => onAddNote(topic.id)}
             style={{

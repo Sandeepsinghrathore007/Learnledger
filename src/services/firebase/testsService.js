@@ -12,6 +12,28 @@ import { ACTIVITY_TYPES, logActivity } from './analyticsService'
 import { userTestDocRef, userTestsCol } from './firestorePaths'
 
 const HAS_FRONTEND_AI_KEY = Boolean(String(import.meta.env.VITE_OPENROUTER_API_KEY || '').trim())
+const TEST_GENERATION_ATTEMPTS = [
+  {
+    promptOptions: {
+      maxNotes: 8,
+      maxPdfs: 4,
+      noteCharLimit: 1000,
+      pdfCharLimit: 900,
+      totalContextChars: 9000,
+    },
+    maxTokens: 3200,
+  },
+  {
+    promptOptions: {
+      maxNotes: 5,
+      maxPdfs: 2,
+      noteCharLimit: 650,
+      pdfCharLimit: 500,
+      totalContextChars: 5000,
+    },
+    maxTokens: 2200,
+  },
+]
 
 function toDate(value) {
   if (!value) return null
@@ -78,6 +100,28 @@ function generateTestTitle(config, metadata) {
   return `${subjectNames} - Full Subject Test`
 }
 
+function isRetryableGenerationError(error) {
+  const message = String(error?.message || '').toLowerCase()
+  return [
+    'internal server error',
+    'timed out',
+    'timeout',
+    '503',
+    '502',
+    'temporarily unavailable',
+    'bad gateway',
+    'gateway timeout',
+    'service unavailable',
+    'context length',
+    'too large',
+  ].some((fragment) => message.includes(fragment))
+}
+
+function getGenerationMaxTokens(questionCount, configuredMaxTokens) {
+  const requested = Math.max(1200, Number(questionCount || 0) * 260)
+  return Math.min(configuredMaxTokens, requested)
+}
+
 export function subscribeToTests(userId, onNext, onError) {
   return onSnapshot(
     userTestsCol(userId),
@@ -105,14 +149,45 @@ export async function generateTest({ config, subjects, userId = null }) {
     throw new Error('No content found. Please add notes or PDFs to the selected subjects/topics.')
   }
 
-  const prompt = buildAIPrompt(config, content)
+  let generatedText = ''
+  let modelUsed = null
+  let provider = null
+  let lastError = null
 
-  const { text: generatedText, modelUsed, provider } = await generateTextFromAI({
-    systemPrompt: 'Return strict JSON only. No markdown or additional prose.',
-    userPrompt: prompt,
-    temperature: 0.5,
-    maxTokens: 8192,
-  })
+  for (let index = 0; index < TEST_GENERATION_ATTEMPTS.length; index += 1) {
+    const attempt = TEST_GENERATION_ATTEMPTS[index]
+    const prompt = buildAIPrompt(config, content, attempt.promptOptions)
+
+    try {
+      const generated = await generateTextFromAI({
+        systemPrompt: 'Return strict JSON only. No markdown or additional prose.',
+        userPrompt: prompt,
+        temperature: 0.35,
+        maxTokens: getGenerationMaxTokens(config.questionCount, attempt.maxTokens),
+      })
+
+      generatedText = generated.text
+      modelUsed = generated.modelUsed
+      provider = generated.provider
+      lastError = null
+      break
+    } catch (error) {
+      lastError = error
+      if (!isRetryableGenerationError(error) || index === TEST_GENERATION_ATTEMPTS.length - 1) {
+        break
+      }
+    }
+  }
+
+  if (lastError) {
+    if (isRetryableGenerationError(lastError)) {
+      throw new Error(
+        'AI mock test generation is temporarily overloaded. Please try again in a few seconds or use fewer subjects/topics.'
+      )
+    }
+
+    throw lastError
+  }
 
   const parsedQuestions = parseAIResponse(generatedText)
   if (parsedQuestions.length < config.questionCount) {

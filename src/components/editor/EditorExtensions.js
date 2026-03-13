@@ -4,8 +4,14 @@
  * Single place to configure TipTap extensions used by the note editor.
  */
 
-import { Mark, mergeAttributes } from '@tiptap/core'
+import { Extension, Mark, mergeAttributes } from '@tiptap/core'
+import Heading from '@tiptap/extension-heading'
+import { Plugin } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
+import { AiCalloutNode } from '@/components/editor/AiCalloutNode'
+import { buildHeadingIdFromText, createHeadingIdGenerator } from '@/components/editor/headingOutline'
+import { InlineNoteNode } from '@/components/editor/InlineNoteNode'
+import { InlineNoteSlashCommand } from '@/components/editor/inlineNoteSlashCommand'
 
 /**
  * Underline is not part of StarterKit, so we define a compact mark extension
@@ -112,19 +118,69 @@ const TextColor = Mark.create({
   },
 })
 
+const HeadingWithId = Heading.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      id: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('id'),
+        renderHTML: (attributes) => {
+          if (!attributes.id) return {}
+          return { id: attributes.id }
+        },
+      },
+    }
+  },
+})
+
+const HeadingIdSync = Extension.create({
+  name: 'headingIdSync',
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        appendTransaction: (_transactions, _oldState, newState) => {
+          const createHeadingId = createHeadingIdGenerator()
+          const transaction = newState.tr
+
+          newState.doc.descendants((node, pos) => {
+            if (node.type.name !== 'heading') return
+
+            const nextId = buildHeadingIdFromText(node.textContent, createHeadingId)
+            if (node.attrs?.id === nextId) return
+
+            transaction.setNodeMarkup(pos, undefined, {
+              ...node.attrs,
+              id: nextId,
+            })
+          })
+
+          return transaction.steps.length > 0 ? transaction : null
+        },
+      }),
+    ]
+  },
+})
+
 /**
  * Exported factory keeps extension setup declarative and easy to test.
  */
 export function buildEditorExtensions() {
   return [
     StarterKit.configure({
-      heading: { levels: [1, 2, 3] },
+      heading: false,
       codeBlock: true,
       bulletList: true,
       orderedList: true,
       blockquote: true,
     }),
+    HeadingWithId.configure({ levels: [1, 2, 3] }),
+    HeadingIdSync,
     Underline,
     TextColor,
+    AiCalloutNode,
+    InlineNoteNode,
+    InlineNoteSlashCommand,
   ]
 }

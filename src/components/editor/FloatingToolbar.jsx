@@ -7,7 +7,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TextSelection } from '@tiptap/pm/state'
-import { BORDER, TEXT1 } from '@/constants/theme'
 import {
   canInsertObjectiveQuestion,
   insertObjectiveQuestionTemplate,
@@ -88,13 +87,47 @@ const FLOATING_BUTTONS = [
 const TOOLBAR_MARGIN = 12
 const TOOLBAR_OFFSET = 10
 
+const DEFAULT_THEME = {
+  accent: '#8b5cf6',
+  floatingBackground: '#141126',
+  floatingBorder: 'rgba(139,92,246,0.18)',
+  floatingText: '#b7abdd',
+  floatingActiveBackground: 'rgba(139,92,246,0.24)',
+  floatingActiveText: '#ffffff',
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
 }
 
-export default function FloatingToolbar({ editor, subjectColor, containerRef }) {
+function getSelectedTextPayload(editor) {
+  if (!editor) return null
+
+  const { selection } = editor.state
+  if (!(selection instanceof TextSelection) || selection.empty) return null
+
+  const text = editor.state.doc.textBetween(selection.from, selection.to, '\n').trim()
+  if (!text) return null
+
+  let insertionPos = selection.to
+  for (let depth = selection.$to.depth; depth > 0; depth -= 1) {
+    if (selection.$to.node(depth).isBlock) {
+      insertionPos = selection.$to.after(depth)
+      break
+    }
+  }
+
+  return {
+    text,
+    range: { from: selection.from, to: selection.to },
+    insertionPos,
+  }
+}
+
+export default function FloatingToolbar({ editor, themeStyles, containerRef, onAskAI = null }) {
   const toolbarRef = useRef(null)
   const [position, setPosition] = useState({ visible: false, top: 0, left: 0 })
+  const palette = themeStyles || DEFAULT_THEME
 
   const updatePosition = useCallback(() => {
     if (!editor || !containerRef?.current || !toolbarRef.current) {
@@ -176,8 +209,8 @@ export default function FloatingToolbar({ editor, subjectColor, containerRef }) 
         gap: '4px',
         flexWrap: 'wrap',
         maxWidth: 'calc(100% - 24px)',
-        background: '#141126',
-        border: `1px solid ${BORDER}`,
+        background: palette.floatingBackground,
+        border: `1px solid ${palette.floatingBorder}`,
         borderRadius: '10px',
         padding: '4px',
         boxShadow: '0 14px 32px rgba(0,0,0,0.45)',
@@ -206,8 +239,8 @@ export default function FloatingToolbar({ editor, subjectColor, containerRef }) 
               height: '28px',
               borderRadius: '7px',
               border: 'none',
-              background: active ? `${subjectColor}25` : 'transparent',
-              color: active ? TEXT1 : '#b7abdd',
+              background: active ? palette.floatingActiveBackground : 'transparent',
+              color: active ? palette.floatingActiveText : palette.floatingText,
               fontSize: '12px',
               fontFamily: "'DM Sans', sans-serif",
               fontWeight: '700',
@@ -218,6 +251,46 @@ export default function FloatingToolbar({ editor, subjectColor, containerRef }) 
           </button>
         )
       })}
+
+      {onAskAI && (
+        <>
+          <span
+            aria-hidden="true"
+            style={{
+              width: '1px',
+              height: '14px',
+              background: 'rgba(255,255,255,0.1)',
+              margin: '0 2px',
+              flexShrink: 0,
+            }}
+          />
+
+          <button
+            type="button"
+            onMouseDown={(event) => {
+              event.preventDefault()
+              const payload = getSelectedTextPayload(editor)
+              if (!payload) return
+              onAskAI(payload)
+            }}
+            style={{
+              border: '0.5px solid rgba(124,58,237,0.3)',
+              background: 'rgba(124,58,237,0.15)',
+              color: '#a78bfa',
+              borderRadius: '4px',
+              padding: '3px 9px',
+              fontSize: '11px',
+              fontWeight: '600',
+              fontFamily: "'DM Sans', sans-serif",
+              height: '28px',
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+          >
+            ✦ Ask AI
+          </button>
+        </>
+      )}
     </div>
   )
 }

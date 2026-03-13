@@ -10,16 +10,41 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
+import AiAssistantPanel from '@/components/editor/AiAssistantPanel'
+import OutlinePanel from '@/components/editor/OutlinePanel'
 import EditorToolbar from '@/components/editor/EditorToolbar'
 import FloatingToolbar from '@/components/editor/FloatingToolbar'
+import InlineNoteSlashMenu from '@/components/editor/InlineNoteSlashMenu'
+import { extractHeadingsFromJson } from '@/components/editor/headingOutline'
+import { insertInlineNoteAtRange } from '@/components/editor/InlineNoteNode'
+import {
+  NOTE_FONT_SIZE_OPTIONS,
+  NOTE_THEME_OPTIONS,
+  getNoteFontSize,
+  getNoteFontSizeId,
+  getNoteTheme,
+  getNoteThemeId,
+} from '@/components/editor/noteThemes'
 import LinkedNotesPanel from '@/components/notes/LinkedNotesPanel'
 import { buildEditorExtensions } from '@/components/editor/EditorExtensions'
-import { BackIcon, SaveIcon } from '@/components/ui/Icons'
-import { BORDER, BORDER2, SURFACE, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
+import { getInlineNoteSlashCommandState } from '@/components/editor/inlineNoteSlashCommand'
+import { BackIcon, PlusIcon, SaveIcon } from '@/components/ui/Icons'
 import { uid } from '@/utils/id'
 
 const EMPTY_DOC_HTML = '<p></p>'
 const AUTOSAVE_DELAY_MS = 900
+const EMPTY_AI_PANEL = {
+  open: false,
+  selectedText: '',
+  range: null,
+  insertionPos: null,
+}
+const EMPTY_SLASH_MENU = {
+  open: false,
+  range: null,
+  top: 0,
+  left: 0,
+}
 
 function escapeHtml(text = '') {
   return text
@@ -97,12 +122,44 @@ function extractText(node) {
   return node.content.map(extractText).join('')
 }
 
+function extractStructuredText(node) {
+  if (!node) return ''
+
+  if (node?.type === 'aiCallout') {
+    const explanation = typeof node.attrs?.explanation === 'string' ? node.attrs.explanation.trim() : ''
+    const keyPoints = Array.isArray(node.attrs?.keyPoints)
+      ? node.attrs.keyPoints.map((item) => String(item || '').trim()).filter(Boolean)
+      : []
+
+    return [explanation, ...keyPoints].filter(Boolean).join('\n')
+  }
+
+  if (node?.type === 'inlineNote') {
+    const title = typeof node.attrs?.title === 'string' && node.attrs.title.trim()
+      ? node.attrs.title.trim()
+      : 'Untitled Note'
+    const body = Array.isArray(node.content)
+      ? node.content.map(extractStructuredText).filter(Boolean).join('\n')
+      : ''
+    return [title, body].filter(Boolean).join('\n')
+  }
+
+  if (node.type === 'text') return node.text ?? ''
+  if (node.type === 'hardBreak') return '\n'
+  if (!Array.isArray(node.content)) return ''
+  return node.content.map(extractStructuredText).join('')
+}
+
+function clampPosition(value, min, max) {
+  return Math.min(Math.max(value, min), max)
+}
+
 function listNodeToBlock(node, ordered = false) {
   if (!Array.isArray(node?.content)) return null
 
   const lines = node.content
     .map((item, index) => {
-      const text = extractText(item).trim()
+      const text = extractStructuredText(item).trim()
       if (!text) return null
       return ordered ? `${index + 1}. ${text}` : text
     })
@@ -117,7 +174,7 @@ function tiptapJsonToBlocks(jsonDoc) {
   const blocks = []
 
   nodes.forEach((node) => {
-    const text = extractText(node)
+    const text = extractStructuredText(node)
 
     if (node.type === 'paragraph') {
       blocks.push({ id: uid(), type: 'p', text })
@@ -153,6 +210,16 @@ function tiptapJsonToBlocks(jsonDoc) {
       return
     }
 
+    if (node.type === 'aiCallout') {
+      blocks.push({ id: uid(), type: 'quote', text })
+      return
+    }
+
+    if (node.type === 'inlineNote') {
+      blocks.push({ id: uid(), type: 'callout', text })
+      return
+    }
+
     if (text.trim().length > 0) {
       blocks.push({ id: uid(), type: 'p', text })
     }
@@ -161,46 +228,20 @@ function tiptapJsonToBlocks(jsonDoc) {
   return blocks.length > 0 ? blocks : [{ id: uid(), type: 'p', text: '' }]
 }
 
-function getDocStats(editor) {
-  if (!editor) return { words: 0, chars: 0 }
-  const rawText = editor.getText() ?? ''
-  const trimmed = rawText.trim()
-  return {
-    words: trimmed ? trimmed.split(/\s+/).length : 0,
-    chars: rawText.length,
-  }
-}
-
 function normalizeTitle(value) {
   const trimmed = value.trim()
   return trimmed || 'Untitled Note'
 }
 
-function normalizeTag(value = '') {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-_]/g, '')
-}
-
-function normalizeTags(values = []) {
-  if (!Array.isArray(values)) return []
-
-  const unique = new Set()
-  values.forEach((tag) => {
-    const normalized = normalizeTag(String(tag || ''))
-    if (normalized) unique.add(normalized)
-  })
-
-  return Array.from(unique)
+function getSafeTags(note) {
+  return Array.isArray(note?.tags) ? note.tags : []
 }
 
 export default function Editor({ 
   note, 
-  subjectColor, 
   onBack, 
   onSave,
+  onCreateNote = null,
   // Props for linked notes feature
   allNotes = [],           // All notes across subjects (for linking)
   onAddLinkedNote = null,  // (targetNoteId) => void
@@ -208,20 +249,27 @@ export default function Editor({
   onNavigateToNote = null, // (note) => void - Navigate to linked note
 }) {
   const [title, setTitle] = useState(note.title ?? 'Untitled Note')
-  const [tags, setTags] = useState(() => normalizeTags(note.tags))
-  const [tagInput, setTagInput] = useState('')
+  const [themeId, setThemeId] = useState(() => getNoteThemeId(note.theme))
+  const [fontSizeId, setFontSizeId] = useState(() => getNoteFontSizeId(note.fontSize))
+  const [outlineItems, setOutlineItems] = useState([])
+  const [activeOutlineId, setActiveOutlineId] = useState(null)
   const [saveState, setSaveState] = useState('saved')
-  const [stats, setStats] = useState({ words: 0, chars: 0 })
+  const [aiPanel, setAiPanel] = useState(EMPTY_AI_PANEL)
+  const [slashMenu, setSlashMenu] = useState(EMPTY_SLASH_MENU)
 
   const noteRef = useRef(note)
   const titleRef = useRef(note.title ?? 'Untitled Note')
-  const tagsRef = useRef(normalizeTags(note.tags))
+  const themeRef = useRef(getNoteThemeId(note.theme))
+  const fontSizeRef = useRef(getNoteFontSizeId(note.fontSize))
   const activeNoteIdRef = useRef(note.id)
   const saveTimerRef = useRef(null)
   const initialContentRef = useRef(getInitialContent(note))
   const editorFrameRef = useRef(null)
 
   const extensions = useMemo(() => buildEditorExtensions(), [])
+  const currentTheme = getNoteTheme(themeId)
+  const currentFontSize = getNoteFontSize(fontSizeId)
+  const showLinkedNotes = Boolean(onAddLinkedNote && onRemoveLinkedNote && allNotes.length > 0)
 
   const editor = useEditor(
     {
@@ -239,20 +287,172 @@ export default function Editor({
     []
   )
 
+  const syncOutlineItems = useCallback(() => {
+    if (!editor) return
+
+    const nextItems = extractHeadingsFromJson(editor.getJSON())
+    setOutlineItems(nextItems)
+    setActiveOutlineId((previous) => {
+      if (nextItems.length === 0) return null
+      if (previous && nextItems.some((item) => item.id === previous)) return previous
+      return nextItems[0].id
+    })
+  }, [editor])
+
+  const syncSlashMenu = useCallback(() => {
+    if (!editor || !editorFrameRef.current) {
+      setSlashMenu(EMPTY_SLASH_MENU)
+      return
+    }
+
+    const slashState = getInlineNoteSlashCommandState(editor.state)
+    if (!slashState.active || !slashState.range) {
+      setSlashMenu(EMPTY_SLASH_MENU)
+      return
+    }
+
+    const frameRect = editorFrameRef.current.getBoundingClientRect()
+    const coords = editor.view.coordsAtPos(slashState.range.from)
+    const maxLeft = Math.max(16, frameRect.width - 236)
+    const maxTop = Math.max(16, frameRect.height - 72)
+
+    setSlashMenu({
+      open: true,
+      range: slashState.range,
+      top: clampPosition(coords.bottom - frameRect.top + 10, 16, maxTop),
+      left: clampPosition(coords.left - frameRect.left, 16, maxLeft),
+    })
+  }, [editor])
+
+  const updateActiveOutline = useCallback(() => {
+    if (!editorFrameRef.current || outlineItems.length === 0) {
+      setActiveOutlineId(null)
+      return
+    }
+
+    const headingNodes = outlineItems
+      .map((item) => editorFrameRef.current.querySelector(`[id="${item.id}"]`))
+      .filter(Boolean)
+
+    if (headingNodes.length === 0) {
+      setActiveOutlineId(null)
+      return
+    }
+
+    const threshold = 150
+    let nextActiveId = headingNodes[0].id
+
+    headingNodes.forEach((node) => {
+      if (node.getBoundingClientRect().top <= threshold) {
+        nextActiveId = node.id
+      }
+    })
+
+    setActiveOutlineId(nextActiveId)
+  }, [outlineItems])
+
+  const handleSelectOutlineItem = useCallback(
+    (headingId) => {
+      if (!editor || !editorFrameRef.current) return
+
+      editor.commands.focus()
+
+      requestAnimationFrame(() => {
+        const headingNode = editorFrameRef.current.querySelector(`[id="${headingId}"]`)
+        if (!headingNode) return
+
+        headingNode.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setActiveOutlineId(headingId)
+      })
+    },
+    [editor]
+  )
+
+  const handleOpenAiAssistant = useCallback(({ text, range, insertionPos }) => {
+    setAiPanel({
+      open: true,
+      selectedText: text,
+      range,
+      insertionPos,
+    })
+  }, [])
+
+  const handleCloseAiAssistant = useCallback(() => {
+    setAiPanel(EMPTY_AI_PANEL)
+  }, [])
+
+  const handleInsertAiResponse = useCallback(
+    (response) => {
+      if (!editor || !editorFrameRef.current) return
+
+      const explanation = String(response?.explanation || '').trim()
+      const keyPoints = Array.isArray(response?.keyPoints)
+        ? response.keyPoints.map((item) => String(item || '').trim()).filter(Boolean)
+        : []
+
+      if (!explanation && keyPoints.length === 0) return
+
+      const calloutId = uid()
+      const insertAt = Number.isInteger(aiPanel.insertionPos) ? aiPanel.insertionPos : editor.state.selection.to
+
+      const inserted = editor
+        .chain()
+        .focus()
+        .insertContentAt(insertAt, [
+          {
+            type: 'aiCallout',
+            attrs: {
+              calloutId,
+              explanation,
+              keyPoints,
+            },
+          },
+          { type: 'paragraph' },
+        ])
+        .run()
+
+      if (!inserted) return
+
+      setAiPanel(EMPTY_AI_PANEL)
+
+      requestAnimationFrame(() => {
+        const calloutNode = editorFrameRef.current?.querySelector(`[data-callout-id="${calloutId}"]`)
+        calloutNode?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+    },
+    [aiPanel.insertionPos, editor]
+  )
+
+  const handleInsertInlineNote = useCallback(() => {
+    if (!editor || !slashMenu.range) return
+
+    const insertPos = insertInlineNoteAtRange(editor, slashMenu.range)
+    setSlashMenu(EMPTY_SLASH_MENU)
+
+    if (insertPos == null) return
+
+    requestAnimationFrame(() => {
+      editor.chain().focus(insertPos + 2).run()
+    })
+  }, [editor, slashMenu.range])
+
   const persistNote = useCallback(() => {
     if (!editor) return
 
     const currentTitle = normalizeTitle(titleRef.current)
     const content = editor.getHTML()
     const blocks = tiptapJsonToBlocks(editor.getJSON())
-    const currentTags = normalizeTags(tagsRef.current)
+    const currentThemeId = getNoteThemeId(themeRef.current)
+    const currentFontSizeId = getNoteFontSizeId(fontSizeRef.current)
 
     onSave({
       ...noteRef.current,
       title: currentTitle,
       content,
       blocks,
-      tags: currentTags,
+      tags: getSafeTags(noteRef.current),
+      theme: currentThemeId,
+      fontSize: currentFontSizeId,
     })
 
     setSaveState('saved')
@@ -276,49 +476,30 @@ export default function Editor({
     persistNote()
   }, [persistNote])
 
-  const updateTags = useCallback(
-    (nextTags) => {
-      const normalized = normalizeTags(nextTags)
-      setTags(normalized)
-      tagsRef.current = normalized
-      noteRef.current = { ...noteRef.current, tags: normalized }
+  const handleThemeChange = useCallback(
+    (nextThemeId) => {
+      const resolvedThemeId = getNoteThemeId(nextThemeId)
+      if (themeRef.current === resolvedThemeId) return
+
+      setThemeId(resolvedThemeId)
+      themeRef.current = resolvedThemeId
+      noteRef.current = { ...noteRef.current, theme: resolvedThemeId }
       queueAutosave()
     },
     [queueAutosave]
   )
 
-  const handleAddTag = useCallback(() => {
-    const nextTag = normalizeTag(tagInput)
-    if (!nextTag) return
-    if (tagsRef.current.includes(nextTag)) {
-      setTagInput('')
-      return
-    }
-    updateTags([...tagsRef.current, nextTag])
-    setTagInput('')
-  }, [tagInput, updateTags])
+  const handleFontSizeChange = useCallback(
+    (nextFontSizeId) => {
+      const resolvedFontSizeId = getNoteFontSizeId(nextFontSizeId)
+      if (fontSizeRef.current === resolvedFontSizeId) return
 
-  const handleRemoveTag = useCallback(
-    (tagToRemove) => {
-      updateTags(tagsRef.current.filter((tag) => tag !== tagToRemove))
+      setFontSizeId(resolvedFontSizeId)
+      fontSizeRef.current = resolvedFontSizeId
+      noteRef.current = { ...noteRef.current, fontSize: resolvedFontSizeId }
+      queueAutosave()
     },
-    [updateTags]
-  )
-
-  const handleTagInputKeyDown = useCallback(
-    (event) => {
-      if (event.key === 'Enter' || event.key === ',') {
-        event.preventDefault()
-        handleAddTag()
-        return
-      }
-
-      if (event.key === 'Backspace' && !tagInput && tagsRef.current.length > 0) {
-        event.preventDefault()
-        handleRemoveTag(tagsRef.current[tagsRef.current.length - 1])
-      }
-    },
-    [handleAddTag, handleRemoveTag, tagInput]
+    [queueAutosave]
   )
 
   const handleBack = () => {
@@ -326,6 +507,14 @@ export default function Editor({
       handleSaveNow()
     }
     onBack()
+  }
+
+  const handleCreateNote = () => {
+    if (saveState !== 'saved') {
+      handleSaveNow()
+    }
+
+    onCreateNote?.()
   }
 
   useEffect(() => {
@@ -343,14 +532,18 @@ export default function Editor({
 
     activeNoteIdRef.current = note.id
     const nextTitle = note.title ?? 'Untitled Note'
-    const nextTags = normalizeTags(note.tags)
+    const nextThemeId = getNoteThemeId(note.theme)
+    const nextFontSizeId = getNoteFontSizeId(note.fontSize)
 
     setTitle(nextTitle)
     titleRef.current = nextTitle
-    setTags(nextTags)
-    tagsRef.current = nextTags
-    setTagInput('')
+    setThemeId(nextThemeId)
+    themeRef.current = nextThemeId
+    setFontSizeId(nextFontSizeId)
+    fontSizeRef.current = nextFontSizeId
     setSaveState('saved')
+    setAiPanel(EMPTY_AI_PANEL)
+    setSlashMenu(EMPTY_SLASH_MENU)
     clearTimeout(saveTimerRef.current)
 
     editor.commands.setContent(getInitialContent(note), {
@@ -358,22 +551,53 @@ export default function Editor({
       parseOptions: { preserveWhitespace: 'full' },
     })
 
-    setStats(getDocStats(editor))
-  }, [editor, note])
+    requestAnimationFrame(() => {
+      syncOutlineItems()
+      updateActiveOutline()
+      syncSlashMenu()
+    })
+  }, [editor, note, syncOutlineItems, syncSlashMenu, updateActiveOutline])
 
   useEffect(() => {
     if (!editor) return
 
-    setStats(getDocStats(editor))
+    syncOutlineItems()
 
     const handleUpdate = () => {
-      setStats(getDocStats(editor))
+      syncOutlineItems()
+      syncSlashMenu()
       queueAutosave()
+      requestAnimationFrame(updateActiveOutline)
+    }
+
+    const handleSelectionUpdate = () => {
+      syncSlashMenu()
     }
 
     editor.on('update', handleUpdate)
-    return () => editor.off('update', handleUpdate)
-  }, [editor, queueAutosave])
+    editor.on('selectionUpdate', handleSelectionUpdate)
+    return () => {
+      editor.off('update', handleUpdate)
+      editor.off('selectionUpdate', handleSelectionUpdate)
+    }
+  }, [editor, queueAutosave, syncOutlineItems, syncSlashMenu, updateActiveOutline])
+
+  useEffect(() => {
+    if (outlineItems.length === 0) return undefined
+
+    const handleScroll = () => {
+      requestAnimationFrame(updateActiveOutline)
+    }
+
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, true)
+    window.addEventListener('resize', handleScroll)
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('resize', handleScroll)
+    }
+  }, [outlineItems, updateActiveOutline])
 
   // Cmd/Ctrl + S should save instantly.
   useEffect(() => {
@@ -403,8 +627,8 @@ export default function Editor({
           alignItems: 'center',
           gap: '10px',
           flexWrap: 'wrap',
-          background: SURFACE,
-          border: `1px solid ${BORDER}`,
+          background: currentTheme.panelBackground,
+          border: `1px solid ${currentTheme.panelBorder}`,
           borderRadius: '14px',
           padding: '10px 12px',
         }}
@@ -416,9 +640,9 @@ export default function Editor({
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            border: `1px solid ${BORDER}`,
-            background: 'rgba(255,255,255,0.02)',
-            color: TEXT2,
+            border: `1px solid ${currentTheme.pillBorder}`,
+            background: currentTheme.pillBackground,
+            color: currentTheme.pillText,
             borderRadius: '9px',
             padding: '7px 12px',
             fontFamily: "'DM Sans', sans-serif",
@@ -444,10 +668,10 @@ export default function Editor({
           style={{
             flex: 1,
             borderRadius: '10px',
-            background: 'rgba(139,92,246,0.08)',
-            borderColor: BORDER2,
+            background: currentTheme.titleInputBackground,
+            borderColor: currentTheme.titleInputBorder,
             fontWeight: '700',
-            color: TEXT1,
+            color: currentTheme.titleInputText,
           }}
         />
 
@@ -457,16 +681,115 @@ export default function Editor({
             alignItems: 'center',
             gap: '10px',
             flexWrap: 'wrap',
-            color: TEXT3,
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '11px',
+            marginLeft: 'auto',
           }}
         >
-          <span>{stats.words} words</span>
-          <span>{stats.chars} chars</span>
-          <span style={{ color: saveState === 'saved' ? subjectColor : TEXT2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {NOTE_FONT_SIZE_OPTIONS.map((option) => {
+              const active = option.id === fontSizeId
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => handleFontSizeChange(option.id)}
+                  title={`Font size ${option.label}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: '38px',
+                    borderRadius: '999px',
+                    border: `1px solid ${active ? currentTheme.pillActiveBorder : currentTheme.pillBorder}`,
+                    background: active ? currentTheme.pillActiveBackground : currentTheme.pillBackground,
+                    color: active ? currentTheme.pillActiveText : currentTheme.pillText,
+                    padding: '7px 10px',
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: option.id === 'large' ? '13px' : '12px',
+                    fontWeight: '800',
+                  }}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {NOTE_THEME_OPTIONS.map((theme) => {
+              const active = theme.id === themeId
+              return (
+                <button
+                  key={theme.id}
+                  type="button"
+                  onClick={() => handleThemeChange(theme.id)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    borderRadius: '999px',
+                    border: `1px solid ${active ? currentTheme.pillActiveBorder : currentTheme.pillBorder}`,
+                    background: active ? currentTheme.pillActiveBackground : currentTheme.pillBackground,
+                    color: active ? currentTheme.pillActiveText : currentTheme.pillText,
+                    padding: '7px 11px',
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: '12px',
+                    fontWeight: '700',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '14px',
+                      height: '14px',
+                      borderRadius: '999px',
+                      background: theme.preview,
+                      border: '1px solid rgba(255,255,255,0.18)',
+                      boxShadow: '0 0 0 1px rgba(0,0,0,0.08) inset',
+                    }}
+                  />
+                  {theme.label}
+                </button>
+              )
+            })}
+          </div>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '72px',
+              minHeight: '30px',
+              color: saveState === 'saved' ? currentTheme.accent : currentTheme.pillText,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '11px',
+              fontWeight: '700',
+              textAlign: 'center',
+            }}
+          >
             {saveState === 'saved' ? 'Saved' : saveState === 'saving' ? 'Saving...' : 'Unsaved'}
           </span>
+          {onCreateNote && (
+            <button
+              type="button"
+              onClick={handleCreateNote}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                border: `1px solid ${currentTheme.pillBorder}`,
+                background: currentTheme.pillBackground,
+                color: currentTheme.pillText,
+                borderRadius: '9px',
+                padding: '7px 12px',
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '12px',
+                fontWeight: '700',
+              }}
+            >
+              <span style={{ width: '12px', height: '12px' }}>
+                <PlusIcon />
+              </span>
+              New Note
+            </button>
+          )}
           <button
             type="button"
             onClick={handleSaveNow}
@@ -474,9 +797,9 @@ export default function Editor({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              border: `1px solid ${subjectColor}3a`,
-              background: `${subjectColor}18`,
-              color: subjectColor,
+              border: `1px solid ${currentTheme.actionBorder}`,
+              background: currentTheme.actionBackground,
+              color: currentTheme.actionText,
               borderRadius: '9px',
               padding: '7px 12px',
               fontFamily: "'DM Sans', sans-serif",
@@ -492,114 +815,6 @@ export default function Editor({
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          flexWrap: 'wrap',
-          background: SURFACE,
-          border: `1px solid ${BORDER}`,
-          borderRadius: '14px',
-          padding: '10px 12px',
-        }}
-      >
-        <span
-          style={{
-            color: TEXT2,
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '12px',
-            fontWeight: '700',
-            flexShrink: 0,
-          }}
-        >
-          Tags
-        </span>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: 1, minWidth: '220px' }}>
-          {tags.length === 0 ? (
-            <span
-              style={{
-                color: TEXT3,
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: '12px',
-              }}
-            >
-              No tags yet
-            </span>
-          ) : (
-            tags.map((tag) => (
-              <span
-                key={tag}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: `${subjectColor}16`,
-                  border: `1px solid ${subjectColor}33`,
-                  borderRadius: '999px',
-                  padding: '3px 9px',
-                  color: subjectColor,
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: '11px',
-                  fontWeight: '700',
-                }}
-              >
-                {tag}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveTag(tag)}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    color: subjectColor,
-                    fontSize: '12px',
-                    lineHeight: 1,
-                    padding: 0,
-                  }}
-                  aria-label={`Remove tag ${tag}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))
-          )}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <input
-            type="text"
-            value={tagInput}
-            onChange={(event) => setTagInput(event.target.value)}
-            onKeyDown={handleTagInputKeyDown}
-            placeholder="Add custom tag"
-            className="learnledger-input"
-            style={{
-              width: '170px',
-              borderRadius: '9px',
-              padding: '8px 10px',
-              fontSize: '12px',
-            }}
-          />
-          <button
-            type="button"
-            onClick={handleAddTag}
-            style={{
-              border: `1px solid ${subjectColor}3a`,
-              background: `${subjectColor}18`,
-              color: subjectColor,
-              borderRadius: '9px',
-              padding: '8px 11px',
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '12px',
-              fontWeight: '700',
-            }}
-          >
-            Add Tag
-          </button>
-        </div>
-      </div>
-
       <div className="flex flex-col gap-3.5 xl:flex-row">
         {/* Main Editor Area */}
         <div style={{ flex: 1 }}>
@@ -607,31 +822,60 @@ export default function Editor({
             ref={editorFrameRef}
             style={{
               position: 'relative',
-              background: SURFACE,
-              border: `1px solid ${BORDER}`,
+              background: currentTheme.editorFrameBackground,
+              border: `1px solid ${currentTheme.editorFrameBorder}`,
               borderRadius: '16px',
               overflow: 'hidden',
               minHeight: '540px',
+              boxShadow: currentTheme.editorFrameShadow,
+              ...currentTheme.cssVars,
+              '--note-editor-font-size': currentFontSize.fontSize,
+              '--note-editor-line-height': currentFontSize.lineHeight,
             }}
           >
-            <EditorToolbar editor={editor} subjectColor={subjectColor} />
-            <FloatingToolbar editor={editor} subjectColor={subjectColor} containerRef={editorFrameRef} />
+            <EditorToolbar editor={editor} themeStyles={currentTheme} />
+            <FloatingToolbar
+              editor={editor}
+              themeStyles={currentTheme}
+              containerRef={editorFrameRef}
+              onAskAI={handleOpenAiAssistant}
+            />
+            <InlineNoteSlashMenu
+              open={slashMenu.open}
+              top={slashMenu.top}
+              left={slashMenu.left}
+              onInsert={handleInsertInlineNote}
+            />
             <EditorContent editor={editor} className="learnledger-tiptap-shell" />
           </div>
         </div>
 
-        {/* Sidebar: Linked Notes Panel */}
-        {onAddLinkedNote && onRemoveLinkedNote && allNotes.length > 0 && (
-          <div className="w-full xl:w-[280px] xl:flex-shrink-0">
-            <LinkedNotesPanel
-              currentNote={note}
-              allNotes={allNotes}
-              onAddLink={onAddLinkedNote}
-              onRemoveLink={onRemoveLinkedNote}
-              onNavigateToNote={onNavigateToNote || (() => {})}
+        <div className="w-full xl:w-[280px] xl:flex-shrink-0">
+          <div className="flex flex-col gap-3.5">
+            <AiAssistantPanel
+              open={aiPanel.open}
+              selectedText={aiPanel.selectedText}
+              onClose={handleCloseAiAssistant}
+              onInsert={handleInsertAiResponse}
             />
+
+            <OutlinePanel
+              items={outlineItems}
+              activeId={activeOutlineId}
+              onSelect={handleSelectOutlineItem}
+            />
+
+            {showLinkedNotes && (
+              <LinkedNotesPanel
+                currentNote={note}
+                allNotes={allNotes}
+                onAddLink={onAddLinkedNote}
+                onRemoveLink={onRemoveLinkedNote}
+                onNavigateToNote={onNavigateToNote || (() => {})}
+              />
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

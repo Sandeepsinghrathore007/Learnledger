@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import SubjectsPage from "@/pages/SubjectsPage";
+import NotesPage from "@/pages/NotesPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import SubjectDetailPage from "@/pages/SubjectDetailPage";
-import NotesPage from "@/pages/NotesPage";
 import MockTestsPage from "@/pages/MockTestsPage";
 import AIAssistantPage from "@/pages/AIAssistantPage";
 import LoginPage from "@/pages/LoginPage";
@@ -24,6 +24,39 @@ import { logoutUser, observeAuthState } from "@/services/firebase/authService";
 import { uid } from "@/utils/id";
 
 const MOBILE_BREAKPOINT = 1024;
+const AI_CHAT_STORAGE_KEY = "aiChat";
+
+function createDefaultAIChatState() {
+  return {
+    messages: [],
+    selectedSubjectId: null,
+    extraContext: "",
+    language: "english",
+  };
+}
+
+function readStoredAIChatState() {
+  if (typeof window === "undefined") return createDefaultAIChatState();
+
+  try {
+    const rawValue = window.sessionStorage.getItem(AI_CHAT_STORAGE_KEY);
+    if (!rawValue) return createDefaultAIChatState();
+
+    const parsed = JSON.parse(rawValue);
+    return {
+      messages: Array.isArray(parsed?.messages) ? parsed.messages : [],
+      selectedSubjectId:
+        typeof parsed?.selectedSubjectId === "string" && parsed.selectedSubjectId
+          ? parsed.selectedSubjectId
+          : null,
+      extraContext:
+        typeof parsed?.extraContext === "string" ? parsed.extraContext : "",
+      language: parsed?.language === "hindi" ? "hindi" : "english",
+    };
+  } catch {
+    return createDefaultAIChatState();
+  }
+}
 
 function LoadingView({ message }) {
   return (
@@ -100,7 +133,8 @@ function GuestAIBlockedView({ onOpenLogin }) {
 
 function FirebaseSetupView() {
   const isGitHubPages =
-    typeof window !== "undefined" && window.location.hostname.endsWith("github.io");
+    typeof window !== "undefined" &&
+    window.location.hostname.endsWith("github.io");
 
   return (
     <div
@@ -198,9 +232,9 @@ export default function App() {
       ? window.innerWidth < MOBILE_BREAKPOINT
       : false,
   );
-
-  const [openNoteContext, setOpenNoteContext] = useState(null);
   const [assistantLaunchContext, setAssistantLaunchContext] = useState(null);
+  const [aiChatState, setAiChatState] = useState(() => readStoredAIChatState());
+  const [subjectNoteLaunch, setSubjectNoteLaunch] = useState(null);
 
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -244,6 +278,13 @@ export default function App() {
             ? "subjects"
             : currentPage,
         );
+      } else {
+        setAiChatState(createDefaultAIChatState());
+        setAssistantLaunchContext(null);
+        setSubjectNoteLaunch(null);
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem(AI_CHAT_STORAGE_KEY);
+        }
       }
     });
 
@@ -278,28 +319,20 @@ export default function App() {
   }, [installNotice]);
 
   useEffect(() => {
-    if (activePage !== "notes" || !openNoteContext) return;
+    if (typeof window === "undefined") return;
 
-    const subject = subjects.find(
-      (item) => item.id === openNoteContext.subjectId,
+    window.sessionStorage.setItem(
+      AI_CHAT_STORAGE_KEY,
+      JSON.stringify(aiChatState),
     );
-    const topic = subject?.topics.find(
-      (item) => item.id === openNoteContext.topicId,
-    );
-    const liveNote = topic?.notes.find(
-      (item) => item.id === openNoteContext.note.id,
-    );
-
-    if (!subject || !liveNote) {
-      setOpenNoteContext(null);
-    }
-  }, [activePage, openNoteContext, subjects]);
+  }, [aiChatState]);
 
   const sidebarWidth = isMobile ? 0 : collapsed ? 68 : 228;
 
   const authPageTitles = {
     login: "Login",
     signup: "Sign Up",
+    notes: "Notes",
   };
 
   const pageTitle =
@@ -310,20 +343,25 @@ export default function App() {
   const handlePageChange = (page) => {
     setActivePage(page);
     if (page !== "subjects") setSelected(null);
-    if (page !== "notes") setOpenNoteContext(null);
+    if (page !== "subjects") setSubjectNoteLaunch(null);
     if (isMobile) setMobileNavOpen(false);
   };
 
-  const handleOpenNoteFromNotesPage = (note, subjectId, topicId) => {
-    setOpenNoteContext({ note, subjectId, topicId });
+  const handleSelectSubject = (subject) => {
+    setSubjectNoteLaunch(null);
+    setSelected(subject);
   };
 
   const handleLogout = async () => {
     try {
       await logoutUser();
       setSelected(null);
-      setOpenNoteContext(null);
+      setSubjectNoteLaunch(null);
       setActivePage("subjects");
+      setAiChatState(createDefaultAIChatState());
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(AI_CHAT_STORAGE_KEY);
+      }
     } catch (logoutError) {
       console.error("Failed to logout:", logoutError);
     }
@@ -364,8 +402,32 @@ export default function App() {
   const handleOpenSubjectFromAnalytics = (subject) => {
     if (!subject) return;
 
+    setSubjectNoteLaunch(null);
     setSelected(subject);
     setActivePage("subjects");
+    if (isMobile) setMobileNavOpen(false);
+  };
+
+  const handleOpenNoteFromNotes = (note, subjectId, topicId) => {
+    const subject = subjects.find((item) => item.id === subjectId);
+    if (!subject || !note) return;
+
+    setSubjectNoteLaunch({
+      note,
+      topicId,
+      subjectId,
+      launchId: uid(),
+    });
+    setSelected(subject);
+    setActivePage("subjects");
+
+    if (isMobile) setMobileNavOpen(false);
+  };
+
+  const handleOpenSavedAINote = () => {
+    setSubjectNoteLaunch(null);
+    setActivePage("notes");
+
     if (isMobile) setMobileNavOpen(false);
   };
 
@@ -416,6 +478,16 @@ export default function App() {
       );
     }
 
+    if (activePage === "notes") {
+      return (
+        <NotesPage
+          subjects={subjects}
+          onUpdateSubject={updateSubject}
+          onOpenNote={handleOpenNoteFromNotes}
+        />
+      );
+    }
+
     if (activePage === "ai") {
       if (!authUser) {
         return (
@@ -429,62 +501,9 @@ export default function App() {
           subjects={subjects}
           onUpdateSubject={updateSubject}
           initialContext={assistantLaunchContext}
-        />
-      );
-    }
-
-    if (activePage === "notes") {
-      if (openNoteContext) {
-        const subject = subjects.find(
-          (item) => item.id === openNoteContext.subjectId,
-        );
-        if (!subject) {
-          return (
-            <NotesPage
-              subjects={subjects}
-              onUpdateSubject={updateSubject}
-              onOpenNote={handleOpenNoteFromNotesPage}
-            />
-          );
-        }
-
-        const topic = subject.topics.find(
-          (item) => item.id === openNoteContext.topicId,
-        );
-        const liveNote = topic?.notes.find(
-          (item) => item.id === openNoteContext.note.id,
-        );
-
-        if (!liveNote) {
-          return (
-            <NotesPage
-              subjects={subjects}
-              onUpdateSubject={updateSubject}
-              onOpenNote={handleOpenNoteFromNotesPage}
-            />
-          );
-        }
-
-        return (
-          <SubjectDetailPage
-            subject={subject}
-            onBack={() => setOpenNoteContext(null)}
-            onUpdateSubject={updateSubject}
-            user={authUser}
-            onOpenAIContext={handleOpenAIWithContext}
-            initialOpenNote={{
-              note: liveNote,
-              topicId: openNoteContext.topicId,
-            }}
-          />
-        );
-      }
-
-      return (
-        <NotesPage
-          subjects={subjects}
-          onUpdateSubject={updateSubject}
-          onOpenNote={handleOpenNoteFromNotesPage}
+          aiChatState={aiChatState}
+          onAiChatStateChange={setAiChatState}
+          onOpenSavedNote={handleOpenSavedAINote}
         />
       );
     }
@@ -497,7 +516,18 @@ export default function App() {
         return (
           <SubjectDetailPage
             subject={liveSubject}
-            onBack={() => setSelected(null)}
+            initialOpenNote={
+              subjectNoteLaunch?.subjectId === liveSubject.id
+                ? {
+                    note: subjectNoteLaunch.note,
+                    topicId: subjectNoteLaunch.topicId,
+                  }
+                : null
+            }
+            onBack={() => {
+              setSelected(null);
+              setSubjectNoteLaunch(null);
+            }}
             onUpdateSubject={updateSubject}
             user={authUser}
             onOpenAIContext={handleOpenAIWithContext}
@@ -508,7 +538,7 @@ export default function App() {
       return (
         <SubjectsPage
           subjects={subjects}
-          onSelect={setSelected}
+          onSelect={handleSelectSubject}
           onAdd={openAdd}
           onEdit={openEdit}
           onDelete={deleteSubject}

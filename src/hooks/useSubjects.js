@@ -49,6 +49,8 @@ function normalizeNote(note) {
     content: note.content || '<p></p>',
     blocks: toSafeArray(note.blocks),
     tags: toSafeArray(note.tags),
+    theme: typeof note.theme === 'string' ? note.theme : 'midnight',
+    fontSize: typeof note.fontSize === 'string' ? note.fontSize : 'medium',
     isFavorite: Boolean(note.isFavorite),
     isPinned: Boolean(note.isPinned),
     linkedNotes: toSafeArray(note.linkedNotes),
@@ -65,6 +67,8 @@ function notesAreDifferent(previousNote, nextNote) {
   return (
     previous.title !== next.title ||
     previous.content !== next.content ||
+    previous.theme !== next.theme ||
+    previous.fontSize !== next.fontSize ||
     previous.isFavorite !== next.isFavorite ||
     previous.isPinned !== next.isPinned ||
     previous.updatedAt !== next.updatedAt ||
@@ -458,6 +462,8 @@ export function useSubjects(user) {
           content: nextNote.content,
           blocks: nextNote.blocks,
           tags: nextNote.tags,
+          theme: nextNote.theme,
+          fontSize: nextNote.fontSize,
           isFavorite: nextNote.isFavorite,
           isPinned: nextNote.isPinned,
           linkedNotes: nextNote.linkedNotes,
@@ -488,6 +494,8 @@ export function useSubjects(user) {
             content: nextNote.content,
             blocks: nextNote.blocks,
             tags: nextNote.tags,
+            theme: nextNote.theme,
+            fontSize: nextNote.fontSize,
             isFavorite: nextNote.isFavorite,
             isPinned: nextNote.isPinned,
             linkedNotes: nextNote.linkedNotes,

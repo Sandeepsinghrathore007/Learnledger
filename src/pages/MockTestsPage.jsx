@@ -4,7 +4,6 @@
  * Features:
  *  - Create new test button
  *  - Test history list
- *  - Quick start buttons for each subject
  *  - Test taking interface
  *  - Results display
  *
@@ -67,12 +66,6 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
       // Error already handled in hook
       console.error('Test generation failed:', err)
     }
-  }
-
-  // ── HANDLE QUICK START ─────────────────────────────────────────────────────
-  const handleQuickStart = (subjectId) => {
-    setConfigModalOpen(true)
-    // You can pre-fill config here if needed
   }
 
   // ── HANDLE FINISH TEST ─────────────────────────────────────────────────────
@@ -184,93 +177,6 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
           fontSize: '13px',
         }}>
           ⚠️ {error}
-        </div>
-      )}
-
-      {/* ── QUICK START SECTION ─────────────────────────────────────────── */}
-      {subjects.length > 0 && (
-        <div>
-          <h3 style={{
-            color: TEXT1,
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '15px',
-            fontWeight: '700',
-            margin: '0 0 12px',
-          }}>
-            Quick Start
-          </h3>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: '12px',
-          }}>
-            {subjects.map(subject => (
-              <button
-                key={subject.id}
-                type="button"
-                onClick={() => handleQuickStart(subject.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  background: `${subject.color}08`,
-                  border: `1px solid ${subject.color}20`,
-                  borderRadius: '12px',
-                  padding: '14px 16px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = `${subject.color}12`
-                  e.currentTarget.style.borderColor = `${subject.color}40`
-                  e.currentTarget.style.transform = 'translateY(-2px)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = `${subject.color}08`
-                  e.currentTarget.style.borderColor = `${subject.color}20`
-                  e.currentTarget.style.transform = 'translateY(0)'
-                }}
-              >
-                <div style={{
-                  fontSize: '34px',
-                  lineHeight: 1,
-                  color: subject.color,
-                  fontWeight: '800',
-                  textShadow: `0 0 14px ${subject.color}55`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '12px',
-                  background: `${subject.color}16`,
-                  border: `1px solid ${subject.color}2e`,
-                  flexShrink: 0,
-                }}>
-                  {subject.icon}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{
-                    color: TEXT1,
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: '14px',
-                    fontWeight: '700',
-                    marginBottom: '2px',
-                  }}>
-                    {subject.name}
-                  </div>
-                  <div style={{
-                    color: TEXT3,
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: '11px',
-                  }}>
-                    {subject.topics.length} topics
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
         </div>
       )}
 

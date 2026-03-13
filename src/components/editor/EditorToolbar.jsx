@@ -5,7 +5,6 @@
  * Contains all primary formatting controls.
  */
 
-import { BORDER, SURF2, TEXT1, TEXT2 } from '@/constants/theme'
 import {
   canInsertObjectiveQuestion,
   insertObjectiveQuestionTemplate,
@@ -94,9 +93,22 @@ const TOOLBAR_BUTTONS = [
   },
 ]
 
-function ToolbarButton({ button, editor, subjectColor }) {
+const DEFAULT_THEME = {
+  accent: '#8b5cf6',
+  toolbarBackground: '#161129',
+  toolbarBorder: 'rgba(139,92,246,0.12)',
+  toolbarButtonBackground: 'rgba(255,255,255,0.02)',
+  toolbarButtonBorder: 'rgba(139,92,246,0.14)',
+  toolbarButtonText: '#c9bdf0',
+  toolbarButtonActiveBackground: 'rgba(139,92,246,0.2)',
+  toolbarButtonActiveBorder: 'rgba(167,139,250,0.38)',
+  toolbarButtonActiveText: '#f7f2ff',
+}
+
+function ToolbarButton({ button, editor, themeStyles }) {
   const active = button.isActive(editor)
   const disabled = button.isDisabled(editor)
+  const palette = themeStyles || DEFAULT_THEME
 
   return (
     <button
@@ -111,9 +123,9 @@ function ToolbarButton({ button, editor, subjectColor }) {
         height: '30px',
         minWidth: '38px',
         borderRadius: '8px',
-        border: `1px solid ${active ? `${subjectColor}66` : BORDER}`,
-        background: active ? `${subjectColor}22` : 'rgba(255,255,255,0.02)',
-        color: active ? TEXT1 : TEXT2,
+        border: `1px solid ${active ? palette.toolbarButtonActiveBorder : palette.toolbarButtonBorder}`,
+        background: active ? palette.toolbarButtonActiveBackground : palette.toolbarButtonBackground,
+        color: active ? palette.toolbarButtonActiveText : palette.toolbarButtonText,
         padding: '0 10px',
         fontFamily: "'DM Sans', sans-serif",
         fontWeight: active ? '700' : '600',
@@ -126,8 +138,9 @@ function ToolbarButton({ button, editor, subjectColor }) {
   )
 }
 
-export default function EditorToolbar({ editor, subjectColor }) {
+export default function EditorToolbar({ editor, themeStyles }) {
   if (!editor) return null
+  const palette = themeStyles || DEFAULT_THEME
 
   return (
     <div
@@ -137,12 +150,12 @@ export default function EditorToolbar({ editor, subjectColor }) {
         gap: '6px',
         flexWrap: 'wrap',
         padding: '10px 12px',
-        borderBottom: `1px solid ${BORDER}`,
-        background: SURF2,
+        borderBottom: `1px solid ${palette.toolbarBorder}`,
+        background: palette.toolbarBackground,
       }}
     >
       {TOOLBAR_BUTTONS.map((button) => (
-        <ToolbarButton key={button.id} button={button} editor={editor} subjectColor={subjectColor} />
+        <ToolbarButton key={button.id} button={button} editor={editor} themeStyles={palette} />
       ))}
     </div>
   )
