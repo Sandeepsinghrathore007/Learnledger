@@ -29,11 +29,8 @@ import { BORDER, TEXT1, TEXT3 } from '@/constants/theme'
 import { uid }            from '@/utils/id'
 import { getTotalNotes }  from '@/utils/subjectStats'
 import { deletePdfKnowledge } from '@/services/firebase/pdfKnowledgeService'
-import {
-  deletePdfBinary,
-  MAX_PDF_FILE_BYTES,
-  storePdfBinary,
-} from '@/utils/pdfBinaryStore'
+import { MAX_PDF_FILE_BYTES } from '@/utils/pdfBinaryStore'
+import { uploadPdfToCloudinary, deletePdfFromCloudinary } from '@/services/cloudinaryService'
 import { subscribeToTests } from '@/services/firebase/testsService'
 
 function formatTestDateTime(value) {
@@ -355,22 +352,25 @@ export default function SubjectDetailPage({
     }
 
     const pdfId = uid()
-    const previewUrl = URL.createObjectURL(file)
-    let binaryStored = false
+    let cloudinaryPublicId = null
 
     try {
-      await storePdfBinary({
-        userId: user?.uid || null,
+      // ✅ Upload to Cloudinary — works on ALL devices
+      setPdfFeedback({ type: 'info', text: 'Uploading PDF...' })
+      
+      const { url, publicId } = await uploadPdfToCloudinary({
+        file,
+        userId: user?.uid || 'guest',
         subjectId: subjectRef.current.id,
         pdfId,
-        file,
       })
-      binaryStored = true
+      cloudinaryPublicId = publicId
 
       const pendingPdf = {
         id: pdfId,
         name: file.name,
-        url: previewUrl,
+        url,                          // ✅ Cloudinary URL — works everywhere
+        publicId,                     // ✅ Store for future deletion
         size: formatPdfSize(file.size),
         sizeBytes: file.size,
         addedAt: new Date().toLocaleDateString(),
@@ -379,40 +379,29 @@ export default function SubjectDetailPage({
         preview: '',
         pageCount: 0,
         chunkCount: 0,
-        storageType: 'indexeddb',
+        storageType: 'cloudinary',    // ✅ Mark as cloudinary storage
       }
 
       await save({
         ...subjectRef.current,
         pdfs: [...(subjectRef.current.pdfs ?? []), pendingPdf],
       })
+
+      setPdfFeedback(null)
     } catch (error) {
-      console.error('Failed to store PDF:', error)
-
-      if (binaryStored) {
-        try {
-          await deletePdfBinary({
-            userId: user?.uid || null,
-            subjectId: subjectRef.current.id,
-            pdfId,
-          })
-        } catch (cleanupError) {
-          console.error('Failed to clean up cached PDF binary:', cleanupError)
-        }
-      }
-
-      URL.revokeObjectURL(previewUrl)
+      console.error('Failed to upload PDF:', error)
       setPdfFeedback({
         type: 'error',
-        text: error?.message || 'Unable to save this PDF.',
+        text: error?.message || 'Unable to upload this PDF. Check your internet connection.',
       })
     }
   }
 
   const handleDeletePdf = async (id) => {
     const pdfToDelete = (subjectRef.current.pdfs ?? []).find((pdf) => pdf.id === id)
-    if (pdfToDelete?.url?.startsWith('blob:')) {
-      URL.revokeObjectURL(pdfToDelete.url)
+    // ✅ Remove from Cloudinary if it was uploaded there
+    if (pdfToDelete?.storageType === 'cloudinary' && pdfToDelete?.publicId) {
+      await deletePdfFromCloudinary({ publicId: pdfToDelete.publicId }).catch(() => {})
     }
 
     await save({
@@ -428,15 +417,7 @@ export default function SubjectDetailPage({
       }
     }
 
-    try {
-      await deletePdfBinary({
-        userId: user?.uid || null,
-        subjectId: subjectRef.current.id,
-        pdfId: id,
-      })
-    } catch (error) {
-      console.error('Failed to delete cached PDF binary:', error)
-    }
+    // Cloudinary deletion handled above — no local binary to delete
   }
 
   const handleAskAIForPdf = (pdf) => {

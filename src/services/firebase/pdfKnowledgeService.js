@@ -223,6 +223,7 @@ export async function ensurePdfKnowledge({
     throw new Error('ensurePdfKnowledge requires subjectId and pdfId.')
   }
 
+  // ✅ FIX: Pehle Firestore se check karo (works on ALL devices)
   if (userId) {
     const existing = await getPdfKnowledge(userId, subjectId, pdfId)
     if (existing) {
@@ -233,9 +234,16 @@ export async function ensurePdfKnowledge({
     }
   }
 
+  // ✅ FIX: Local binary file try karo (sirf us device pe hogi jahan upload hua)
   const file = await getPdfBinaryFile({ userId, subjectId, pdfId })
+  
+  // ✅ FIX: Agar file nahi mili (doosra device) to better error message
   if (!file) {
-    throw new Error('The original PDF is not available on this device. Re-upload it before asking AI.')
+    throw new Error(
+      'PDF is not available on this device. ' +
+      'The PDF was uploaded from another device. ' +
+      'Please re-upload the PDF on this device to use AI features.'
+    )
   }
 
   const extracted = await extractPdfKnowledgeFromFile(file)
@@ -250,6 +258,7 @@ export async function ensurePdfKnowledge({
     }
   }
 
+  // ✅ FIX: Extract ke baad Firestore mein save karo taaki doosre devices pe bhi mile
   const savedKnowledge = await savePdfKnowledge({
     userId,
     subjectId,
@@ -275,18 +284,32 @@ export async function getRelevantPdfReferenceMaterial({
   extraContext = '',
   prepareIfMissing = false,
 }) {
+  // ✅ FIX: Seedha Firestore se try karo pehle
   let knowledge = userId ? await getPdfKnowledge(userId, subjectId, pdfId) : null
   let preparedNow = false
 
   if (!knowledge && prepareIfMissing) {
-    const prepared = await ensurePdfKnowledge({
-      userId,
-      subjectId,
-      pdfId,
-      pdfName,
-    })
-    knowledge = prepared.knowledge
-    preparedNow = prepared.preparedNow
+    try {
+      const prepared = await ensurePdfKnowledge({
+        userId,
+        subjectId,
+        pdfId,
+        pdfName,
+      })
+      knowledge = prepared.knowledge
+      preparedNow = prepared.preparedNow
+    } catch (err) {
+      // ✅ FIX: Agar local file nahi hai doosre device pe,
+      // to error throw mat karo — gracefully handle karo
+      console.warn('PDF binary not available on this device:', err.message)
+      return {
+        knowledge: null,
+        referenceMaterial: '',
+        selectedChunks: [],
+        preparedNow: false,
+        deviceError: true, // UI ko pata chalega
+      }
+    }
   }
 
   if (!knowledge) {
