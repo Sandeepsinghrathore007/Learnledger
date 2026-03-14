@@ -28,7 +28,8 @@ import { BackIcon, PlusIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT3 } from '@/constants/theme'
 import { uid }            from '@/utils/id'
 import { getTotalNotes }  from '@/utils/subjectStats'
-import { deletePdfKnowledge } from '@/services/firebase/pdfKnowledgeService'
+import { deletePdfKnowledge, savePdfKnowledge } from '@/services/firebase/pdfKnowledgeService'
+import { extractPdfKnowledgeFromFile } from '@/utils/pdfKnowledge'
 import { MAX_PDF_FILE_BYTES } from '@/utils/pdfBinaryStore'
 import { uploadPdfToCloudinary, deletePdfFromCloudinary } from '@/services/cloudinaryService'
 import { subscribeToTests } from '@/services/firebase/testsService'
@@ -386,6 +387,34 @@ export default function SubjectDetailPage({
         ...subjectRef.current,
         pdfs: [...(subjectRef.current.pdfs ?? []), pendingPdf],
       })
+
+      // ✅ Extract AI knowledge immediately and save to Firestore
+      // So it works on ALL devices without re-upload
+      if (user?.uid) {
+        try {
+          setPdfFeedback({ type: 'info', text: 'Processing PDF for AI (this may take a moment)...' })
+          const extracted = await extractPdfKnowledgeFromFile(file)
+          if (extracted && (extracted.summary || extracted.chunks?.length > 0)) {
+            await savePdfKnowledge({
+              userId: user.uid,
+              subjectId: subjectRef.current.id,
+              pdf: { id: pdfId, name: file.name },
+              knowledge: extracted,
+            })
+            // Update aiStatus to ready
+            await save({
+              ...subjectRef.current,
+              pdfs: [
+                ...(subjectRef.current.pdfs ?? []),
+                { ...pendingPdf, aiStatus: 'ready', chunkCount: extracted.chunks?.length || 0, summary: extracted.summary || '' }
+              ],
+            })
+          }
+        } catch (aiError) {
+          // AI processing failed — PDF still uploaded fine, AI can retry later
+          console.warn('AI knowledge extraction failed:', aiError)
+        }
+      }
 
       setPdfFeedback(null)
     } catch (error) {
