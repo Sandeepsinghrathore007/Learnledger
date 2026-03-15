@@ -22,9 +22,9 @@
 
 import { useState } from 'react'
 import SubjectCard from '@/components/subjects/SubjectCard'
-import { SearchIcon, PlusIcon } from '@/components/ui/Icons'
-import { SURFACE, BORDER, ACCENT, ACCENT2, TEXT1, TEXT3 } from '@/constants/theme'
-import { getTotalNotesAll, getTotalTopics, getTotalTests } from '@/utils/subjectStats'
+import { SearchIcon, PlusIcon, SubjectsIcon, MockTestsIcon } from '@/components/ui/Icons'
+import { BORDER, ACCENT, ACCENT2, TEXT1, TEXT3 } from '@/constants/theme'
+import { getTotalTests } from '@/utils/subjectStats'
 
 export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDelete }) {
   const [search, setSearch] = useState('')
@@ -35,12 +35,21 @@ export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDele
     s.description.toLowerCase().includes(search.toLowerCase())
   )
 
-  // Summary stats for the top row
   const summaryStats = [
-    { label: 'Subjects',   value: subjects.length,             color: '#8b5cf6' },
-    { label: 'Topics',     value: getTotalTopics(subjects),    color: '#3b82f6' },
-    { label: 'Notes',      value: getTotalNotesAll(subjects),  color: '#10b981' },
-    { label: 'Tests Done', value: getTotalTests(subjects),     color: '#f472b6' },
+    {
+      label: 'Total Subjects',
+      value: subjects.length,
+      color: '#8b5cf6',
+      glow: 'rgba(124,58,237,0.22)',
+      icon: SubjectsIcon,
+    },
+    {
+      label: 'Tests Done',
+      value: getTotalTests(subjects),
+      color: '#22c55e',
+      glow: 'rgba(34,197,94,0.2)',
+      icon: MockTestsIcon,
+    },
   ]
 
   return (
@@ -86,20 +95,102 @@ export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDele
       </div>
 
       {/* ── SUMMARY STATS ────────────────────────────────────────────── */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 lg:grid-cols-4">
-        {summaryStats.map(s => (
-          <div key={s.label} style={{
-            padding: '15px 18px', background: SURFACE,
-            border: `1px solid ${s.color}18`, borderRadius: '12px',
-          }}>
-            <div style={{ color: s.color, fontWeight: '800', fontSize: '23px', fontFamily: "'DM Sans',sans-serif", letterSpacing: '-0.5px' }}>
-              {s.value}
+      <div
+        className="mb-6 grid grid-cols-2 gap-3 md:mb-8"
+        style={{
+          padding: '12px',
+          borderRadius: '18px',
+          border: `1px solid ${BORDER}`,
+          background: 'linear-gradient(135deg, rgba(20,16,36,0.96), rgba(11,9,22,0.98))',
+          boxShadow: '0 20px 42px rgba(0,0,0,0.16)',
+        }}
+      >
+        {summaryStats.map((stat) => {
+          const Icon = stat.icon
+
+          return (
+            <div
+              key={stat.label}
+              style={{
+                position: 'relative',
+                overflow: 'hidden',
+                minWidth: 0,
+                padding: '14px 16px',
+                borderRadius: '14px',
+                border: `1px solid ${stat.color}26`,
+                background: `linear-gradient(135deg, ${stat.glow}, rgba(255,255,255,0.03))`,
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '-20px',
+                  right: '-20px',
+                  width: '88px',
+                  height: '88px',
+                  borderRadius: '50%',
+                  background: `radial-gradient(circle, ${stat.glow}, transparent 70%)`,
+                  pointerEvents: 'none',
+                }}
+              />
+              <div
+                style={{
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    flexShrink: 0,
+                    borderRadius: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: stat.color,
+                    background: `${stat.color}18`,
+                    border: `1px solid ${stat.color}2e`,
+                    boxShadow: `0 10px 26px ${stat.glow}`,
+                  }}
+                >
+                  <span style={{ width: '19px', height: '19px' }}>
+                    <Icon />
+                  </span>
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      color: TEXT1,
+                      fontWeight: '800',
+                      fontSize: '24px',
+                      lineHeight: 1,
+                      fontFamily: "'DM Sans',sans-serif",
+                      letterSpacing: '-0.6px',
+                    }}
+                  >
+                    {stat.value}
+                  </div>
+                  <div
+                    style={{
+                      color: TEXT3,
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      fontFamily: "'DM Sans',sans-serif",
+                      marginTop: '6px',
+                    }}
+                  >
+                    {stat.label}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div style={{ color: TEXT3, fontSize: '12px', fontFamily: "'DM Sans',sans-serif", marginTop: '2px' }}>
-              {s.label}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* ── SUBJECTS GRID ────────────────────────────────────────────── */}

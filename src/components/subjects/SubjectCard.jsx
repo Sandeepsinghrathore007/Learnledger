@@ -1,7 +1,7 @@
 /**
  * SubjectCard.jsx — Card displayed in the subjects grid for a single subject.
  *
- * Shows: icon, name, description, stats (topics/notes/pdfs), AI score badge.
+ * Shows: icon, name, description, stats (topics/tests), AI score badge.
  * Edit and delete buttons appear on hover.
  *
  * Props:
@@ -18,20 +18,15 @@ import { useState } from 'react'
 import AiScoreBadge from '@/components/ui/AiScoreBadge'
 import { EditIcon, TrashIcon } from '@/components/ui/Icons'
 import { SURFACE, SURF2, BORDER, TEXT1, TEXT3 } from '@/constants/theme'
-import { getTotalNotes } from '@/utils/subjectStats'
 
 export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
   const [hovered, setHovered] = useState(false)
 
-  const totalNotes = getTotalNotes(subject)
-  const totalPdfs  = (subject.pdfs ?? []).length
   const testsCompleted = Number.isFinite(subject.testsAttempted) ? subject.testsAttempted : 0
 
   const stats = [
-    { label: 'Topics', value: subject.topics.length },
-    { label: 'Notes',  value: totalNotes            },
-    { label: 'PDFs',   value: totalPdfs             },
-    { label: 'Tests Done', value: testsCompleted    },
+    { label: 'Topics', value: subject.topics.length, color: '#60a5fa' },
+    { label: 'Tests Completed', value: testsCompleted, color: '#34d399' },
   ]
 
   return (
@@ -119,16 +114,46 @@ export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
         </div>
 
         {/* Stats grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '7px', marginBottom: '14px' }}>
-          {stats.map(stat => (
-            <div key={stat.label} style={{
-              background: 'rgba(255,255,255,0.022)', borderRadius: '9px',
-              padding: '7px', textAlign: 'center',
-            }}>
-              <div style={{ color: TEXT1, fontWeight: '700', fontSize: '17px', fontFamily: "'DM Sans',sans-serif" }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '9px', marginBottom: '14px' }}>
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              style={{
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))',
+                border: '1px solid rgba(255,255,255,0.05)',
+                borderRadius: '12px',
+                padding: '11px 12px 10px',
+                minHeight: '82px',
+                textAlign: 'left',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+              }}
+            >
+              <div
+                style={{
+                  color: stat.color,
+                  fontWeight: '900',
+                  fontSize: '24px',
+                  fontFamily: "'DM Sans',sans-serif",
+                  lineHeight: 1,
+                  letterSpacing: '-0.6px',
+                  textShadow: `0 8px 24px ${stat.color}22`,
+                }}
+              >
                 {stat.value}
               </div>
-              <div style={{ color: TEXT3, fontSize: '10.5px', fontFamily: "'DM Sans',sans-serif", marginTop: '1px' }}>
+              <div
+                style={{
+                  color: TEXT3,
+                  fontSize: '10px',
+                  fontFamily: "'DM Sans',sans-serif",
+                  lineHeight: 1.2,
+                  marginTop: '10px',
+                  maxWidth: '92px',
+                }}
+              >
                 {stat.label}
               </div>
             </div>

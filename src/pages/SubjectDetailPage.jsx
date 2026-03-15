@@ -27,7 +27,6 @@ import TestResultsView    from '@/components/tests/TestResultsView'
 import { BackIcon, MockTestsIcon, PdfIcon, PlusIcon, TopicsIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 import { uid }            from '@/utils/id'
-import { getTotalNotes }  from '@/utils/subjectStats'
 import { deletePdfKnowledge, savePdfKnowledge } from '@/services/firebase/pdfKnowledgeService'
 import { extractPdfKnowledgeFromFile } from '@/utils/pdfKnowledge'
 import { deletePdfBinary, MAX_PDF_FILE_BYTES, storePdfBinary } from '@/utils/pdfBinaryStore'
@@ -90,8 +89,6 @@ export default function SubjectDetailPage({
         ? 'tests'
         : 'topics'
   )
-
-  const totalNotes = getTotalNotes(subj)
 
   useEffect(() => {
     subjectRef.current = subject
@@ -591,7 +588,7 @@ export default function SubjectDetailPage({
       </div>
 
       {/* Banner */}
-      <SubjectBanner subject={subj} totalNotes={totalNotes} />
+      <SubjectBanner subject={subj} />
 
       <div
         style={{
@@ -908,12 +905,26 @@ export default function SubjectDetailPage({
  * SubjectBanner — Large hero card at the top of the detail view.
  * Shows subject icon, name, description, key stats and AI performance.
  */
-function SubjectBanner({ subject, totalNotes }) {
+function SubjectBanner({ subject }) {
   const stats = [
-    { label: 'Topics', value: subject.topics.length },
-    { label: 'Notes',  value: totalNotes             },
-    { label: 'PDFs',   value: (subject.pdfs ?? []).length },
-    { label: 'Tests Completed', value: subject.testsAttempted },
+    {
+      label: 'Topics',
+      value: subject.topics.length,
+      icon: TopicsIcon,
+      color: '#60a5fa',
+    },
+    {
+      label: 'PDFs',
+      value: (subject.pdfs ?? []).length,
+      icon: PdfIcon,
+      color: '#f87171',
+    },
+    {
+      label: 'Tests Completed',
+      value: Number.isFinite(subject.testsAttempted) ? subject.testsAttempted : 0,
+      icon: MockTestsIcon,
+      color: '#34d399',
+    },
   ]
 
   return (
@@ -957,18 +968,68 @@ function SubjectBanner({ subject, totalNotes }) {
           {subject.description}
         </p>
 
-        <div className="grid w-full grid-cols-2 gap-x-4 gap-y-3 sm:flex sm:flex-wrap sm:items-center sm:gap-5">
-          {stats.map(s => (
-            <div key={s.label}>
-              <div style={{ color: subject.color, fontWeight: '800', fontSize: '20px', fontFamily: "'DM Sans',sans-serif", letterSpacing: '-0.4px' }}>
-                {s.value}
-              </div>
-              <div style={{ color: '#5a5175', fontSize: '11px', fontFamily: "'DM Sans',sans-serif" }}>
-                {s.label}
-              </div>
-            </div>
-          ))}
-          <div className="col-span-2 sm:col-span-1" style={{ marginLeft: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div
+            className="grid w-full gap-3"
+            style={{
+              gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 132px))',
+              justifyContent: 'start',
+              padding: '8px',
+              borderRadius: '16px',
+              background: 'rgba(255,255,255,0.025)',
+              border: `1px solid ${subject.color}18`,
+            }}
+          >
+            {stats.map((stat) => {
+              return (
+                <div
+                  key={stat.label}
+                  style={{
+                    minWidth: 0,
+                    minHeight: '86px',
+                    padding: '11px 12px 10px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))',
+                    border: '1px solid rgba(255,255,255,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div
+                    style={{
+                      color: stat.color,
+                      fontWeight: '900',
+                      fontSize: '24px',
+                      fontFamily: "'DM Sans',sans-serif",
+                      lineHeight: 1,
+                      letterSpacing: '-0.6px',
+                      textShadow: `0 8px 24px ${stat.color}20`,
+                    }}
+                  >
+                    {stat.value}
+                  </div>
+                  <div
+                    style={{
+                      color: '#7b7394',
+                      fontSize: '10px',
+                      fontFamily: "'DM Sans',sans-serif",
+                      lineHeight: 1.15,
+                      marginTop: '10px',
+                      maxWidth: '90px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {stat.label}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div style={{ marginLeft: 0 }}>
             <div style={{ color: '#5a5175', fontSize: '10px', fontFamily: "'DM Sans',sans-serif", marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
               Performance
             </div>

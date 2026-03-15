@@ -39,7 +39,13 @@ const TEXT_SECONDARY = '#b7abdd'
 const TEXT_MUTED = '#7f769d'
 const ACCENT = '#7c3aed'
 const ACCENT_SOFT = 'rgba(124,58,237,0.12)'
-const USER_BUBBLE_BG = 'linear-gradient(135deg, rgba(83,35,165,0.96), rgba(58,22,112,0.96))'
+const USER_BUBBLE_BG = 'linear-gradient(135deg, rgba(96,39,187,0.96), rgba(73,27,134,0.98))'
+const USER_BUBBLE_BORDER = 'rgba(180, 132, 255, 0.34)'
+const USER_AVATAR_BG = 'linear-gradient(135deg,#5b2aa9,#31155f)'
+const AI_BUBBLE_BG = 'linear-gradient(180deg, rgba(22,18,40,0.98), rgba(14,12,28,0.98))'
+const AI_BUBBLE_BORDER = 'rgba(110, 128, 214, 0.22)'
+const AI_BADGE_BG = 'linear-gradient(135deg,#4f46e5,#312e81)'
+const AI_LABEL_COLOR = '#9fb2ff'
 const SUCCESS_BG = 'rgba(34,197,94,0.08)'
 const SUCCESS_BORDER = 'rgba(34,197,94,0.28)'
 const SUCCESS_TEXT = '#8df0b0'
@@ -495,16 +501,30 @@ function UserMessage({ message, userInitial }) {
         style={{
           maxWidth: 'min(78%, 520px)',
           background: USER_BUBBLE_BG,
-          border: '1px solid rgba(148, 99, 255, 0.35)',
-          borderRadius: '14px',
+          border: `1px solid ${USER_BUBBLE_BORDER}`,
+          borderRadius: '16px 16px 6px 16px',
           padding: '12px 14px',
           color: '#f5edff',
           fontFamily: "'DM Sans', sans-serif",
           fontSize: '13px',
           lineHeight: 1.65,
-          boxShadow: '0 18px 32px rgba(15,8,35,0.28)',
+          boxShadow: '0 18px 32px rgba(34,14,68,0.32)',
         }}
       >
+        <div
+          style={{
+            color: '#e7d7ff',
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: '10px',
+            fontWeight: '700',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            marginBottom: '6px',
+            opacity: 0.86,
+          }}
+        >
+          You
+        </div>
         {message.text}
       </div>
       <div
@@ -512,8 +532,8 @@ function UserMessage({ message, userInitial }) {
           width: '28px',
           height: '28px',
           borderRadius: '999px',
-          background: 'linear-gradient(135deg,#3d1d78,#221044)',
-          border: '1px solid rgba(167,139,250,0.22)',
+          background: USER_AVATAR_BG,
+          border: '1px solid rgba(196,181,253,0.24)',
           color: '#d9ccff',
           display: 'flex',
           alignItems: 'center',
@@ -544,7 +564,7 @@ function AssistantMessage({ message, onSave, isSaving, saveFeedback, onOpenSaved
           width: '28px',
           height: '28px',
           borderRadius: '999px',
-          background: 'linear-gradient(135deg,#7c3aed,#5b21b6)',
+          background: AI_BADGE_BG,
           color: '#fff',
           display: 'flex',
           alignItems: 'center',
@@ -562,11 +582,11 @@ function AssistantMessage({ message, onSave, isSaving, saveFeedback, onOpenSaved
       <div
         style={{
           width: 'min(100%, 640px)',
-          background: PANEL_BG_SOFT,
-          border: `1px solid ${PANEL_BORDER}`,
-          borderRadius: '16px',
+          background: AI_BUBBLE_BG,
+          border: `1px solid ${AI_BUBBLE_BORDER}`,
+          borderRadius: '16px 16px 16px 6px',
           padding: '14px',
-          boxShadow: '0 18px 40px rgba(4,1,12,0.28)',
+          boxShadow: '0 18px 40px rgba(3,6,22,0.3)',
         }}
       >
         <div
@@ -574,11 +594,15 @@ function AssistantMessage({ message, onSave, isSaving, saveFeedback, onOpenSaved
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
-            color: '#a78bfa',
+            color: AI_LABEL_COLOR,
             fontFamily: "'DM Sans', sans-serif",
             fontSize: '11px',
             fontWeight: '700',
             marginBottom: '12px',
+            padding: '6px 9px',
+            borderRadius: '999px',
+            background: 'rgba(79,70,229,0.12)',
+            border: '1px solid rgba(99,102,241,0.18)',
           }}
         >
           <SparkIcon />
@@ -844,7 +868,7 @@ function ThinkingBubble() {
           width: '28px',
           height: '28px',
           borderRadius: '999px',
-          background: 'linear-gradient(135deg,#7c3aed,#5b21b6)',
+          background: AI_BADGE_BG,
           color: '#fff',
           display: 'flex',
           alignItems: 'center',
@@ -861,9 +885,9 @@ function ThinkingBubble() {
 
       <div
         style={{
-          background: PANEL_BG_SOFT,
-          border: `1px solid ${PANEL_BORDER}`,
-          borderRadius: '16px',
+          background: AI_BUBBLE_BG,
+          border: `1px solid ${AI_BUBBLE_BORDER}`,
+          borderRadius: '16px 16px 16px 6px',
           padding: '12px 14px',
           display: 'inline-flex',
           alignItems: 'center',
