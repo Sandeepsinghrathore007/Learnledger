@@ -972,9 +972,9 @@ function SubjectBanner({ subject }) {
           <div
             className="grid w-full gap-3"
             style={{
-              gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 132px))',
-              justifyContent: 'start',
-              padding: '8px',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gap: '6px',
+              padding: '6px',
               borderRadius: '16px',
               background: 'rgba(255,255,255,0.025)',
               border: `1px solid ${subject.color}18`,
@@ -986,8 +986,8 @@ function SubjectBanner({ subject }) {
                   key={stat.label}
                   style={{
                     minWidth: 0,
-                    minHeight: '86px',
-                    padding: '11px 12px 10px',
+                    minHeight: '74px',
+                    padding: '9px 6px 8px',
                     borderRadius: '12px',
                     background: 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))',
                     border: '1px solid rgba(255,255,255,0.04)',
@@ -1002,7 +1002,7 @@ function SubjectBanner({ subject }) {
                     style={{
                       color: stat.color,
                       fontWeight: '900',
-                      fontSize: '24px',
+                      fontSize: 'clamp(18px, 4.8vw, 24px)',
                       fontFamily: "'DM Sans',sans-serif",
                       lineHeight: 1,
                       letterSpacing: '-0.6px',
@@ -1014,12 +1014,13 @@ function SubjectBanner({ subject }) {
                   <div
                     style={{
                       color: '#7b7394',
-                      fontSize: '10px',
+                      fontSize: '9px',
                       fontFamily: "'DM Sans',sans-serif",
                       lineHeight: 1.15,
-                      marginTop: '10px',
-                      maxWidth: '90px',
+                      marginTop: '8px',
+                      maxWidth: '72px',
                       textAlign: 'center',
+                      overflowWrap: 'anywhere',
                     }}
                   >
                     {stat.label}
