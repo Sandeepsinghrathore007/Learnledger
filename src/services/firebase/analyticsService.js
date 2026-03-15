@@ -9,6 +9,7 @@ import { userActivityCol, userActivityDocRef } from './firestorePaths'
 
 export const ACTIVITY_TYPES = Object.freeze({
   NOTE_CREATED: 'note_created',
+  NOTE_UPDATED: 'note_updated',
   TOPIC_CREATED: 'topic_created',
   TOPIC_COMPLETED: 'topic_completed',
   TEST_TAKEN: 'test_taken',
@@ -161,6 +162,7 @@ export async function getDailyActivityHeatmap(userId, options = {}) {
       count: 0,
       types: {
         [ACTIVITY_TYPES.NOTE_CREATED]: 0,
+        [ACTIVITY_TYPES.NOTE_UPDATED]: 0,
         [ACTIVITY_TYPES.TOPIC_CREATED]: 0,
         [ACTIVITY_TYPES.TOPIC_COMPLETED]: 0,
         [ACTIVITY_TYPES.TEST_TAKEN]: 0,
@@ -185,6 +187,7 @@ export async function getDailyActivityHeatmap(userId, options = {}) {
         count: 0,
         types: {
           [ACTIVITY_TYPES.NOTE_CREATED]: 0,
+          [ACTIVITY_TYPES.NOTE_UPDATED]: 0,
           [ACTIVITY_TYPES.TOPIC_CREATED]: 0,
           [ACTIVITY_TYPES.TOPIC_COMPLETED]: 0,
           [ACTIVITY_TYPES.TEST_TAKEN]: 0,

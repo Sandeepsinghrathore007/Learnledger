@@ -503,6 +503,14 @@ export function useSubjects(user) {
             updatedAt: nextNote.updatedAt,
             lastOpenedAt: nextNote.lastOpenedAt,
           })
+
+          await safeLogActivity(user.uid, {
+            type: ACTIVITY_TYPES.NOTE_UPDATED,
+            subjectId: nextSubject.id,
+            topicId: nextTopic.id,
+            noteId: nextNote.id,
+            timestamp: nextNote.updatedAt || nextNote.lastOpenedAt || new Date().toISOString(),
+          })
         }
       }
     }

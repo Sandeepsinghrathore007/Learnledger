@@ -8,6 +8,7 @@ const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 const STUDY_TIME_WEIGHTS = {
   [ACTIVITY_TYPES.NOTE_CREATED]: 18,
+  [ACTIVITY_TYPES.NOTE_UPDATED]: 12,
   [ACTIVITY_TYPES.TOPIC_CREATED]: 14,
   [ACTIVITY_TYPES.TOPIC_COMPLETED]: 28,
   [ACTIVITY_TYPES.AI_QUESTION]: 6,
@@ -168,6 +169,34 @@ function getWeekStartKey(value) {
   return toDateKey(date)
 }
 
+function buildStreakFallbackActivity(subjects = [], tests = []) {
+  const noteActivity = subjects.flatMap((subject) =>
+    (Array.isArray(subject?.topics) ? subject.topics : []).flatMap((topic) =>
+      (Array.isArray(topic?.notes) ? topic.notes : []).flatMap((note) => {
+        const dates = [note?.createdAt, note?.updatedAt]
+          .map((value) => toDate(value))
+          .filter(Boolean)
+          .map((value) => ({
+            type: ACTIVITY_TYPES.NOTE_UPDATED,
+            date: toDateKey(value),
+          }))
+
+        return dates
+      })
+    )
+  )
+
+  const testActivity = tests
+    .map((test) => toDate(test?.completedAt || test?.createdAt))
+    .filter(Boolean)
+    .map((value) => ({
+      type: ACTIVITY_TYPES.TEST_TAKEN,
+      date: toDateKey(value),
+    }))
+
+  return [...noteActivity, ...testActivity]
+}
+
 function getRecentWeekKeys(count = DEFAULT_WEEK_WINDOW, today = new Date()) {
   const currentWeekStart = parseDateKey(getWeekStartKey(today))
 
@@ -205,13 +234,14 @@ export function buildHeatmap(activity = [], options = {}) {
     const existing = byDate.get(entry.date) || {
       date: entry.date,
       count: 0,
-      types: {
-        [ACTIVITY_TYPES.NOTE_CREATED]: 0,
-        [ACTIVITY_TYPES.TOPIC_CREATED]: 0,
-        [ACTIVITY_TYPES.TOPIC_COMPLETED]: 0,
-        [ACTIVITY_TYPES.TEST_TAKEN]: 0,
-        [ACTIVITY_TYPES.AI_QUESTION]: 0,
-      },
+        types: {
+          [ACTIVITY_TYPES.NOTE_CREATED]: 0,
+          [ACTIVITY_TYPES.NOTE_UPDATED]: 0,
+          [ACTIVITY_TYPES.TOPIC_CREATED]: 0,
+          [ACTIVITY_TYPES.TOPIC_COMPLETED]: 0,
+          [ACTIVITY_TYPES.TEST_TAKEN]: 0,
+          [ACTIVITY_TYPES.AI_QUESTION]: 0,
+        },
     }
 
     existing.count += 1
@@ -227,6 +257,7 @@ export function buildHeatmap(activity = [], options = {}) {
       count: 0,
       types: {
         [ACTIVITY_TYPES.NOTE_CREATED]: 0,
+        [ACTIVITY_TYPES.NOTE_UPDATED]: 0,
         [ACTIVITY_TYPES.TOPIC_CREATED]: 0,
         [ACTIVITY_TYPES.TOPIC_COMPLETED]: 0,
         [ACTIVITY_TYPES.TEST_TAKEN]: 0,
@@ -309,8 +340,10 @@ export function buildAnalyticsDashboard({
   weekWindow = DEFAULT_WEEK_WINDOW,
   trendLimit = DEFAULT_TREND_LIMIT,
 } = {}) {
+  const streakFallbackActivity = buildStreakFallbackActivity(subjects, tests)
+  const streakActivity = [...activity, ...streakFallbackActivity]
   const heatmap = buildHeatmap(activity, { today, days: heatmapDays })
-  const streak = computeStudyStreak(activity, today)
+  const streak = computeStudyStreak(streakActivity, today)
   const subjectMap = new Map()
 
   subjects.forEach((subject) => {

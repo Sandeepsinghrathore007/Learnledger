@@ -132,6 +132,15 @@ export const SubjectsIcon = () => (
   </svg>
 )
 
+export const TopicsIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <path d="M4 6.5h16" />
+    <path d="M4 12h16" />
+    <path d="M4 17.5h10" />
+    <circle cx="18" cy="17.5" r="2.5" />
+  </svg>
+)
+
 export const MockTestsIcon = () => (
   <svg {...iconProps} strokeWidth="1.8">
     <path d="M9 3h6" />

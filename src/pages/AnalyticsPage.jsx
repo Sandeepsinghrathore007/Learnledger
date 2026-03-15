@@ -1011,14 +1011,12 @@ export default function AnalyticsPage({
           label="Current Streak"
           value={`${analytics.streak.currentStreak}d`}
           tone="#22c55e"
-          helper="Counts today or yesterday while the streak is still alive."
           icon={StreakIcon}
         />
         <OverviewTile
           label="Longest Streak"
           value={`${analytics.streak.longestStreak}d`}
           tone="#3b82f6"
-          helper="Best run of consecutive study days."
           icon={TrophyIcon}
         />
         <OverviewTile

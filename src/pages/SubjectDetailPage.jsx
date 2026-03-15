@@ -24,7 +24,7 @@ import Modal              from '@/components/ui/Modal'
 import FormField          from '@/components/ui/FormField'
 import AiScoreBadge       from '@/components/ui/AiScoreBadge'
 import TestResultsView    from '@/components/tests/TestResultsView'
-import { BackIcon, PlusIcon } from '@/components/ui/Icons'
+import { BackIcon, MockTestsIcon, PdfIcon, PlusIcon, TopicsIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 import { uid }            from '@/utils/id'
 import { getTotalNotes }  from '@/utils/subjectStats'
@@ -595,21 +595,44 @@ export default function SubjectDetailPage({
 
       <div
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          alignItems: 'stretch',
           gap: '8px',
           padding: '6px',
           marginBottom: '18px',
           borderRadius: '16px',
           background: 'rgba(255,255,255,0.03)',
           border: `1px solid ${BORDER}`,
-          flexWrap: 'wrap',
+          width: '100%',
+          maxWidth: '680px',
         }}
       >
         {[
-          { id: 'topics', label: 'Topics', icon: '📚', count: subj.topics.length },
-          { id: 'materials', label: 'Study Materials', icon: '📄', count: (subj.pdfs ?? []).length },
-          { id: 'tests', label: 'Tests Completed', icon: '🧪', count: subjectTests.length },
+          {
+            id: 'topics',
+            label: 'Topics',
+            Icon: TopicsIcon,
+            count: subj.topics.length,
+            iconColor: '#38bdf8',
+            iconBackground: 'rgba(56,189,248,0.12)',
+          },
+          {
+            id: 'materials',
+            label: 'Study Materials',
+            Icon: PdfIcon,
+            count: (subj.pdfs ?? []).length,
+            iconColor: '#f87171',
+            iconBackground: 'rgba(248,113,113,0.12)',
+          },
+          {
+            id: 'tests',
+            label: 'Tests Completed',
+            Icon: MockTestsIcon,
+            count: subjectTests.length,
+            iconColor: '#34d399',
+            iconBackground: 'rgba(52,211,153,0.12)',
+          },
         ].map((section) => {
           const isActive = activeSection === section.id
 
@@ -622,6 +645,8 @@ export default function SubjectDetailPage({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
+                justifyContent: 'center',
+                minWidth: 0,
                 borderRadius: '12px',
                 border: `1px solid ${isActive ? `${subj.color}38` : 'transparent'}`,
                 background: isActive ? `${subj.color}18` : 'transparent',
@@ -629,11 +654,29 @@ export default function SubjectDetailPage({
                 fontFamily: "'DM Sans',sans-serif",
                 fontSize: '13px',
                 fontWeight: '700',
-                padding: '10px 14px',
+                padding: '10px 8px',
               }}
             >
-              <span>{section.icon}</span>
-              {section.label}
+              <span
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  flexShrink: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '8px',
+                  color: section.iconColor,
+                  background: isActive ? section.iconBackground : 'rgba(255,255,255,0.04)',
+                }}
+              >
+                <span style={{ width: '14px', height: '14px' }}>
+                  <section.Icon />
+                </span>
+              </span>
+              <span className="hidden sm:inline" style={{ minWidth: 0, whiteSpace: 'nowrap' }}>
+                {section.label}
+              </span>
               <span
                 style={{
                   borderRadius: '999px',
