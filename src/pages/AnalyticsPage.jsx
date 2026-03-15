@@ -274,6 +274,7 @@ function MetricChip({ label, value, helper = '' }) {
   return (
     <div
       style={{
+        minWidth: 0,
         borderRadius: '12px',
         border: `1px solid ${BORDER}`,
         background: 'rgba(255,255,255,0.02)',
@@ -421,6 +422,7 @@ function ExamGroupCard({
   return (
     <div
       style={{
+        minWidth: 0,
         background: SURF2,
         border: `1px solid ${accent}24`,
         borderRadius: '20px',
@@ -532,7 +534,7 @@ function ExamGroupCard({
         }}
       >
         <div
-          className="flex flex-wrap items-center justify-between gap-3"
+          className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           style={{
             padding: '12px 14px',
             borderRadius: '16px',
@@ -540,7 +542,7 @@ function ExamGroupCard({
             border: `1px solid ${accent}22`,
           }}
         >
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div
               style={{
                 color: TEXT1,
@@ -565,6 +567,7 @@ function ExamGroupCard({
 
           <button
             type="button"
+            className="w-full justify-center sm:w-auto"
             onClick={() => setMaterialsOpen((previous) => !previous)}
             style={{
               display: 'inline-flex',
@@ -614,11 +617,7 @@ function ExamGroupCard({
       </div>
 
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-          gap: '12px',
-        }}
+        className="grid grid-cols-2 gap-3 sm:grid-cols-3"
       >
         <MetricChip label="Topics" value={formatValue(group.totalTopics)} />
         <MetricChip label="Total PDFs" value={formatValue(group.totalPdfs)} />

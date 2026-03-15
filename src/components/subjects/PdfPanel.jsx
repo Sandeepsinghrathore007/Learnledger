@@ -259,6 +259,8 @@ export default function PdfPanel({
   return (
     <section
       style={{
+        width: '100%',
+        minWidth: 0,
         background: 'linear-gradient(180deg, rgba(124,58,237,0.08), rgba(13,11,26,0.98) 22%)',
         border: `1px solid ${BORDER2}`,
         borderRadius: '22px',
@@ -266,8 +268,8 @@ export default function PdfPanel({
         boxShadow: '0 24px 50px rgba(0,0,0,0.22)',
       }}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" style={{ marginBottom: '16px' }}>
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" style={{ marginBottom: '16px', minWidth: 0 }}>
+        <div style={{ minWidth: 0 }}>
           <div className="flex flex-wrap items-center gap-3">
             <h3 style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '18px', fontWeight: '800', margin: 0 }}>
               {title}
@@ -383,7 +385,7 @@ export default function PdfPanel({
           </p>
         </button>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
           {pdfs.map((pdf) => {
             const aiStatus = getAiStatusMeta(pdf)
             const resolvedPdfUrl = getResolvedPdfUrl(pdf)
@@ -393,6 +395,7 @@ export default function PdfPanel({
               <article
                 key={pdf.id}
                 style={{
+                  minWidth: 0,
                   padding: '14px',
                   background: SURFACE,
                   border: `1px solid ${BORDER}`,
@@ -408,9 +411,10 @@ export default function PdfPanel({
                   event.currentTarget.style.background = SURFACE
                 }}
               >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between" style={{ minWidth: 0 }}>
                   <div className="flex min-w-0 gap-3">
                     <div
+                      className="hidden sm:flex"
                       style={{
                         width: '42px',
                         height: '42px',
@@ -434,9 +438,9 @@ export default function PdfPanel({
                           fontFamily: "'DM Sans', sans-serif",
                           fontSize: '14px',
                           fontWeight: '700',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
+                          lineHeight: 1.4,
+                          wordBreak: 'break-word',
+                          overflowWrap: 'anywhere',
                         }}
                         title={pdf.name}
                       >
@@ -473,14 +477,14 @@ export default function PdfPanel({
                     </div>
                   </div>
 
-                  <div className="flex w-full gap-2 sm:w-auto sm:justify-end">
+                  <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
                     {showAskAI && (
                       <button
                         type="button"
+                        className="flex-1 sm:flex-none"
                         onClick={() => aiStatus.canAsk && onAskAI?.(pdf)}
                         disabled={!aiStatus.canAsk}
                         style={{
-                          flex: 1,
                           minWidth: '88px',
                           height: '34px',
                           borderRadius: '10px',
@@ -499,10 +503,10 @@ export default function PdfPanel({
                     )}
                     <button
                       type="button"
+                      className="flex-1 sm:flex-none"
                       onClick={() => handleOpenViewer(pdf)}
                       disabled={!resolvedPdfUrl}
                       style={{
-                        flex: 1,
                         minWidth: '76px',
                         height: '34px',
                         borderRadius: '10px',
