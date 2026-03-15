@@ -81,12 +81,27 @@ body,
   40% { opacity: 1; transform: scale(1); }
 }
 
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 /* ── ANIMATION UTILITY CLASSES ──────────────────────────────────────────────── */
 .animate-fade-up    { animation: fadeUp    0.28s ease both; }
 .animate-fade-in    { animation: fadeIn    0.22s ease both; }
 .animate-scale-in   { animation: scaleIn  0.18s ease both; }
 .animate-slide-right{ animation: slideRight 0.22s ease both; }
 .animate-pop-in     { animation: popIn    0.14s ease both; }
+.subject-skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.03) 0%,
+    rgba(124,58,237,0.08) 50%,
+    rgba(255,255,255,0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
 .learnledger-ai-dot {
   width: 7px;
   height: 7px;

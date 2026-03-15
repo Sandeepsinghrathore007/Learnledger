@@ -93,6 +93,10 @@ function getNoteCount(subject) {
   )
 }
 
+function getPdfCount(subject) {
+  return Array.isArray(subject?.pdfs) ? subject.pdfs.length : 0
+}
+
 function getRelevantSubjectIds(test) {
   const fromMetadata = Array.isArray(test?.metadata?.subjects)
     ? test.metadata.subjects.map((subject) => subject?.id)
@@ -318,6 +322,7 @@ export function buildAnalyticsDashboard({
       totalTopics: getTopicCount(subject),
       completedTopics: getCompletedTopicCount(subject),
       notesCreated: getNoteCount(subject),
+      totalPdfs: getPdfCount(subject),
       testsTaken: 0,
       scoreSum: 0,
       averageScore: 0,
@@ -476,12 +481,14 @@ export function buildAnalyticsDashboard({
       const groupAIChats = normalizedAIChats.filter((chat) => chat.subjectId && groupSubjectSet.has(chat.subjectId))
       const totalGroupTopics = groupSubjects.reduce((sum, subject) => sum + getTopicCount(subject), 0)
       const completedGroupTopics = groupSubjects.reduce((sum, subject) => sum + getCompletedTopicCount(subject), 0)
+      const totalGroupPdfs = Array.isArray(group.pdfs) ? group.pdfs.length : 0
 
       return {
         ...group,
         subjects: groupSubjects,
         totalSubjects: groupSubjects.length,
         totalTopics: totalGroupTopics,
+        totalPdfs: totalGroupPdfs,
         completedTopics: completedGroupTopics,
         progressPercentage: totalGroupTopics > 0 ? round((completedGroupTopics / totalGroupTopics) * 100) : 0,
         testsTaken: groupTests.length,

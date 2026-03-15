@@ -110,6 +110,7 @@ export function useAnalyticsDashboard({ user, subjects }) {
       await updateExamGroup(user.uid, groupInput.id, {
         name: groupInput.name,
         subjectIds: groupInput.subjectIds,
+        ...(Object.prototype.hasOwnProperty.call(groupInput, 'pdfs') ? { pdfs: groupInput.pdfs } : {}),
       })
       return
     }
@@ -117,6 +118,7 @@ export function useAnalyticsDashboard({ user, subjects }) {
     await createExamGroup(user.uid, {
       name: groupInput.name,
       subjectIds: groupInput.subjectIds,
+      ...(Object.prototype.hasOwnProperty.call(groupInput, 'pdfs') ? { pdfs: groupInput.pdfs } : {}),
     })
   }
 

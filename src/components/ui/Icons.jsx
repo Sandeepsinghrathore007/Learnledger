@@ -82,6 +82,16 @@ export const PdfIcon = () => (
   </svg>
 )
 
+export const BookmarkIcon = ({ filled = false }) => (
+  <svg
+    {...iconProps}
+    fill={filled ? 'currentColor' : 'none'}
+    strokeWidth="1.8"
+  >
+    <path d="M7 4.5h10a1 1 0 0 1 1 1v14l-6-3.8-6 3.8v-14a1 1 0 0 1 1-1Z" />
+  </svg>
+)
+
 export const UploadIcon = () => (
   <svg {...iconProps} strokeWidth="1.8">
     <polyline points="16 16 12 12 8 16" />
@@ -102,6 +112,14 @@ export const EyeIcon = () => (
   <svg {...iconProps} strokeWidth="1.8">
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
     <circle cx="12" cy="12" r="3" />
+  </svg>
+)
+
+export const ExternalLinkIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <path d="M14 5h5v5" />
+    <path d="M10 14 19 5" />
+    <path d="M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4" />
   </svg>
 )
 

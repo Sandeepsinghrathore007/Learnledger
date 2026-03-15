@@ -2,6 +2,7 @@
  * QuestionCard.jsx — Display individual question with options and hint system.
  */
 
+import { BookmarkIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 
 export default function QuestionCard({
@@ -40,21 +41,24 @@ export default function QuestionCard({
         <button
           type="button"
           onClick={onToggleBookmark}
+          aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'}
           style={{
             width: '32px',
             height: '32px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: isBookmarked ? 'rgba(251,191,36,0.12)' : 'transparent',
-            border: `1px solid ${isBookmarked ? 'rgba(251,191,36,0.3)' : BORDER}`,
+            background: 'transparent',
+            border: 'none',
             borderRadius: '8px',
-            color: isBookmarked ? '#fbbf24' : TEXT3,
+            color: isBookmarked ? '#7c3aed' : '#4a4066',
             cursor: 'pointer',
-            fontSize: '16px',
+            padding: 0,
           }}
         >
-          🔖
+          <span style={{ width: '18px', height: '18px', display: 'inline-flex' }}>
+            <BookmarkIcon filled={isBookmarked} />
+          </span>
         </button>
       </div>
 

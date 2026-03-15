@@ -21,6 +21,7 @@ import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 export default function TestTakingView({ test, onUpdateTest, onFinish, onExit }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [showHint, setShowHint] = useState(false)
+  const [bookmarkedQuestions, setBookmarkedQuestions] = useState(() => test.bookmarkedQuestions || [])
 
   const currentQuestion = test.questions[currentQuestionIndex]
   const totalQuestions = test.questions.length
@@ -42,6 +43,10 @@ export default function TestTakingView({ test, onUpdateTest, onFinish, onExit })
     }
   }, [])
 
+  useEffect(() => {
+    setBookmarkedQuestions(test.bookmarkedQuestions || [])
+  }, [test.id])
+
   // Handle time up
   const handleTimeUp = () => {
     if (test.config.timingMode === 'per-question') {
@@ -62,11 +67,11 @@ export default function TestTakingView({ test, onUpdateTest, onFinish, onExit })
 
   // Bookmark question
   const handleToggleBookmark = () => {
-    const bookmarked = test.bookmarkedQuestions || []
-    const newBookmarked = bookmarked.includes(currentQuestion.id)
-      ? bookmarked.filter(id => id !== currentQuestion.id)
-      : [...bookmarked, currentQuestion.id]
-    onUpdateTest({ ...test, bookmarkedQuestions: newBookmarked })
+    setBookmarkedQuestions((previous) =>
+      previous.includes(currentQuestion.id)
+        ? previous.filter((id) => id !== currentQuestion.id)
+        : [...previous, currentQuestion.id]
+    )
   }
 
   // Use hint
@@ -125,6 +130,7 @@ export default function TestTakingView({ test, onUpdateTest, onFinish, onExit })
       percentage: finalPercentage,
       passed: finalPercentage >= 70,
       completedAt: endTime,
+      bookmarkedQuestions,
     }
 
     onFinish(testAttempt)
@@ -182,7 +188,7 @@ export default function TestTakingView({ test, onUpdateTest, onFinish, onExit })
         onSelectAnswer={handleSelectAnswer}
         showHint={showHint}
         onUseHint={handleUseHint}
-        isBookmarked={(test.bookmarkedQuestions || []).includes(currentQuestion.id)}
+        isBookmarked={bookmarkedQuestions.includes(currentQuestion.id)}
         onToggleBookmark={handleToggleBookmark}
         hasUsedHint={(test.hintsUsed || []).includes(currentQuestion.id)}
       />
@@ -192,7 +198,7 @@ export default function TestTakingView({ test, onUpdateTest, onFinish, onExit })
         questions={test.questions}
         currentIndex={currentQuestionIndex}
         answers={test.answers}
-        bookmarkedQuestions={test.bookmarkedQuestions || []}
+        bookmarkedQuestions={bookmarkedQuestions}
         onJumpTo={handleJumpTo}
       />
 

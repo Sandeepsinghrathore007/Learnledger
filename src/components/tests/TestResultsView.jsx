@@ -7,6 +7,36 @@ import { analyzeWeakAreas, calculateAccuracyByDifficulty, formatTime } from '@/u
 import PerformanceChart from '@/components/tests/PerformanceChart'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 
+function ReviewOptions({ question, userAnswer }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {question.options.map((opt) => {
+        const isUserAnswer = userAnswer === opt.id
+        const isCorrectAnswer = question.correctAnswer === opt.id
+
+        return (
+          <div
+            key={opt.id}
+            style={{
+              padding: '10px 12px',
+              background: isCorrectAnswer ? 'rgba(34,197,94,0.08)' : isUserAnswer ? 'rgba(239,68,68,0.08)' : 'transparent',
+              border: `1px solid ${isCorrectAnswer ? 'rgba(34,197,94,0.3)' : isUserAnswer ? 'rgba(239,68,68,0.3)' : BORDER}`,
+              borderRadius: '8px',
+              color: TEXT2,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '13px',
+            }}
+          >
+            <strong>{opt.id.toUpperCase()}.</strong> {opt.text}
+            {isCorrectAnswer && <span style={{ marginLeft: '8px', color: '#22c55e' }}>✓ Correct</span>}
+            {isUserAnswer && !isCorrectAnswer && <span style={{ marginLeft: '8px', color: '#ef4444' }}>Your answer</span>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function TestResultsView({ testAttempt, onClose, onRetake = null, closeLabel = 'Back to Tests' }) {
   const [expandedQuestions, setExpandedQuestions] = useState(new Set())
 
@@ -19,6 +49,7 @@ export default function TestResultsView({ testAttempt, onClose, onRetake = null,
     percentage, 
     passed, 
     timeTaken,
+    bookmarkedQuestions = [],
     hintsUsed = [],
     metadata 
   } = testAttempt
@@ -35,6 +66,9 @@ export default function TestResultsView({ testAttempt, onClose, onRetake = null,
 
   const weakAreas = analyzeWeakAreas(questions, answers, metadata)
   const accuracyByDifficulty = calculateAccuracyByDifficulty(questions, answers)
+  const bookmarkedQuestionItems = questions
+    .map((question, index) => ({ question, index }))
+    .filter(({ question }) => bookmarkedQuestions.includes(question.id))
 
   return (
     <div className="animate-fade-in" style={{ maxWidth: '900px', margin: '0 auto' }}>
@@ -119,6 +153,7 @@ export default function TestResultsView({ testAttempt, onClose, onRetake = null,
             const isCorrect = userAnswer === question.correctAnswer
             const isExpanded = expandedQuestions.has(question.id)
             const usedHint = hintsUsed.includes(question.id)
+            const isBookmarked = bookmarkedQuestions.includes(question.id)
 
             return (
               <div
@@ -168,6 +203,22 @@ export default function TestResultsView({ testAttempt, onClose, onRetake = null,
                       {question.question.slice(0, 80)}...
                     </div>
                   </div>
+                  {isBookmarked && (
+                    <span
+                      style={{
+                        borderRadius: '999px',
+                        padding: '4px 8px',
+                        background: 'rgba(124,58,237,0.12)',
+                        border: '1px solid rgba(124,58,237,0.22)',
+                        color: '#7c3aed',
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: '11px',
+                        fontWeight: '700',
+                      }}
+                    >
+                      🔖 Bookmarked
+                    </span>
+                  )}
                   {usedHint && <span style={{ fontSize: '16px' }}>💡</span>}
                   <span style={{ color: TEXT3, fontSize: '16px' }}>{isExpanded ? '▼' : '▶'}</span>
                 </button>
@@ -178,31 +229,7 @@ export default function TestResultsView({ testAttempt, onClose, onRetake = null,
                       <p style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: '600', margin: '0 0 12px' }}>
                         {question.question}
                       </p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {question.options.map(opt => {
-                          const isUserAnswer = userAnswer === opt.id
-                          const isCorrectAnswer = question.correctAnswer === opt.id
-
-                          return (
-                            <div
-                              key={opt.id}
-                              style={{
-                                padding: '10px 12px',
-                                background: isCorrectAnswer ? 'rgba(34,197,94,0.08)' : isUserAnswer ? 'rgba(239,68,68,0.08)' : 'transparent',
-                                border: `1px solid ${isCorrectAnswer ? 'rgba(34,197,94,0.3)' : isUserAnswer ? 'rgba(239,68,68,0.3)' : BORDER}`,
-                                borderRadius: '8px',
-                                color: TEXT2,
-                                fontFamily: "'DM Sans', sans-serif",
-                                fontSize: '13px',
-                              }}
-                            >
-                              <strong>{opt.id.toUpperCase()}.</strong> {opt.text}
-                              {isCorrectAnswer && <span style={{ marginLeft: '8px', color: '#22c55e' }}>✓ Correct</span>}
-                              {isUserAnswer && !isCorrectAnswer && <span style={{ marginLeft: '8px', color: '#ef4444' }}>Your answer</span>}
-                            </div>
-                          )
-                        })}
-                      </div>
+                      <ReviewOptions question={question} userAnswer={userAnswer} />
                     </div>
                     {question.explanation && (
                       <div style={{ padding: '12px', background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '8px' }}>
@@ -221,6 +248,81 @@ export default function TestResultsView({ testAttempt, onClose, onRetake = null,
           })}
         </div>
       </div>
+
+      {bookmarkedQuestionItems.length > 0 && (
+        <div style={{ marginTop: '28px' }}>
+          <h3 style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>
+            Bookmarked Questions
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {bookmarkedQuestionItems.map(({ question, index }) => {
+              const userAnswer = answers[question.id]
+              const isCorrect = userAnswer === question.correctAnswer
+
+              return (
+                <div
+                  key={question.id}
+                  style={{
+                    background: 'rgba(255,255,255,0.02)',
+                    border: `1px solid ${isCorrect ? 'rgba(34,197,94,0.26)' : 'rgba(124,58,237,0.24)'}`,
+                    borderRadius: '14px',
+                    padding: '16px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                      marginBottom: '12px',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <div>
+                      <div style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: '700' }}>
+                        Question {index + 1}
+                      </div>
+                      <div style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', marginTop: '4px' }}>
+                        {isCorrect ? 'Answered correctly' : 'Saved for revision'}
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        borderRadius: '999px',
+                        padding: '5px 10px',
+                        background: 'rgba(124,58,237,0.12)',
+                        border: '1px solid rgba(124,58,237,0.24)',
+                        color: '#7c3aed',
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: '11px',
+                        fontWeight: '700',
+                      }}
+                    >
+                      🔖 Bookmarked
+                    </span>
+                  </div>
+
+                  <p style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: '600', margin: '0 0 12px', lineHeight: 1.6 }}>
+                    {question.question}
+                  </p>
+                  <ReviewOptions question={question} userAnswer={userAnswer} />
+                  {question.explanation && (
+                    <div style={{ padding: '12px', background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '8px', marginTop: '12px' }}>
+                      <div style={{ color: '#a78bfa', fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: '700', marginBottom: '4px' }}>
+                        💡 Explanation:
+                      </div>
+                      <p style={{ color: TEXT2, fontFamily: "'DM Sans', sans-serif", fontSize: '13px', margin: 0, lineHeight: 1.6 }}>
+                        {question.explanation}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">

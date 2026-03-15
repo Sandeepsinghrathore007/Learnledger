@@ -25,12 +25,12 @@ import FormField          from '@/components/ui/FormField'
 import AiScoreBadge       from '@/components/ui/AiScoreBadge'
 import TestResultsView    from '@/components/tests/TestResultsView'
 import { BackIcon, PlusIcon } from '@/components/ui/Icons'
-import { BORDER, TEXT1, TEXT3 } from '@/constants/theme'
+import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 import { uid }            from '@/utils/id'
 import { getTotalNotes }  from '@/utils/subjectStats'
 import { deletePdfKnowledge, savePdfKnowledge } from '@/services/firebase/pdfKnowledgeService'
 import { extractPdfKnowledgeFromFile } from '@/utils/pdfKnowledge'
-import { MAX_PDF_FILE_BYTES } from '@/utils/pdfBinaryStore'
+import { deletePdfBinary, MAX_PDF_FILE_BYTES, storePdfBinary } from '@/utils/pdfBinaryStore'
 import { uploadPdfToCloudinary, deletePdfFromCloudinary } from '@/services/cloudinaryService'
 import { subscribeToTests } from '@/services/firebase/testsService'
 
@@ -67,6 +67,8 @@ export default function SubjectDetailPage({
   onBack,
   onUpdateSubject,
   initialOpenNote = null,
+  initialSection = 'topics',
+  sectionLaunchKey = null,
   user = null,
   onOpenAIContext = null,
 }) {
@@ -79,9 +81,15 @@ export default function SubjectDetailPage({
   const [subjectTests, setSubjectTests] = useState([])
   const [testsLoading, setTestsLoading] = useState(false)
   const [testsError, setTestsError] = useState('')
-  const [showCompletedTests, setShowCompletedTests] = useState(false)
   const [openTestReview, setOpenTestReview] = useState(null)
   const [pdfFeedback, setPdfFeedback] = useState(null)
+  const [activeSection, setActiveSection] = useState(
+    initialSection === 'materials'
+      ? 'materials'
+      : initialSection === 'tests'
+        ? 'tests'
+        : 'topics'
+  )
 
   const totalNotes = getTotalNotes(subj)
 
@@ -89,6 +97,16 @@ export default function SubjectDetailPage({
     subjectRef.current = subject
     setSubj(subject)
   }, [subject])
+
+  useEffect(() => {
+    setActiveSection(
+      initialSection === 'materials'
+        ? 'materials'
+        : initialSection === 'tests'
+          ? 'tests'
+          : 'topics'
+    )
+  }, [initialSection, sectionLaunchKey, subject.id])
 
   useEffect(() => {
     if (!user?.uid || !subj?.id) {
@@ -136,6 +154,24 @@ export default function SubjectDetailPage({
     subjectRef.current = updated
     setSubj(updated)
     await onUpdateSubject(updated)
+  }
+
+  const appendPdfRecord = async (pdf) => {
+    await save({
+      ...subjectRef.current,
+      pdfs: [...(subjectRef.current.pdfs ?? []), pdf],
+    })
+  }
+
+  const updatePdfRecord = async (pdfId, updater) => {
+    const updatedSubject = {
+      ...subjectRef.current,
+      pdfs: (subjectRef.current.pdfs ?? []).map((pdf) =>
+        pdf.id === pdfId ? updater(pdf) : pdf
+      ),
+    }
+
+    await save(updatedSubject)
   }
 
   // ── TOPIC ACTIONS ─────────────────────────────────────────────────────────
@@ -353,72 +389,108 @@ export default function SubjectDetailPage({
     }
 
     const pdfId = uid()
-    let cloudinaryPublicId = null
+    let uploadedPdfId = null
 
     try {
-      // ✅ Upload to Cloudinary — works on ALL devices
-      setPdfFeedback({ type: 'info', text: 'Uploading PDF...' })
-      
-      const { url, publicId } = await uploadPdfToCloudinary({
+      setPdfFeedback({ type: 'info', text: 'Uploading PDF to Cloudinary...' })
+
+      const { url, publicId, resourceType, format, version } = await uploadPdfToCloudinary({
         file,
         userId: user?.uid || 'guest',
         subjectId: subjectRef.current.id,
         pdfId,
       })
-      cloudinaryPublicId = publicId
 
       const pendingPdf = {
         id: pdfId,
         name: file.name,
-        url,                          // ✅ Cloudinary URL — works everywhere
-        publicId,                     // ✅ Store for future deletion
+        url,
+        publicId,
+        resourceType,
+        format,
+        version,
         size: formatPdfSize(file.size),
         sizeBytes: file.size,
-        addedAt: new Date().toLocaleDateString(),
-        aiStatus: 'deferred',
+        addedAt: new Date().toISOString(),
+        aiStatus: 'processing',
         summary: '',
         preview: '',
         pageCount: 0,
         chunkCount: 0,
-        storageType: 'cloudinary',    // ✅ Mark as cloudinary storage
+        storageType: 'cloudinary',
       }
+      uploadedPdfId = pendingPdf.id
 
-      await save({
-        ...subjectRef.current,
-        pdfs: [...(subjectRef.current.pdfs ?? []), pendingPdf],
+      await storePdfBinary({
+        userId: user?.uid || null,
+        subjectId: subjectRef.current.id,
+        pdfId,
+        file,
+      }).catch((cacheError) => {
+        console.warn('Failed to cache PDF locally on this device:', cacheError)
       })
 
-      // ✅ Extract AI knowledge immediately and save to Firestore
-      // So it works on ALL devices without re-upload
-      if (user?.uid) {
-        try {
-          setPdfFeedback({ type: 'info', text: 'Processing PDF for AI (this may take a moment)...' })
-          const extracted = await extractPdfKnowledgeFromFile(file)
-          if (extracted && (extracted.summary || extracted.chunks?.length > 0)) {
-            await savePdfKnowledge({
-              userId: user.uid,
-              subjectId: subjectRef.current.id,
-              pdf: { id: pdfId, name: file.name },
-              knowledge: extracted,
-            })
-            // Update aiStatus to ready
-            await save({
-              ...subjectRef.current,
-              pdfs: [
-                ...(subjectRef.current.pdfs ?? []),
-                { ...pendingPdf, aiStatus: 'ready', chunkCount: extracted.chunks?.length || 0, summary: extracted.summary || '' }
-              ],
-            })
-          }
-        } catch (aiError) {
-          // AI processing failed — PDF still uploaded fine, AI can retry later
-          console.warn('AI knowledge extraction failed:', aiError)
-        }
+      await appendPdfRecord(pendingPdf)
+
+      setPdfFeedback({ type: 'info', text: 'Extracting AI knowledge and syncing study context...' })
+
+      const extracted = await extractPdfKnowledgeFromFile(file)
+      const hasKnowledge = Boolean(
+        extracted &&
+        (
+          String(extracted.summary || '').trim() ||
+          (Array.isArray(extracted.chunks) && extracted.chunks.length > 0)
+        )
+      )
+
+      if (!hasKnowledge) {
+        await updatePdfRecord(pdfId, (pdf) => ({
+          ...pdf,
+          aiStatus: 'not-processed',
+        }))
+
+        setPdfFeedback({
+          type: 'error',
+          text: 'PDF uploaded, but readable text could not be extracted for AI.',
+        })
+        return
       }
 
-      setPdfFeedback(null)
+      if (user?.uid) {
+        await savePdfKnowledge({
+          userId: user.uid,
+          subjectId: subjectRef.current.id,
+          pdf: { id: pdfId, name: file.name },
+          knowledge: extracted,
+        })
+      }
+
+      await updatePdfRecord(pdfId, (pdf) => ({
+        ...pdf,
+        aiStatus: 'ready',
+        summary: extracted.summary || '',
+        preview: extracted.preview || '',
+        pageCount: Number.isFinite(extracted.pageCount) ? extracted.pageCount : 0,
+        chunkCount: Array.isArray(extracted.chunks) ? extracted.chunks.length : 0,
+        aiReadyAt: new Date().toISOString(),
+      }))
+
+      setPdfFeedback({
+        type: 'info',
+        text: user?.uid
+          ? 'PDF uploaded and AI knowledge synced for all devices.'
+          : 'PDF uploaded and AI study context prepared.',
+      })
     } catch (error) {
       console.error('Failed to upload PDF:', error)
+
+      if (uploadedPdfId) {
+        await updatePdfRecord(uploadedPdfId, (pdf) => ({
+          ...pdf,
+          aiStatus: 'not-processed',
+        })).catch(() => {})
+      }
+
       setPdfFeedback({
         type: 'error',
         text: error?.message || 'Unable to upload this PDF. Check your internet connection.',
@@ -446,7 +518,11 @@ export default function SubjectDetailPage({
       }
     }
 
-    // Cloudinary deletion handled above — no local binary to delete
+    await deletePdfBinary({
+      userId: user?.uid || null,
+      subjectId: subjectRef.current.id,
+      pdfId: id,
+    }).catch(() => {})
   }
 
   const handleAskAIForPdf = (pdf) => {
@@ -457,7 +533,8 @@ export default function SubjectDetailPage({
       subjectName: subjectRef.current.name,
       pdfId: pdf.id,
       pdfName: pdf.name,
-      pdfStatus: pdf.aiStatus || 'deferred',
+      pdfStatus: pdf.aiStatus || 'not-processed',
+      pdfKnowledgeSubjectId: subjectRef.current.id,
       typedContext: `Use the attached PDF "${pdf.name}" as the main study source.`,
     })
   }
@@ -516,89 +593,143 @@ export default function SubjectDetailPage({
       {/* Banner */}
       <SubjectBanner subject={subj} totalNotes={totalNotes} />
 
-      {/* Topics section header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '10px', flexWrap: 'wrap' }}>
-        <h3 style={{ color: TEXT1, fontFamily: "'DM Sans',sans-serif", fontWeight: '700', fontSize: '15px', margin: 0 }}>
-          Topics{' '}
-          <span style={{ color: TEXT3, fontSize: '12px', fontWeight: '400', marginLeft: '6px' }}>
-            {subj.topics.length}
-          </span>
-        </h3>
-        <button
-          className="w-full sm:w-auto"
-          onClick={() => setAddTopicOpen(true)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            background: `${subj.color}16`, border: `1px solid ${subj.color}2e`,
-            borderRadius: '10px', padding: '7px 15px',
-            color: subj.color, fontSize: '13px',
-            fontFamily: "'DM Sans',sans-serif", fontWeight: '600',
-            transition: 'background 0.15s',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = `${subj.color}28`)}
-          onMouseLeave={(e) => (e.currentTarget.style.background = `${subj.color}16`)}
-        >
-          <span style={{ width: '13px', height: '13px' }}><PlusIcon /></span>
-          Add Topic
-        </button>
+      <div
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '6px',
+          marginBottom: '18px',
+          borderRadius: '16px',
+          background: 'rgba(255,255,255,0.03)',
+          border: `1px solid ${BORDER}`,
+          flexWrap: 'wrap',
+        }}
+      >
+        {[
+          { id: 'topics', label: 'Topics', icon: '📚', count: subj.topics.length },
+          { id: 'materials', label: 'Study Materials', icon: '📄', count: (subj.pdfs ?? []).length },
+          { id: 'tests', label: 'Tests Completed', icon: '🧪', count: subjectTests.length },
+        ].map((section) => {
+          const isActive = activeSection === section.id
+
+          return (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => setActiveSection(section.id)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                borderRadius: '12px',
+                border: `1px solid ${isActive ? `${subj.color}38` : 'transparent'}`,
+                background: isActive ? `${subj.color}18` : 'transparent',
+                color: isActive ? TEXT1 : TEXT2,
+                fontFamily: "'DM Sans',sans-serif",
+                fontSize: '13px',
+                fontWeight: '700',
+                padding: '10px 14px',
+              }}
+            >
+              <span>{section.icon}</span>
+              {section.label}
+              <span
+                style={{
+                  borderRadius: '999px',
+                  padding: '3px 8px',
+                  background: isActive ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
+                  color: isActive ? TEXT1 : TEXT3,
+                  fontSize: '11px',
+                  fontWeight: '700',
+                }}
+              >
+                {section.count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
-      {/* Topics list */}
-      {subj.topics.length === 0 ? (
-        <div style={{
-          textAlign: 'center', padding: '40px',
-          border: `1px dashed ${BORDER}`, borderRadius: '14px',
-        }}>
-          <div style={{ fontSize: '30px', marginBottom: '8px' }}>📂</div>
-          <p style={{ color: TEXT3, fontFamily: "'DM Sans',sans-serif", fontSize: '13px' }}>
-            No topics yet — add your first topic above
-          </p>
-        </div>
+      {activeSection === 'topics' ? (
+        <>
+          {/* Topics section header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '10px', flexWrap: 'wrap' }}>
+            <h3 style={{ color: TEXT1, fontFamily: "'DM Sans',sans-serif", fontWeight: '700', fontSize: '15px', margin: 0 }}>
+              Topics{' '}
+              <span style={{ color: TEXT3, fontSize: '12px', fontWeight: '400', marginLeft: '6px' }}>
+                {subj.topics.length}
+              </span>
+            </h3>
+            <button
+              className="w-full sm:w-auto"
+              onClick={() => setAddTopicOpen(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                background: `${subj.color}16`, border: `1px solid ${subj.color}2e`,
+                borderRadius: '10px', padding: '7px 15px',
+                color: subj.color, fontSize: '13px',
+                fontFamily: "'DM Sans',sans-serif", fontWeight: '600',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = `${subj.color}28`)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = `${subj.color}16`)}
+            >
+              <span style={{ width: '13px', height: '13px' }}><PlusIcon /></span>
+              Add Topic
+            </button>
+          </div>
+
+          {/* Topics list */}
+          {subj.topics.length === 0 ? (
+            <div style={{
+              textAlign: 'center', padding: '40px',
+              border: `1px dashed ${BORDER}`, borderRadius: '14px',
+            }}>
+              <div style={{ fontSize: '30px', marginBottom: '8px' }}>📂</div>
+              <p style={{ color: TEXT3, fontFamily: "'DM Sans',sans-serif", fontSize: '13px' }}>
+                No topics yet — add your first topic above
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+              {subj.topics.map(topic => (
+                <TopicAccordion
+                  key={topic.id}
+                  topic={topic}
+                  subjectColor={subj.color}
+                  onAddNote={handleAddNote}
+                  onOpenNote={(note, topicId) => setOpenNote({ note, topicId })}
+                  onDeleteNote={handleDeleteNote}
+                  onDeleteTopic={handleDeleteTopic}
+                />
+              ))}
+            </div>
+          )}
+
+        </>
+      ) : activeSection === 'materials' ? (
+        <PdfPanel
+          pdfs={subj.pdfs ?? []}
+          color={subj.color}
+          onAdd={handleAddPdf}
+          onDelete={handleDeletePdf}
+          onAskAI={handleAskAIForPdf}
+          feedback={pdfFeedback}
+          binaryContext={{ userId: user?.uid || null, subjectId: subj.id }}
+        />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-          {subj.topics.map(topic => (
-            <TopicAccordion
-              key={topic.id}
-              topic={topic}
-              subjectColor={subj.color}
-              onAddNote={handleAddNote}
-              onOpenNote={(note, topicId) => setOpenNote({ note, topicId })}
-              onDeleteNote={handleDeleteNote}
-              onDeleteTopic={handleDeleteTopic}
-            />
-          ))}
-        </div>
-      )}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '10px', flexWrap: 'wrap' }}>
+            <h3 style={{ color: TEXT1, fontFamily: "'DM Sans',sans-serif", fontWeight: '700', fontSize: '15px', margin: 0 }}>
+              Tests Completed
+              <span style={{ color: TEXT3, fontSize: '12px', fontWeight: '400', marginLeft: '6px' }}>
+                {subjectTests.length}
+              </span>
+            </h3>
+          </div>
 
-      {/* Completed tests for this subject */}
-      <div style={{ marginTop: '22px', marginBottom: '18px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <h3 style={{ color: TEXT1, fontFamily: "'DM Sans',sans-serif", fontWeight: '700', fontSize: '15px', margin: 0 }}>
-            Tests Completed
-            <span style={{ color: TEXT3, fontSize: '12px', fontWeight: '400', marginLeft: '6px' }}>
-              {subjectTests.length}
-            </span>
-          </h3>
-          <button
-            type="button"
-            onClick={() => setShowCompletedTests((value) => !value)}
-            style={{
-              border: `1px solid ${BORDER}`,
-              borderRadius: '9px',
-              background: 'rgba(255,255,255,0.03)',
-              color: TEXT3,
-              fontFamily: "'DM Sans',sans-serif",
-              fontSize: '12px',
-              fontWeight: '600',
-              padding: '7px 11px',
-            }}
-          >
-            {showCompletedTests ? 'Hide Tests' : 'View Completed Tests'}
-          </button>
-        </div>
-
-        {showCompletedTests && (
-          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {testsLoading && (
               <div style={{
                 border: `1px dashed ${BORDER}`,
@@ -696,18 +827,8 @@ export default function SubjectDetailPage({
               </div>
             )}
           </div>
-        )}
-      </div>
-
-      {/* PDF section */}
-      <PdfPanel
-        pdfs={subj.pdfs ?? []}
-        color={subj.color}
-        onAdd={handleAddPdf}
-        onDelete={handleDeletePdf}
-        onAskAI={handleAskAIForPdf}
-        feedback={pdfFeedback}
-      />
+        </div>
+      )}
 
       {/* Add Topic modal */}
       <Modal

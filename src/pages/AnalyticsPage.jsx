@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { LineChart, RankBars } from '@/components/analytics/AnalyticsCharts'
 import ExamGroupModal from '@/components/analytics/ExamGroupModal'
-import { EditIcon, PlusIcon, TrashIcon } from '@/components/ui/Icons'
+import PdfPanel from '@/components/subjects/PdfPanel'
+import { ChevronDownIcon, EditIcon, PlusIcon, TrashIcon } from '@/components/ui/Icons'
 import { useAnalyticsDashboard } from '@/hooks/useAnalyticsDashboard'
+import { uploadPdfToCloudinary, deletePdfFromCloudinary } from '@/services/cloudinaryService'
+import { deletePdfKnowledge, savePdfKnowledge } from '@/services/firebase/pdfKnowledgeService'
 import { BORDER, SURFACE, SURF2, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
+import { deletePdfBinary, MAX_PDF_FILE_BYTES, storePdfBinary } from '@/utils/pdfBinaryStore'
+import { uid } from '@/utils/id'
+import { extractPdfKnowledgeFromFile } from '@/utils/pdfKnowledge'
 
 const overviewIconProps = {
   viewBox: '0 0 24 24',
@@ -88,6 +94,21 @@ function formatValue(value) {
 function formatPercent(value) {
   if (!Number.isFinite(value) || value <= 0) return '0%'
   return `${Math.round(value)}%`
+}
+
+function formatPdfSize(sizeBytes) {
+  const bytes = Number(sizeBytes || 0)
+  if (!Number.isFinite(bytes) || bytes <= 0) return '1 KB'
+  if (bytes >= 1024 * 1024) {
+    const megabytes = bytes / (1024 * 1024)
+    return `${megabytes >= 10 ? Math.round(megabytes) : megabytes.toFixed(1)} MB`
+  }
+
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+function getGroupPdfKnowledgeSubjectId(groupId) {
+  return `exam-group-${String(groupId || '').trim()}`
 }
 
 function OverviewTile({ label, value, tone = '#8b5cf6', helper, icon: Icon }) {
@@ -384,8 +405,18 @@ function SubjectJumpCard({ subject, onOpen }) {
   )
 }
 
-function ExamGroupCard({ group, onEdit, onDelete, onOpenSubject }) {
+function ExamGroupCard({
+  group,
+  onEdit,
+  onDelete,
+  onOpenSubject,
+  onAddGroupPdf,
+  onDeleteGroupPdf,
+  onAskGroupPdfAI,
+  pdfFeedback = null,
+}) {
   const accent = group.subjects[0]?.color || '#22c55e'
+  const [materialsOpen, setMaterialsOpen] = useState(true)
 
   return (
     <div
@@ -495,12 +526,102 @@ function ExamGroupCard({ group, onEdit, onDelete, onOpenSubject }) {
 
       <div
         style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+        }}
+      >
+        <div
+          className="flex flex-wrap items-center justify-between gap-3"
+          style={{
+            padding: '12px 14px',
+            borderRadius: '16px',
+            background: `${accent}10`,
+            border: `1px solid ${accent}22`,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                color: TEXT1,
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '14px',
+                fontWeight: '800',
+              }}
+            >
+              Group Study Materials
+            </div>
+            <div
+              style={{
+                color: TEXT3,
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '11px',
+                marginTop: '4px',
+              }}
+            >
+              {group.totalPdfs} PDF{group.totalPdfs === 1 ? '' : 's'} for the full {group.name} group
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setMaterialsOpen((previous) => !previous)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              height: '34px',
+              borderRadius: '10px',
+              border: `1px solid ${accent}30`,
+              background: `${accent}16`,
+              color: accent,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '12px',
+              fontWeight: '700',
+              padding: '0 12px',
+            }}
+          >
+            {materialsOpen ? 'Hide PDFs' : 'Show PDFs'}
+            <span
+              style={{
+                width: '14px',
+                height: '14px',
+                display: 'inline-flex',
+                transform: materialsOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.18s ease',
+              }}
+            >
+              <ChevronDownIcon />
+            </span>
+          </button>
+        </div>
+
+        {materialsOpen && (
+          <PdfPanel
+            pdfs={group.pdfs || []}
+            color={accent}
+            onAdd={(file) => onAddGroupPdf?.(group, file)}
+            onDelete={(pdfId) => onDeleteGroupPdf?.(group, pdfId)}
+            onAskAI={(pdf) => onAskGroupPdfAI?.(group, pdf)}
+            feedback={pdfFeedback}
+            binaryContext={{ userId: group.userId || null, subjectId: getGroupPdfKnowledgeSubjectId(group.id) }}
+            title="📄 Group Study Materials"
+            helperText={`Upload PDFs once for the whole ${group.name} group.`}
+            emptyTitle={`Upload PDFs for ${group.name}`}
+            emptyDescription="Add syllabus PDFs, exam notes, PYQs, or important material for this entire exam group."
+          />
+        )}
+      </div>
+
+      <div
+        style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
           gap: '12px',
         }}
       >
         <MetricChip label="Topics" value={formatValue(group.totalTopics)} />
+        <MetricChip label="Total PDFs" value={formatValue(group.totalPdfs)} />
         <MetricChip label="Tests" value={formatValue(group.testsTaken)} />
         <MetricChip label="Avg Score" value={formatPercent(group.averageScore)} />
         <MetricChip
@@ -515,11 +636,17 @@ function ExamGroupCard({ group, onEdit, onDelete, onOpenSubject }) {
   )
 }
 
-export default function AnalyticsPage({ user, subjects, onOpenSubject = null }) {
+export default function AnalyticsPage({
+  user,
+  subjects,
+  onOpenSubject = null,
+  onOpenAIContext = null,
+}) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState(null)
   const [groupError, setGroupError] = useState('')
   const [isSavingGroup, setIsSavingGroup] = useState(false)
+  const [groupPdfFeedback, setGroupPdfFeedback] = useState({})
   const {
     analytics,
     loading,
@@ -564,12 +691,246 @@ export default function AnalyticsPage({ user, subjects, onOpenSubject = null }) 
     }
   }
 
+  const setGroupPdfMessage = (groupId, feedback) => {
+    setGroupPdfFeedback((previous) => ({
+      ...previous,
+      [groupId]: feedback,
+    }))
+  }
+
+  const handleAddGroupPdf = async (group, file) => {
+    if (!group?.id || !file || !user?.uid) return
+
+    if (file.size > MAX_PDF_FILE_BYTES) {
+      setGroupPdfMessage(group.id, {
+        type: 'error',
+        text: `PDF must be 20 MB or smaller. "${file.name}" is ${formatPdfSize(file.size)}.`,
+      })
+      return
+    }
+
+    const pdfId = uid()
+    const knowledgeSubjectId = getGroupPdfKnowledgeSubjectId(group.id)
+    let pendingPdfs = null
+
+    try {
+      setGroupPdfMessage(group.id, {
+        type: 'info',
+        text: `Uploading "${file.name}" for ${group.name}...`,
+      })
+
+      const { url, publicId, resourceType, format, version } = await uploadPdfToCloudinary({
+        file,
+        userId: user.uid,
+        subjectId: `exam-group-${group.id}`,
+        pdfId,
+      })
+
+      pendingPdfs = [
+        ...(group.pdfs || []),
+        {
+          id: pdfId,
+          name: file.name,
+          url,
+          publicId,
+          resourceType,
+          format,
+          version,
+          size: formatPdfSize(file.size),
+          sizeBytes: file.size,
+          addedAt: new Date().toISOString(),
+          aiStatus: 'processing',
+          summary: '',
+          preview: '',
+          pageCount: 0,
+          chunkCount: 0,
+          storageType: 'cloudinary',
+        },
+      ]
+
+      await storePdfBinary({
+        userId: user.uid,
+        subjectId: knowledgeSubjectId,
+        pdfId,
+        file,
+      }).catch((cacheError) => {
+        console.warn('Failed to cache group PDF locally on this device:', cacheError)
+      })
+
+      await saveExamGroup({
+        id: group.id,
+        name: group.name,
+        subjectIds: group.subjectIds,
+        pdfs: pendingPdfs,
+      })
+
+      setGroupPdfMessage(group.id, {
+        type: 'info',
+        text: `Extracting AI knowledge for "${file.name}"...`,
+      })
+
+      const extracted = await extractPdfKnowledgeFromFile(file)
+      const hasKnowledge = Boolean(
+        extracted &&
+        (
+          String(extracted.summary || '').trim() ||
+          (Array.isArray(extracted.chunks) && extracted.chunks.length > 0)
+        )
+      )
+
+      if (!hasKnowledge) {
+        await saveExamGroup({
+          id: group.id,
+          name: group.name,
+          subjectIds: group.subjectIds,
+          pdfs: pendingPdfs.map((pdf) => (
+            pdf.id === pdfId
+              ? {
+                  ...pdf,
+                  aiStatus: 'not-processed',
+                }
+              : pdf
+          )),
+        })
+
+        setGroupPdfMessage(group.id, {
+          type: 'error',
+          text: 'PDF uploaded, but readable text could not be extracted for AI.',
+        })
+        return
+      }
+
+      await savePdfKnowledge({
+        userId: user.uid,
+        subjectId: knowledgeSubjectId,
+        pdf: { id: pdfId, name: file.name },
+        knowledge: extracted,
+      })
+
+      await saveExamGroup({
+        id: group.id,
+        name: group.name,
+        subjectIds: group.subjectIds,
+        pdfs: pendingPdfs.map((pdf) => (
+          pdf.id === pdfId
+            ? {
+                ...pdf,
+                aiStatus: 'ready',
+                summary: extracted.summary || '',
+                preview: extracted.preview || '',
+                pageCount: Number.isFinite(extracted.pageCount) ? extracted.pageCount : 0,
+                chunkCount: Array.isArray(extracted.chunks) ? extracted.chunks.length : 0,
+                aiReadyAt: new Date().toISOString(),
+              }
+            : pdf
+        )),
+      })
+
+      setGroupPdfMessage(group.id, {
+        type: 'info',
+        text: `"${file.name}" uploaded and AI is ready for ${group.name}.`,
+      })
+    } catch (error) {
+      console.error('Failed to upload group PDF:', error)
+
+      if (pendingPdfs) {
+        await saveExamGroup({
+          id: group.id,
+          name: group.name,
+          subjectIds: group.subjectIds,
+          pdfs: pendingPdfs.map((pdf) => (
+            pdf.id === pdfId
+              ? {
+                  ...pdf,
+                  aiStatus: 'not-processed',
+                }
+              : pdf
+          )),
+        }).catch(() => {})
+      }
+
+      setGroupPdfMessage(group.id, {
+        type: 'error',
+        text: error?.message || 'Unable to upload this group PDF right now.',
+      })
+    }
+  }
+
+  const handleDeleteGroupPdf = async (group, pdfId) => {
+    if (!group?.id || !pdfId || !user?.uid) return
+
+    const pdfToDelete = (group.pdfs || []).find((pdf) => pdf.id === pdfId)
+    const knowledgeSubjectId = getGroupPdfKnowledgeSubjectId(group.id)
+
+    try {
+      if (pdfToDelete?.publicId) {
+        await deletePdfFromCloudinary({ publicId: pdfToDelete.publicId }).catch(() => {})
+      }
+
+      await saveExamGroup({
+        id: group.id,
+        name: group.name,
+        subjectIds: group.subjectIds,
+        pdfs: (group.pdfs || []).filter((pdf) => pdf.id !== pdfId),
+      })
+
+      await deletePdfKnowledge(user.uid, knowledgeSubjectId, pdfId).catch(() => {})
+      await deletePdfBinary({
+        userId: user.uid,
+        subjectId: knowledgeSubjectId,
+        pdfId,
+      }).catch(() => {})
+
+      setGroupPdfMessage(group.id, {
+        type: 'info',
+        text: 'Group PDF removed.',
+      })
+    } catch (error) {
+      console.error('Failed to delete group PDF:', error)
+      setGroupPdfMessage(group.id, {
+        type: 'error',
+        text: error?.message || 'Unable to remove this group PDF.',
+      })
+    }
+  }
+
+  const handleAskAIForGroupPdf = (group, pdf) => {
+    if (!group?.id || !pdf?.id || !onOpenAIContext) return
+
+    onOpenAIContext({
+      subjectId: '',
+      subjectName: '',
+      pdfId: pdf.id,
+      pdfName: pdf.name,
+      pdfStatus: pdf.aiStatus || 'not-processed',
+      pdfKnowledgeSubjectId: getGroupPdfKnowledgeSubjectId(group.id),
+      pdfScopeLabel: `${group.name} group`,
+      typedContext: `Use the attached PDF "${pdf.name}" as the main study source for the ${group.name} exam group.`,
+    })
+  }
+
   const handleDeleteGroup = async (group) => {
     if (!window.confirm(`Delete "${group.name}"?`)) return
 
     setGroupError('')
 
     try {
+      await Promise.allSettled(
+        (group.pdfs || []).map(async (pdf) => {
+          if (pdf?.publicId) {
+            await deletePdfFromCloudinary({ publicId: pdf.publicId }).catch(() => {})
+          }
+
+          if (pdf?.id && user?.uid) {
+            await deletePdfKnowledge(user.uid, getGroupPdfKnowledgeSubjectId(group.id), pdf.id).catch(() => {})
+            await deletePdfBinary({
+              userId: user.uid,
+              subjectId: getGroupPdfKnowledgeSubjectId(group.id),
+              pdfId: pdf.id,
+            }).catch(() => {})
+          }
+        })
+      )
       await removeExamGroup(group.id)
     } catch (deleteError) {
       console.error('Failed to delete exam group:', deleteError)
@@ -755,9 +1116,13 @@ export default function AnalyticsPage({ user, subjects, onOpenSubject = null }) 
                 group={group}
                 onEdit={isAuthenticated ? handleOpenEdit : null}
                 onDelete={isAuthenticated ? handleDeleteGroup : null}
-                onOpenSubject={onOpenSubject}
-              />
-            ))}
+              onOpenSubject={onOpenSubject}
+              onAddGroupPdf={isAuthenticated ? handleAddGroupPdf : null}
+              onDeleteGroupPdf={isAuthenticated ? handleDeleteGroupPdf : null}
+              onAskGroupPdfAI={isAuthenticated ? handleAskAIForGroupPdf : null}
+              pdfFeedback={groupPdfFeedback[group.id] || null}
+            />
+          ))}
           </div>
         )}
       </SectionCard>

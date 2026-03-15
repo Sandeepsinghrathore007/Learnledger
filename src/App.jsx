@@ -14,7 +14,7 @@ import SubjectFormModal from "@/components/subjects/SubjectFormModal";
 import { useSubjects } from "@/hooks/useSubjects";
 import { usePWAInstallPrompt } from "@/hooks/usePWAInstallPrompt";
 import { NAV_ITEMS } from "@/constants/navigation";
-import { BG } from "@/constants/theme";
+import { BG, BORDER, SURFACE } from "@/constants/theme";
 import {
   firebaseConfigError,
   isFirebaseConfigured,
@@ -58,19 +58,111 @@ function readStoredAIChatState() {
   }
 }
 
-function LoadingView({ message }) {
+function LoadingSubjectCard({ index }) {
   return (
-    <div className="flex min-h-[calc(100vh-180px)] items-center justify-center">
-      <p
+    <div
+      style={{
+        padding: "22px",
+        borderRadius: "18px",
+        border: `1px solid ${BORDER}`,
+        background: SURFACE,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.32)",
+        animation: `fadeUp 0.3s ease ${index * 0.05}s both`,
+      }}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className="subject-skeleton-shimmer"
+          style={{
+            width: "50px",
+            height: "50px",
+            borderRadius: "14px",
+            flexShrink: 0,
+          }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            className="subject-skeleton-shimmer"
+            style={{ height: "14px", width: "62%", borderRadius: "999px", marginBottom: "8px" }}
+          />
+          <div
+            className="subject-skeleton-shimmer"
+            style={{ height: "11px", width: "44%", borderRadius: "999px" }}
+          />
+        </div>
+      </div>
+
+      <div style={{ marginTop: "18px" }}>
+        <div
+          className="subject-skeleton-shimmer"
+          style={{ height: "11px", width: "100%", borderRadius: "999px", marginBottom: "8px" }}
+        />
+        <div
+          className="subject-skeleton-shimmer"
+          style={{ height: "11px", width: "78%", borderRadius: "999px" }}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2" style={{ marginTop: "16px" }}>
+        {[0, 1, 2, 3].map((item) => (
+          <div
+            key={item}
+            style={{
+              borderRadius: "9px",
+              padding: "8px",
+              background: "rgba(255,255,255,0.02)",
+            }}
+          >
+            <div
+              className="subject-skeleton-shimmer"
+              style={{ height: "15px", width: item % 2 === 0 ? "42%" : "58%", borderRadius: "999px", marginBottom: "7px" }}
+            />
+            <div
+              className="subject-skeleton-shimmer"
+              style={{ height: "10px", width: item % 2 === 0 ? "54%" : "66%", borderRadius: "999px" }}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div
         style={{
-          color: "#9f8fbf",
-          fontFamily: "'DM Sans', sans-serif",
-          fontSize: "14px",
-          margin: 0,
+          borderTop: `1px solid ${BORDER}`,
+          marginTop: "14px",
+          paddingTop: "12px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "10px",
         }}
       >
-        {message}
-      </p>
+        <div
+          className="subject-skeleton-shimmer"
+          style={{ height: "10px", width: "28%", borderRadius: "999px" }}
+        />
+        <div
+          className="subject-skeleton-shimmer"
+          style={{ height: "24px", width: "34%", borderRadius: "999px" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function LoadingView() {
+  return (
+    <div className="min-h-[calc(100vh-180px)]">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill,minmax(264px,1fr))",
+          gap: "15px",
+        }}
+      >
+        {Array.from({ length: 4 }, (_, index) => (
+          <LoadingSubjectCard key={index} index={index} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -235,6 +327,7 @@ export default function App() {
   const [assistantLaunchContext, setAssistantLaunchContext] = useState(null);
   const [aiChatState, setAiChatState] = useState(() => readStoredAIChatState());
   const [subjectNoteLaunch, setSubjectNoteLaunch] = useState(null);
+  const [subjectSectionLaunch, setSubjectSectionLaunch] = useState(null);
 
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -344,10 +437,12 @@ export default function App() {
     setActivePage(page);
     if (page !== "subjects") setSelected(null);
     if (page !== "subjects") setSubjectNoteLaunch(null);
+    if (page !== "subjects") setSubjectSectionLaunch(null);
     if (isMobile) setMobileNavOpen(false);
   };
 
   const handleSelectSubject = (subject) => {
+    setSubjectSectionLaunch(null);
     setSubjectNoteLaunch(null);
     setSelected(subject);
   };
@@ -357,6 +452,7 @@ export default function App() {
       await logoutUser();
       setSelected(null);
       setSubjectNoteLaunch(null);
+      setSubjectSectionLaunch(null);
       setActivePage("subjects");
       setAiChatState(createDefaultAIChatState());
       if (typeof window !== "undefined") {
@@ -399,10 +495,15 @@ export default function App() {
     if (isMobile) setMobileNavOpen(false);
   };
 
-  const handleOpenSubjectFromAnalytics = (subject) => {
+  const handleOpenSubjectFromAnalytics = (subject, options = {}) => {
     if (!subject) return;
 
     setSubjectNoteLaunch(null);
+    setSubjectSectionLaunch({
+      subjectId: subject.id,
+      section: options.section === "materials" ? "materials" : "topics",
+      launchId: uid(),
+    });
     setSelected(subject);
     setActivePage("subjects");
     if (isMobile) setMobileNavOpen(false);
@@ -418,6 +519,7 @@ export default function App() {
       subjectId,
       launchId: uid(),
     });
+    setSubjectSectionLaunch(null);
     setSelected(subject);
     setActivePage("subjects");
 
@@ -433,7 +535,7 @@ export default function App() {
 
   const renderPage = () => {
     if (authLoading) {
-      return <LoadingView message="Checking your Firebase session..." />;
+      return <LoadingView />;
     }
 
     if (activePage === "login") {
@@ -455,7 +557,7 @@ export default function App() {
     }
 
     if (loading && authUser && subjects.length === 0) {
-      return <LoadingView message="Syncing your subjects from Firestore..." />;
+      return <LoadingView />;
     }
 
     if (activePage === "questions") {
@@ -474,6 +576,7 @@ export default function App() {
           user={authUser}
           subjects={subjects}
           onOpenSubject={handleOpenSubjectFromAnalytics}
+          onOpenAIContext={handleOpenAIWithContext}
         />
       );
     }
@@ -524,9 +627,20 @@ export default function App() {
                   }
                 : null
             }
+            initialSection={
+              subjectSectionLaunch?.subjectId === liveSubject.id
+                ? subjectSectionLaunch.section
+                : "topics"
+            }
+            sectionLaunchKey={
+              subjectSectionLaunch?.subjectId === liveSubject.id
+                ? subjectSectionLaunch.launchId
+                : null
+            }
             onBack={() => {
               setSelected(null);
               setSubjectNoteLaunch(null);
+              setSubjectSectionLaunch(null);
             }}
             onUpdateSubject={updateSubject}
             user={authUser}

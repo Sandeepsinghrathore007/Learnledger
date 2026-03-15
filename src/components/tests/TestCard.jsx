@@ -29,7 +29,7 @@ export default function TestCard({ test, onView, onRetake, onDelete }) {
         background: 'rgba(255,255,255,0.02)',
         border: `1px solid ${BORDER}`,
         borderRadius: '14px',
-        padding: '14px 16px',
+        padding: '10px 12px',
         transition: 'all 0.15s',
         cursor: 'pointer',
       }}
@@ -43,156 +43,168 @@ export default function TestCard({ test, onView, onRetake, onDelete }) {
       }}
       onClick={onView}
     >
-      {/* TOP ROW — Score badge + Title + Delete */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {/* TOP ROW — Score badge + Title + Delete */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
 
-        {/* Score Badge */}
+          {/* Score Badge */}
+          <div
+            style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '12px',
+              background: `${subjectColor}12`,
+              border: `2px solid ${subjectColor}30`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{
+              color: subjectColor,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '15px',
+              fontWeight: '800',
+              lineHeight: 1,
+            }}>
+              {percentage}%
+            </div>
+            <div style={{
+              color: TEXT3,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '9px',
+              marginTop: '2px',
+            }}>
+              {score}/{totalQuestions}
+            </div>
+          </div>
+          {/* Title + meta */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h4 style={{
+              color: TEXT1,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '13px',
+              fontWeight: '700',
+              margin: '0 0 6px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {title}
+            </h4>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: passed ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                border: `1px solid ${passed ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                borderRadius: '6px',
+                padding: '2px 7px',
+                color: passed ? '#22c55e' : '#ef4444',
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '10px',
+                fontWeight: '700',
+              }}>
+                {passed ? '✓ Passed' : '✗ Failed'}
+              </span>
+            </div>
+          </div>
+
+          {/* Delete button — top right */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (window.confirm('Delete this test from history?')) {
+                onDelete()
+              }
+            }}
+            style={{
+              width: '26px',
+              height: '26px',
+              padding: 0,
+              background: 'transparent',
+              border: `1px solid ${BORDER}`,
+              borderRadius: '8px',
+              color: TEXT3,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '12px',
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(239,68,68,0.12)'
+              e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)'
+              e.currentTarget.style.color = '#ef4444'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.borderColor = BORDER
+              e.currentTarget.style.color = TEXT3
+            }}
+          >
+            🗑
+          </button>
+        </div>
+
+        {/* BOTTOM ROW — Time + Date + Retake */}
         <div
           style={{
-            width: '60px',
-            height: '60px',
-            borderRadius: '12px',
-            background: `${subjectColor}12`,
-            border: `2px solid ${subjectColor}30`,
-            display: 'flex',
-            flexDirection: 'column',
+            display: 'grid',
+            gridTemplateColumns: 'auto auto minmax(0, 1fr)',
             alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
+            gap: '8px',
           }}
         >
-          <div style={{
-            color: subjectColor,
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '18px',
-            fontWeight: '800',
-            lineHeight: 1,
-          }}>
-            {percentage}%
-          </div>
-          <div style={{
+          <span style={{
             color: TEXT3,
             fontFamily: "'DM Sans', sans-serif",
-            fontSize: '10px',
-            marginTop: '2px',
-          }}>
-            {score}/{totalQuestions}
-          </div>
-        </div>
-
-        {/* Title + meta */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h4 style={{
-            color: TEXT1,
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '14px',
-            fontWeight: '700',
-            margin: '0 0 6px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            fontSize: '11px',
             whiteSpace: 'nowrap',
           }}>
-            {title}
-          </h4>
+            ⏱ {formatTime(timeTaken)}
+          </span>
 
-          {/* Pass/Fail + Time */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              background: passed ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-              border: `1px solid ${passed ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
-              borderRadius: '6px',
-              padding: '2px 7px',
-              color: passed ? '#22c55e' : '#ef4444',
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '11px',
-              fontWeight: '600',
-            }}>
-              {passed ? '✓ Passed' : '✗ Failed'}
-            </span>
-
-            <span style={{
-              color: TEXT3,
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '11px',
-            }}>
-              ⏱ {formatTime(timeTaken)}
-            </span>
-
-            <span style={{
-              color: TEXT3,
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '11px',
-            }}>
-              📅 {formatRelativeDate(completedAt)}
-            </span>
-          </div>
-        </div>
-
-        {/* Delete button — top right */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            if (window.confirm('Delete this test from history?')) {
-              onDelete()
-            }
-          }}
-          style={{
-            padding: '6px 8px',
-            background: 'transparent',
-            border: `1px solid ${BORDER}`,
-            borderRadius: '8px',
+          <span style={{
             color: TEXT3,
             fontFamily: "'DM Sans', sans-serif",
-            fontSize: '13px',
-            cursor: 'pointer',
-            flexShrink: 0,
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(239,68,68,0.12)'
-            e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)'
-            e.currentTarget.style.color = '#ef4444'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.borderColor = BORDER
-            e.currentTarget.style.color = TEXT3
-          }}
-        >
-          🗑️
-        </button>
-      </div>
+            fontSize: '11px',
+            whiteSpace: 'nowrap',
+          }}>
+            📅 {formatRelativeDate(completedAt)}
+          </span>
 
-      {/* BOTTOM ROW — Retake button full width */}
-      <div style={{ marginTop: '10px' }}>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onRetake()
-          }}
-          style={{
-            width: '100%',
-            padding: '8px',
-            background: 'rgba(139,92,246,0.12)',
-            border: '1px solid rgba(139,92,246,0.3)',
-            borderRadius: '8px',
-            color: '#a78bfa',
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '12px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(139,92,246,0.18)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(139,92,246,0.12)')}
-        >
-          🔄 Retake
-        </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRetake()
+            }}
+            style={{
+              width: '100%',
+              height: '32px',
+              padding: '0 12px',
+              background: 'rgba(139,92,246,0.12)',
+              border: '1px solid rgba(139,92,246,0.3)',
+              borderRadius: '8px',
+              color: '#a78bfa',
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(139,92,246,0.18)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(139,92,246,0.12)')}
+          >
+            🔄 Retake
+          </button>
+        </div>
       </div>
     </div>
   )

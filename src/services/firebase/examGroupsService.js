@@ -29,6 +29,30 @@ function normalizeSubjectIds(subjectIds) {
   return [...new Set(subjectIds.map((value) => String(value || '').trim()).filter(Boolean))]
 }
 
+function normalizeGroupPdfRecord(pdf) {
+  if (!pdf || typeof pdf !== 'object') return null
+
+  return {
+    id: String(pdf.id || uid()),
+    name: String(pdf.name || '').trim() || 'Untitled PDF',
+    url: String(pdf.url || '').trim(),
+    publicId: String(pdf.publicId || '').trim(),
+    resourceType: String(pdf.resourceType || 'image').trim() || 'image',
+    format: String(pdf.format || 'pdf').trim() || 'pdf',
+    version: Number.isFinite(pdf.version) ? pdf.version : null,
+    size: String(pdf.size || '').trim(),
+    sizeBytes: Number.isFinite(pdf.sizeBytes) ? pdf.sizeBytes : 0,
+    addedAt: toIso(pdf.addedAt) || pdf.addedAt || new Date().toISOString(),
+    storageType: String(pdf.storageType || 'cloudinary').trim() || 'cloudinary',
+  }
+}
+
+function normalizeGroupPdfList(pdfs) {
+  return (Array.isArray(pdfs) ? pdfs : [])
+    .map(normalizeGroupPdfRecord)
+    .filter(Boolean)
+}
+
 function normalizeExamGroup(snapshot) {
   const data = snapshot.data()
 
@@ -37,6 +61,7 @@ function normalizeExamGroup(snapshot) {
     userId: data.userId,
     name: data.name || 'Untitled Group',
     subjectIds: normalizeSubjectIds(data.subjectIds),
+    pdfs: normalizeGroupPdfList(data.pdfs),
     createdAt: toIso(data.createdAt),
     updatedAt: toIso(data.updatedAt),
   }
@@ -50,6 +75,7 @@ function normalizeExamGroupRecord(record) {
     userId: record.userId || null,
     name: String(record.name || '').trim() || 'Untitled Group',
     subjectIds: normalizeSubjectIds(record.subjectIds),
+    pdfs: normalizeGroupPdfList(record.pdfs),
     createdAt: toIso(record.createdAt) || record.createdAt || null,
     updatedAt: toIso(record.updatedAt) || record.updatedAt || null,
   }
@@ -85,6 +111,7 @@ async function writeExamGroupsToUserDoc(userId, updater) {
         userId: group.userId || userId,
         name: group.name,
         subjectIds: group.subjectIds,
+        pdfs: normalizeGroupPdfList(group.pdfs),
         createdAt: group.createdAt || new Date().toISOString(),
         updatedAt: group.updatedAt || new Date().toISOString(),
       })),
@@ -145,6 +172,7 @@ export async function createExamGroup(userId, groupInput) {
     userId,
     name: String(groupInput?.name || '').trim() || 'Untitled Group',
     subjectIds: normalizeSubjectIds(groupInput?.subjectIds),
+    pdfs: normalizeGroupPdfList(groupInput?.pdfs),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
@@ -164,6 +192,7 @@ export async function createExamGroup(userId, groupInput) {
         userId,
         name: String(groupInput?.name || '').trim() || 'Untitled Group',
         subjectIds: normalizeSubjectIds(groupInput?.subjectIds),
+        pdfs: normalizeGroupPdfList(groupInput?.pdfs),
         createdAt: nowIso,
         updatedAt: nowIso,
       },
@@ -197,6 +226,10 @@ export async function updateExamGroup(userId, examGroupId, updates) {
     payload.subjectIds = normalizeSubjectIds(payload.subjectIds)
   }
 
+  if (Object.prototype.hasOwnProperty.call(payload, 'pdfs')) {
+    payload.pdfs = normalizeGroupPdfList(payload.pdfs)
+  }
+
   try {
     await updateDoc(userExamGroupDocRef(userId, examGroupId), payload)
   } catch (error) {
@@ -218,6 +251,9 @@ export async function updateExamGroup(userId, examGroupId, updates) {
               subjectIds: Object.prototype.hasOwnProperty.call(payload, 'subjectIds')
                 ? payload.subjectIds
                 : group.subjectIds,
+              pdfs: Object.prototype.hasOwnProperty.call(payload, 'pdfs')
+                ? payload.pdfs
+                : normalizeGroupPdfList(group.pdfs),
               updatedAt: nowIso,
             }
           : group

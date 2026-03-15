@@ -186,6 +186,7 @@ function formatMessageTime(dateString) {
 function getContextLabel(subject, typedContext, pdfContext = null) {
   const parts = [
     subject?.name,
+    pdfContext?.scopeLabel,
     pdfContext?.pdfName ? `PDF: ${pdfContext.pdfName}` : '',
     typedContext.trim(),
   ].filter(Boolean)
@@ -971,9 +972,11 @@ export default function AIAssistantPage({
       initialContext.pdfId
         ? {
             subjectId: initialContext.subjectId || '',
+            knowledgeSubjectId: initialContext.pdfKnowledgeSubjectId || initialContext.subjectId || '',
+            scopeLabel: initialContext.pdfScopeLabel || '',
             pdfId: initialContext.pdfId,
             pdfName: initialContext.pdfName || 'Attached PDF',
-            pdfStatus: initialContext.pdfStatus || 'deferred',
+            pdfStatus: initialContext.pdfStatus || 'not-processed',
           }
         : null
     )
@@ -981,7 +984,7 @@ export default function AIAssistantPage({
       initialContext.pdfId
         ? initialContext.pdfStatus === 'ready'
           ? `Using stored PDF context from "${initialContext.pdfName}".`
-          : `Using "${initialContext.pdfName}" as PDF context. It will be cleaned only when you ask your first question.`
+          : `Using "${initialContext.pdfName}" as PDF context. AI knowledge will be prepared when needed.`
         : 'AI context updated.'
     )
     setError('')
@@ -990,6 +993,7 @@ export default function AIAssistantPage({
 
   useEffect(() => {
     if (!activePdfContext) return
+    if (!activePdfContext.subjectId) return
     if (!selectedSubjectId || activePdfContext.subjectId === selectedSubjectId) return
     setActivePdfContext(null)
   }, [activePdfContext, selectedSubjectId])
@@ -1097,13 +1101,15 @@ export default function AIAssistantPage({
       let pdfPreparedNotice = ''
 
       if (activePdfContext?.pdfId) {
-        if (!user?.uid || !selectedSubject?.id) {
-          throw new Error('Select the original subject to use this PDF as AI context.')
+        const pdfKnowledgeSubjectId = activePdfContext.knowledgeSubjectId || selectedSubject?.id || ''
+
+        if (!user?.uid || !pdfKnowledgeSubjectId) {
+          throw new Error('This PDF context is incomplete. Reopen it from the source screen and try again.')
         }
 
         const pdfReference = await getRelevantPdfReferenceMaterial({
           userId: user.uid,
-          subjectId: selectedSubject.id,
+          subjectId: pdfKnowledgeSubjectId,
           pdfId: activePdfContext.pdfId,
           pdfName: activePdfContext.pdfName,
           question: trimmedQuestion,
@@ -1120,11 +1126,13 @@ export default function AIAssistantPage({
         referenceId = activePdfContext.pdfId
 
         if (pdfReference.preparedNow || activePdfContext.pdfStatus !== 'ready') {
-          const updatedSubject = buildPreparedSubject(
-            selectedSubject,
-            activePdfContext.pdfId,
-            pdfReference.knowledge
-          )
+          const updatedSubject = selectedSubject?.id === pdfKnowledgeSubjectId
+            ? buildPreparedSubject(
+                selectedSubject,
+                activePdfContext.pdfId,
+                pdfReference.knowledge
+              )
+            : null
 
           if (updatedSubject) {
             await onUpdateSubject(updatedSubject)
@@ -1515,6 +1523,7 @@ export default function AIAssistantPage({
                 }}
               >
                 PDF: {activePdfContext.pdfName}
+                {activePdfContext.scopeLabel ? ` • ${activePdfContext.scopeLabel}` : ''}
                 <button
                   type="button"
                   onClick={() => setActivePdfContext(null)}
