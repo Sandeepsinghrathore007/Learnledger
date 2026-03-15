@@ -567,7 +567,7 @@ export default function SubjectDetailPage({
     <div className="animate-fade-in min-w-0">
 
       {/* Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '22px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap' }}>
         <button
           onClick={onBack}
           style={{
@@ -581,10 +581,6 @@ export default function SubjectDetailPage({
           <span style={{ width: '14px', height: '14px' }}><BackIcon /></span>
           Subjects
         </button>
-        <span style={{ color: '#5a5175', fontSize: '14px' }}>/</span>
-        <span style={{ color: subj.color, fontFamily: "'DM Sans',sans-serif", fontWeight: '600', fontSize: '14px', overflowWrap: 'anywhere' }}>
-          {subj.name}
-        </span>
       </div>
 
       {/* Banner */}

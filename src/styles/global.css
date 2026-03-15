@@ -280,3 +280,115 @@ button {
   outline: none;
   cursor: pointer;
 }
+
+.learnledger-cta {
+  --cta-start: #8b5cf6;
+  --cta-end: #6d28d9;
+  --cta-border: rgba(196, 181, 253, 0.28);
+  --cta-glow: rgba(124, 58, 237, 0.42);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 50px;
+  padding: 10px 18px 10px 14px;
+  border: 1px solid var(--cta-border);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0) 42%),
+    linear-gradient(135deg, var(--cta-start), var(--cta-end));
+  box-shadow:
+    0 22px 34px -22px var(--cta-glow),
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -10px 18px rgba(25, 16, 54, 0.14);
+  color: #f8f7ff;
+  font-family: 'DM Sans', 'Noto Sans Devanagari', sans-serif;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  backdrop-filter: blur(16px);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    filter 0.18s ease;
+}
+
+.learnledger-cta:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,0.26);
+  box-shadow:
+    0 28px 40px -22px var(--cta-glow),
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 -10px 18px rgba(25, 16, 54, 0.12);
+}
+
+.learnledger-cta:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.learnledger-cta:focus-visible {
+  border-color: rgba(255,255,255,0.34);
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,0.08),
+    0 28px 40px -22px var(--cta-glow),
+    inset 0 1px 0 rgba(255,255,255,0.22);
+}
+
+.learnledger-cta:disabled {
+  cursor: not-allowed;
+  opacity: 0.64;
+  filter: saturate(0.85);
+}
+
+.learnledger-cta__glow {
+  position: absolute;
+  left: -10px;
+  bottom: -30px;
+  width: 92px;
+  height: 92px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255,255,255,0.24), transparent 68%);
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.learnledger-cta__icon,
+.learnledger-cta__label {
+  position: relative;
+  z-index: 1;
+}
+
+.learnledger-cta__icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: linear-gradient(180deg, rgba(255,255,255,0.2), rgba(255,255,255,0.06));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    0 10px 20px rgba(14, 9, 31, 0.18);
+}
+
+.learnledger-cta__icon-svg {
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+}
+
+.learnledger-cta__icon-svg svg {
+  width: 100%;
+  height: 100%;
+}
+
+.learnledger-cta__label {
+  white-space: nowrap;
+  line-height: 1;
+}

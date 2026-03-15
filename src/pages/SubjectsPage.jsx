@@ -22,9 +22,17 @@
 
 import { useState } from 'react'
 import SubjectCard from '@/components/subjects/SubjectCard'
+import PrimaryCtaButton from '@/components/ui/PrimaryCtaButton'
 import { SearchIcon, PlusIcon, SubjectsIcon, MockTestsIcon } from '@/components/ui/Icons'
-import { BORDER, ACCENT, ACCENT2, TEXT1, TEXT3 } from '@/constants/theme'
+import { BORDER, TEXT1, TEXT3 } from '@/constants/theme'
 import { getTotalTests } from '@/utils/subjectStats'
+
+const subjectCtaTheme = {
+  '--cta-start': '#9d62ff',
+  '--cta-end': '#6d28d9',
+  '--cta-border': 'rgba(196, 181, 253, 0.3)',
+  '--cta-glow': 'rgba(124, 58, 237, 0.52)',
+}
 
 export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDelete }) {
   const [search, setSearch] = useState('')
@@ -76,22 +84,14 @@ export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDele
         </div>
 
         {/* New subject button */}
-        <button
+        <PrimaryCtaButton
+          className="w-full sm:w-auto"
           onClick={onAdd}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '7px',
-            background: `linear-gradient(135deg,${ACCENT},${ACCENT2})`,
-            border: 'none', borderRadius: '11px', padding: '10px 19px',
-            color: '#fff', fontWeight: '700', fontSize: '13px',
-            fontFamily: "'DM Sans',sans-serif",
-            boxShadow: `0 4px 18px ${ACCENT}40`, transition: 'all 0.15s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = `0 7px 24px ${ACCENT}55` }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)';    e.currentTarget.style.boxShadow = `0 4px 18px ${ACCENT}40` }}
+          icon={PlusIcon}
+          style={subjectCtaTheme}
         >
-          <span style={{ width: '15px', height: '15px' }}><PlusIcon /></span>
           New Subject
-        </button>
+        </PrimaryCtaButton>
       </div>
 
       {/* ── SUMMARY STATS ────────────────────────────────────────────── */}
@@ -212,9 +212,6 @@ export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDele
               />
             </div>
           ))}
-
-          {/* Add-subject ghost card */}
-          <AddSubjectCard onAdd={onAdd} index={filtered.length} />
         </div>
       )}
     </>
@@ -236,50 +233,14 @@ function EmptyState({ search, onAdd }) {
         {search ? `No results for "${search}"` : 'Create your first subject to get started'}
       </p>
       {!search && (
-        <button
+        <PrimaryCtaButton
           onClick={onAdd}
-          style={{
-            background: `linear-gradient(135deg,${ACCENT},${ACCENT2})`,
-            border: 'none', borderRadius: '11px', padding: '10px 24px',
-            color: '#fff', fontWeight: '700', fontSize: '14px',
-            fontFamily: "'DM Sans',sans-serif",
-          }}
+          icon={PlusIcon}
+          style={subjectCtaTheme}
         >
           Create Subject
-        </button>
+        </PrimaryCtaButton>
       )}
     </div>
-  )
-}
-
-// ── ADD SUBJECT GHOST CARD ───────────────────────────────────────────────────
-function AddSubjectCard({ onAdd, index }) {
-  return (
-    <button
-      onClick={onAdd}
-      style={{
-        background: 'transparent', border: `2px dashed ${BORDER}`,
-        borderRadius: '18px', minHeight: '195px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', gap: '9px', color: TEXT3,
-        transition: 'all 0.2s',
-        animation: `fadeUp 0.3s ease ${index * 0.05}s both`,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'rgba(139,92,246,0.24)'
-        e.currentTarget.style.color = '#9d8ec4'
-        e.currentTarget.style.background = 'rgba(139,92,246,0.04)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = BORDER
-        e.currentTarget.style.color = TEXT3
-        e.currentTarget.style.background = 'transparent'
-      }}
-    >
-      <span style={{ width: '24px', height: '24px' }}><PlusIcon /></span>
-      <span style={{ fontSize: '13px', fontFamily: "'DM Sans',sans-serif", fontWeight: '600' }}>
-        New Subject
-      </span>
-    </button>
   )
 }

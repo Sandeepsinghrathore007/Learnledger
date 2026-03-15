@@ -18,18 +18,15 @@ import TestConfigModal from '@/components/tests/TestConfigModal'
 import TestTakingView from '@/components/tests/TestTakingView'
 import TestResultsView from '@/components/tests/TestResultsView'
 import TestCard from '@/components/tests/TestCard'
+import PrimaryCtaButton from '@/components/ui/PrimaryCtaButton'
+import { MockTestsIcon, PlusIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 
-/**
- * Plus icon for create button
- */
-function PlusIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  )
+const mockTestCtaTheme = {
+  '--cta-start': '#38bdf8',
+  '--cta-end': '#7c3aed',
+  '--cta-border': 'rgba(125, 211, 252, 0.28)',
+  '--cta-glow': 'rgba(56, 189, 248, 0.44)',
 }
 
 export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
@@ -136,33 +133,14 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
           </p>
         </div>
 
-        <button
+        <PrimaryCtaButton
           className="w-full sm:w-auto"
-          type="button"
           onClick={() => setConfigModalOpen(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-            border: 'none',
-            borderRadius: '12px',
-            padding: '12px 20px',
-            color: '#fff',
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '14px',
-            fontWeight: '700',
-            cursor: 'pointer',
-            transition: 'transform 0.15s',
-            boxShadow: '0 4px 12px rgba(139,92,246,0.3)',
-            justifyContent: 'center',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          icon={MockTestsIcon}
+          style={mockTestCtaTheme}
         >
-          <PlusIcon />
-          Create New Test
-        </button>
+          Create Mock Test
+        </PrimaryCtaButton>
       </div>
 
       {/* ── ERROR DISPLAY ───────────────────────────────────────────────── */}
@@ -219,23 +197,13 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
             }}>
               No tests taken yet
             </p>
-            <button
-              type="button"
+            <PrimaryCtaButton
               onClick={() => setConfigModalOpen(true)}
-              style={{
-                background: 'rgba(139,92,246,0.12)',
-                border: '1px solid rgba(139,92,246,0.3)',
-                borderRadius: '8px',
-                padding: '8px 16px',
-                color: '#a78bfa',
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: '13px',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
+              icon={PlusIcon}
+              style={mockTestCtaTheme}
             >
               Create Your First Test
-            </button>
+            </PrimaryCtaButton>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
