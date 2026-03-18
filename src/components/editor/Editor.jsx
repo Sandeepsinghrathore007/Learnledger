@@ -242,6 +242,7 @@ export default function Editor({
   onBack, 
   onSave,
   onCreateNote = null,
+  onGenerateSelectionTest = null,
   // Props for linked notes feature
   allNotes = [],           // All notes across subjects (for linking)
   onAddLinkedNote = null,  // (targetNoteId) => void
@@ -380,6 +381,21 @@ export default function Editor({
   const handleCloseAiAssistant = useCallback(() => {
     setAiPanel(EMPTY_AI_PANEL)
   }, [])
+
+  const handleGenerateSelectionTest = useCallback(
+    ({ text, range, insertionPos }) => {
+      if (!onGenerateSelectionTest) return
+
+      onGenerateSelectionTest({
+        text,
+        range,
+        insertionPos,
+        noteId: noteRef.current?.id || null,
+        noteTitle: normalizeTitle(titleRef.current),
+      })
+    },
+    [onGenerateSelectionTest]
+  )
 
   const handleInsertAiResponse = useCallback(
     (response) => {
@@ -839,6 +855,7 @@ export default function Editor({
               themeStyles={currentTheme}
               containerRef={editorFrameRef}
               onAskAI={handleOpenAiAssistant}
+              onGenerateTest={onGenerateSelectionTest ? handleGenerateSelectionTest : null}
             />
             <InlineNoteSlashMenu
               open={slashMenu.open}

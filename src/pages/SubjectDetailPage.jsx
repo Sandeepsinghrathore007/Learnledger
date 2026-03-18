@@ -23,6 +23,8 @@ import PdfPanel           from '@/components/subjects/PdfPanel'
 import Modal              from '@/components/ui/Modal'
 import FormField          from '@/components/ui/FormField'
 import AiScoreBadge       from '@/components/ui/AiScoreBadge'
+import TestConfigModal    from '@/components/tests/TestConfigModal'
+import TestTakingView     from '@/components/tests/TestTakingView'
 import TestResultsView    from '@/components/tests/TestResultsView'
 import { BackIcon, MockTestsIcon, PdfIcon, PlusIcon, TopicsIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
@@ -31,7 +33,9 @@ import { deletePdfKnowledge, savePdfKnowledge } from '@/services/firebase/pdfKno
 import { extractPdfKnowledgeFromFile } from '@/utils/pdfKnowledge'
 import { deletePdfBinary, MAX_PDF_FILE_BYTES, storePdfBinary } from '@/utils/pdfBinaryStore'
 import { uploadPdfToCloudinary, deletePdfFromCloudinary } from '@/services/cloudinaryService'
-import { subscribeToTests } from '@/services/firebase/testsService'
+import { generateTest, saveTestResult, subscribeToTests } from '@/services/firebase/testsService'
+import { buildQuestionBankSubjectUpdates } from '@/utils/questionBank'
+import { determinePerformanceLevel } from '@/utils/testScoring'
 
 function formatTestDateTime(value) {
   const date = new Date(value || '')
@@ -66,6 +70,7 @@ export default function SubjectDetailPage({
   onBack,
   onUpdateSubject,
   initialOpenNote = null,
+  noteLaunchKey = null,
   initialSection = 'topics',
   sectionLaunchKey = null,
   user = null,
@@ -81,6 +86,10 @@ export default function SubjectDetailPage({
   const [testsLoading, setTestsLoading] = useState(false)
   const [testsError, setTestsError] = useState('')
   const [openTestReview, setOpenTestReview] = useState(null)
+  const [selectionTestContext, setSelectionTestContext] = useState(null)
+  const [selectionTestGenerating, setSelectionTestGenerating] = useState(false)
+  const [activeSelectionTest, setActiveSelectionTest] = useState(null)
+  const [selectionTestReview, setSelectionTestReview] = useState(null)
   const [pdfFeedback, setPdfFeedback] = useState(null)
   const [activeSection, setActiveSection] = useState(
     initialSection === 'materials'
@@ -94,6 +103,15 @@ export default function SubjectDetailPage({
     subjectRef.current = subject
     setSubj(subject)
   }, [subject])
+
+  useEffect(() => {
+    if (initialOpenNote) {
+      setOpenNote(initialOpenNote)
+      return
+    }
+
+    setOpenNote(null)
+  }, [initialOpenNote, noteLaunchKey, subject.id])
 
   useEffect(() => {
     setActiveSection(
@@ -145,6 +163,10 @@ export default function SubjectDetailPage({
 
     return () => window.clearTimeout(timeoutId)
   }, [pdfFeedback])
+
+  useEffect(() => {
+    setSelectionTestContext(null)
+  }, [openNote?.note?.id, openNote?.topicId])
 
   /** Push local state up and keep local copy in sync */
   const save = async (updated) => {
@@ -536,7 +558,110 @@ export default function SubjectDetailPage({
     })
   }
 
+  const handleOpenSelectionTest = ({ text, noteTitle }) => {
+    const selectedText = String(text || '').trim()
+    if (!selectedText || !openNote) return
+
+    const topic = subj.topics.find((item) => item.id === openNote.topicId)
+
+    setSelectionTestContext({
+      selectedText,
+      noteId: openNote.note.id,
+      noteTitle: noteTitle || openNote.note.title || 'Untitled Note',
+      topicId: topic?.id || openNote.topicId,
+      topicName: topic?.name || 'Topic',
+      subjectId: subjectRef.current.id,
+      subjectName: subjectRef.current.name,
+    })
+  }
+
+  const handleGenerateSelectionTest = async (config) => {
+    if (!selectionTestContext) return
+
+    setSelectionTestGenerating(true)
+
+    try {
+      const generatedTest = await generateTest({
+        config,
+        subjects: [subjectRef.current],
+        userId: user?.uid || null,
+      })
+
+      const [updatedSubject] = buildQuestionBankSubjectUpdates([subjectRef.current], generatedTest)
+      if (updatedSubject) {
+        await save(updatedSubject)
+      }
+
+      setSelectionTestContext(null)
+      setActiveSelectionTest({
+        ...generatedTest,
+        startTime: new Date().toISOString(),
+        answers: {},
+        bookmarkedQuestions: [],
+        hintsUsed: [],
+      })
+    } catch (error) {
+      console.error('Failed to generate test from selected note text:', error)
+      window.alert(error?.message || 'Unable to generate a test from the selected text right now.')
+    } finally {
+      setSelectionTestGenerating(false)
+    }
+  }
+
+  const handleFinishSelectionTest = async (testAttempt) => {
+    if (user?.uid) {
+      try {
+        await saveTestResult(user.uid, testAttempt)
+      } catch (error) {
+        console.error('Failed to save selection test result:', error)
+      }
+    }
+
+    const nextTestsForScore = [...subjectTests, testAttempt].sort((a, b) =>
+      (a.completedAt || a.createdAt || '').localeCompare(b.completedAt || b.createdAt || '')
+    )
+    const nextTestsForDisplay = [...nextTestsForScore].sort((a, b) =>
+      (b.completedAt || b.createdAt || '').localeCompare(a.completedAt || a.createdAt || '')
+    )
+
+    setSubjectTests(nextTestsForDisplay)
+
+    try {
+      await save({
+        ...subjectRef.current,
+        testsAttempted: nextTestsForScore.length,
+        aiScore: determinePerformanceLevel(nextTestsForScore),
+      })
+    } catch (error) {
+      console.error('Failed to refresh subject test stats:', error)
+    }
+
+    setActiveSelectionTest(null)
+    setSelectionTestReview(testAttempt)
+  }
+
   // ── RENDER EDITOR when a note is open ─────────────────────────────────────
+  if (activeSelectionTest) {
+    return (
+      <TestTakingView
+        test={activeSelectionTest}
+        onUpdateTest={setActiveSelectionTest}
+        onFinish={handleFinishSelectionTest}
+        onExit={() => setActiveSelectionTest(null)}
+      />
+    )
+  }
+
+  if (selectionTestReview) {
+    return (
+      <TestResultsView
+        testAttempt={selectionTestReview}
+        onClose={() => setSelectionTestReview(null)}
+        closeLabel="Back to Note"
+      />
+    )
+  }
+
   if (openTestReview) {
     return (
       <TestResultsView
@@ -549,16 +674,27 @@ export default function SubjectDetailPage({
 
   if (openNote) {
     return (
-      <Editor
-        note={openNote.note}
-        onBack={() => setOpenNote(null)}
-        onSave={(updated) => handleSaveNote(openNote.topicId, updated)}
-        onCreateNote={() => handleAddNote(openNote.topicId)}
-        allNotes={getAllNotes()}
-        onAddLinkedNote={handleAddLinkedNote}
-        onRemoveLinkedNote={handleRemoveLinkedNote}
-        onNavigateToNote={handleNavigateToLinkedNote}
-      />
+      <>
+        <Editor
+          note={openNote.note}
+          onBack={() => setOpenNote(null)}
+          onSave={(updated) => handleSaveNote(openNote.topicId, updated)}
+          onCreateNote={() => handleAddNote(openNote.topicId)}
+          onGenerateSelectionTest={handleOpenSelectionTest}
+          allNotes={getAllNotes()}
+          onAddLinkedNote={handleAddLinkedNote}
+          onRemoveLinkedNote={handleRemoveLinkedNote}
+          onNavigateToNote={handleNavigateToLinkedNote}
+        />
+        <TestConfigModal
+          open={Boolean(selectionTestContext)}
+          onClose={() => setSelectionTestContext(null)}
+          subjects={[subjectRef.current]}
+          onGenerate={handleGenerateSelectionTest}
+          isGenerating={selectionTestGenerating}
+          selectionContext={selectionTestContext}
+        />
+      </>
     )
   }
 

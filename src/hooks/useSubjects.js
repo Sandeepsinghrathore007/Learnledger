@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SEED_SUBJECTS } from '@/data/seedData'
 import { uid } from '@/utils/id'
+import { normalizeQuestionBank } from '@/utils/questionBank'
 import { ACTIVITY_TYPES, logActivity } from '@/services/firebase/analyticsService'
 import {
   createNote,
@@ -133,6 +134,7 @@ function buildSubjects(subjectDocs, topicDocs, noteDocs) {
       aiScore: subject.aiScore ?? null,
       testsAttempted: subject.testsAttempted || 0,
       pdfs: toSafeArray(subject.pdfs),
+      questionBank: normalizeQuestionBank(subject.questionBank, { subjectId: subject.id }),
       topics: (topicsBySubject.get(subject.id) || []).sort((a, b) =>
         (a.createdAt || '').localeCompare(b.createdAt || '')
       ),
@@ -271,6 +273,7 @@ export function useSubjects(user) {
         aiScore: null,
         testsAttempted: 0,
         pdfs: [],
+        questionBank: [],
         topics: [],
       }
 
@@ -290,6 +293,7 @@ export function useSubjects(user) {
         aiScore: null,
         testsAttempted: 0,
         pdfs: [],
+        questionBank: [],
         topicsCount: 0,
         notesCount: 0,
       })
@@ -379,6 +383,7 @@ export function useSubjects(user) {
       aiScore: nextSubject.aiScore ?? null,
       testsAttempted: Number.isFinite(nextSubject.testsAttempted) ? nextSubject.testsAttempted : 0,
       pdfs: toSafeArray(nextSubject.pdfs),
+      questionBank: normalizeQuestionBank(nextSubject.questionBank, { subjectId: nextSubject.id }),
       topicsCount: nextTopics.length,
       notesCount: totalNotes,
     })
@@ -545,6 +550,7 @@ export function useSubjects(user) {
           aiScore: updatedSubject.aiScore,
           testsAttempted: updatedSubject.testsAttempted,
           pdfs: updatedSubject.pdfs,
+          questionBank: normalizeQuestionBank(updatedSubject.questionBank, { subjectId: updatedSubject.id }),
           topicsCount: 0,
           notesCount: 0,
         })

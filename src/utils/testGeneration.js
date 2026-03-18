@@ -75,6 +75,80 @@ export function gatherContentForTest(config, subjects) {
   const metadata = {
     subjects: [],
     topics: [],
+    notes: [],
+    selection: null,
+  }
+
+  if (scope === 'selection') {
+    const selectedText = String(config.selectedText || '').trim()
+    const selectionSource = config.selectionSource && typeof config.selectionSource === 'object'
+      ? config.selectionSource
+      : {}
+
+    if (!selectedText) {
+      return {
+        notesContent,
+        pdfContent,
+        metadata,
+      }
+    }
+
+    const selectedSubject = subjects.find((subject) =>
+      subject.id === selectionSource.subjectId || subjectIds.includes(subject.id)
+    )
+    const selectedTopic = selectedSubject?.topics?.find((topic) =>
+      topic.id === selectionSource.topicId || topicIds?.includes(topic.id)
+    )
+    const subjectId = selectedSubject?.id || selectionSource.subjectId || subjectIds[0] || null
+    const subjectName = selectedSubject?.name || selectionSource.subjectName || 'Selected Subject'
+    const topicId = selectedTopic?.id || selectionSource.topicId || topicIds?.[0] || null
+    const topicName = selectedTopic?.name || selectionSource.topicName || 'Selected Topic'
+    const noteTitle = String(selectionSource.noteTitle || 'Selected Note').trim() || 'Selected Note'
+
+    metadata.subjects.push({
+      id: subjectId,
+      name: subjectName,
+      color: selectedSubject?.color,
+      icon: selectedSubject?.icon,
+    })
+
+    if (topicId || topicName) {
+      metadata.topics.push({
+        id: topicId,
+        name: topicName,
+        subjectId,
+        subjectName,
+      })
+    }
+
+    metadata.notes.push({
+      id: selectionSource.noteId || null,
+      title: noteTitle,
+      topicId,
+      topicName,
+      subjectId,
+      subjectName,
+    })
+    metadata.selection = {
+      noteId: selectionSource.noteId || null,
+      noteTitle,
+      excerpt: truncateText(selectedText, 220),
+    }
+
+    notesContent.push({
+      title: `${noteTitle} (Selected Text)`,
+      content: selectedText,
+      topicId,
+      topicName,
+      subjectId,
+      subjectName,
+    })
+
+    return {
+      notesContent,
+      pdfContent,
+      metadata,
+    }
   }
 
   // Filter subjects based on scope
@@ -111,6 +185,14 @@ export function gatherContentForTest(config, subjects) {
           notesContent.push({
             title: note.title,
             content: noteText,
+            topicId: topic.id,
+            topicName: topic.name,
+            subjectId: subject.id,
+            subjectName: subject.name,
+          })
+          metadata.notes.push({
+            id: note.id,
+            title: note.title,
             topicId: topic.id,
             topicName: topic.name,
             subjectId: subject.id,
@@ -204,6 +286,9 @@ export function buildAIPrompt(config, content, promptOptions = {}) {
   // Build subject/topic info
   const subjectNames = metadata.subjects.map((s) => s.name).join(', ')
   const topicNames = metadata.topics.map((t) => `${t.name} (${t.subjectName})`).join(', ')
+  const selectionConstraint = config.scope === 'selection'
+    ? 'IMPORTANT: The note content below is a user-selected excerpt from a larger note. Generate questions using only this selected excerpt and do not infer extra material beyond it.'
+    : ''
 
   // Difficulty description
   let difficultyGuide = ''
@@ -229,6 +314,7 @@ export function buildAIPrompt(config, content, promptOptions = {}) {
 
 SUBJECT(S): ${subjectNames}
 TOPIC(S): ${topicNames}
+${selectionConstraint}
 
 ${notesContext}
 

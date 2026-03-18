@@ -65,6 +65,37 @@ export const SearchIcon = () => (
   </svg>
 )
 
+export const DownloadIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <path d="m7 10 5 5 5-5" />
+    <path d="M12 15V3" />
+  </svg>
+)
+
+export const FilterIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <path d="M4 6h16" />
+    <path d="M7 12h10" />
+    <path d="M10 18h4" />
+  </svg>
+)
+
+export const ClockIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </svg>
+)
+
+export const SparklesIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <path d="m12 3 1.6 3.9L17 8.5l-3.4 1.4L12 14l-1.6-4.1L7 8.5l3.4-1.6L12 3Z" />
+    <path d="m19 14 .8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8.8-1.9Z" />
+    <path d="m5 14 .6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6.6-1.5Z" />
+  </svg>
+)
+
 export const NoteIcon = () => (
   <svg {...iconProps} strokeWidth="1.8">
     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
@@ -149,6 +180,16 @@ export const MockTestsIcon = () => (
     <path d="M10 16h5" />
     <path d="M8 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-2" />
     <path d="m6.5 11 1.5 1.5 3-3" />
+  </svg>
+)
+
+export const QuestionBankIcon = () => (
+  <svg {...iconProps} strokeWidth="1.8">
+    <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v14.5A2.5 2.5 0 0 0 16.5 15H5z" />
+    <path d="M7.5 21A2.5 2.5 0 0 1 5 18.5V5.5" />
+    <path d="M9 8h6" />
+    <path d="M9 11.5h7" />
+    <path d="m9.5 16 1.6 1.6 3.4-4" />
   </svg>
 )
 

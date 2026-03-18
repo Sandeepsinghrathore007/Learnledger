@@ -18,9 +18,15 @@
  *  isGenerating    {boolean}  — Loading state during generation
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
+
+function truncatePreview(value, maxLength = 240) {
+  const text = String(value || '').trim()
+  if (!text || text.length <= maxLength) return text
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`
+}
 
 export default function TestConfigModal({ 
   open, 
@@ -28,6 +34,7 @@ export default function TestConfigModal({
   subjects, 
   onGenerate,
   isGenerating = false,
+  selectionContext = null,
 }) {
   // ── FORM STATE ─────────────────────────────────────────────────────────────
   const [scope, setScope] = useState('subject') // 'subject' | 'topic' | 'multi-subject'
@@ -38,6 +45,9 @@ export default function TestConfigModal({
   const [timeLimit, setTimeLimit] = useState(15) // minutes, null for unlimited
   const [timingMode, setTimingMode] = useState('total') // 'total' | 'per-question'
   const [timePerQuestion, setTimePerQuestion] = useState(60) // seconds
+  const isSelectionMode = Boolean(String(selectionContext?.selectedText || '').trim())
+  const selectionSubjectId = selectionContext?.subjectId || null
+  const selectionTopicId = selectionContext?.topicId || null
 
   // ── Get available topics based on selected subjects ───────────────────────
   const availableTopics = selectedSubjects.length > 0
@@ -58,6 +68,14 @@ export default function TestConfigModal({
     setTimePerQuestion(60)
   }
 
+  useEffect(() => {
+    if (!open || !isSelectionMode) return
+
+    setScope('selection')
+    setSelectedSubjects(selectionSubjectId ? [selectionSubjectId] : [])
+    setSelectedTopics(selectionTopicId ? [selectionTopicId] : [])
+  }, [isSelectionMode, open, selectionSubjectId, selectionTopicId])
+
   // ── HANDLE CLOSE ───────────────────────────────────────────────────────────
   const handleClose = () => {
     if (!isGenerating) {
@@ -68,25 +86,53 @@ export default function TestConfigModal({
 
   // ── HANDLE GENERATE ────────────────────────────────────────────────────────
   const handleGenerate = () => {
-    if (selectedSubjects.length === 0) {
+    const effectiveScope = isSelectionMode ? 'selection' : scope
+    const effectiveSubjectIds = isSelectionMode
+      ? (selectionSubjectId ? [selectionSubjectId] : [])
+      : selectedSubjects
+    const effectiveTopicIds = effectiveScope === 'topic'
+      ? selectedTopics
+      : effectiveScope === 'selection' && selectionTopicId
+        ? [selectionTopicId]
+        : null
+
+    if (effectiveSubjectIds.length === 0) {
       alert('Please select at least one subject')
       return
     }
 
-    if (scope === 'topic' && selectedTopics.length === 0) {
+    if (effectiveScope === 'topic' && selectedTopics.length === 0) {
       alert('Please select at least one topic')
       return
     }
 
+    if (effectiveScope === 'selection' && !isSelectionMode) {
+      alert('Please select some note text first')
+      return
+    }
+
     const config = {
-      scope,
-      subjectIds: selectedSubjects,
-      topicIds: scope === 'topic' ? selectedTopics : null,
+      scope: effectiveScope,
+      subjectIds: effectiveSubjectIds,
+      topicIds: effectiveTopicIds,
       questionCount,
       difficulty,
       timeLimit: timeLimit === 'unlimited' ? null : timeLimit,
       timingMode,
       timePerQuestion: timingMode === 'per-question' ? timePerQuestion : null,
+      ...(isSelectionMode
+        ? {
+            selectedText: selectionContext.selectedText,
+            selectionSource: {
+              noteId: selectionContext.noteId || null,
+              noteTitle: selectionContext.noteTitle || 'Selected Note',
+              topicId: selectionContext.topicId || null,
+              topicName: selectionContext.topicName || '',
+              subjectId: selectionContext.subjectId || null,
+              subjectName: selectionContext.subjectName || '',
+            },
+          }
+        : {}),
     }
 
     onGenerate(config)
@@ -118,123 +164,20 @@ export default function TestConfigModal({
   }
 
   // ── VALIDATION ─────────────────────────────────────────────────────────────
-  const canGenerate = selectedSubjects.length > 0 && 
-    (scope !== 'topic' || selectedTopics.length > 0)
+  const canGenerate = isSelectionMode
+    ? Boolean(selectionSubjectId && String(selectionContext?.selectedText || '').trim())
+    : selectedSubjects.length > 0 && (scope !== 'topic' || selectedTopics.length > 0)
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <Modal open={open} onClose={handleClose} title="Create AI Test" width={600}>
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title={isSelectionMode ? 'Create Test From Selection' : 'Create AI Test'}
+      width={600}
+    >
       <div className="flex flex-col gap-5 sm:gap-6">
-        
-        {/* ── TEST SCOPE ─────────────────────────────────────────────────── */}
-        <div>
-          <label style={{
-            display: 'block',
-            color: TEXT1,
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '13px',
-            fontWeight: '600',
-            marginBottom: '10px',
-          }}>
-            Test Scope
-          </label>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2.5">
-            {[
-              { id: 'subject', label: 'Whole Subject' },
-              { id: 'topic', label: 'Specific Topics' },
-              { id: 'multi-subject', label: 'Multiple Subjects' },
-            ].map(option => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => {
-                  setScope(option.id)
-                  setSelectedSubjects([])
-                  setSelectedTopics([])
-                }}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  background: scope === option.id ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${scope === option.id ? 'rgba(139,92,246,0.4)' : BORDER}`,
-                  borderRadius: '8px',
-                  color: scope === option.id ? '#a78bfa' : TEXT2,
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ── SUBJECT SELECTION ──────────────────────────────────────────── */}
-        <div>
-          <label style={{
-            display: 'block',
-            color: TEXT1,
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '13px',
-            fontWeight: '600',
-            marginBottom: '10px',
-          }}>
-            {scope === 'multi-subject' ? 'Select Subjects (Multiple)' : 'Select Subject'}
-          </label>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {subjects.map(subject => {
-              const isSelected = selectedSubjects.includes(subject.id)
-              return (
-                <button
-                  key={subject.id}
-                  type="button"
-                  onClick={() => toggleSubject(subject.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                    padding: '10px 12px',
-                    background: isSelected ? `${subject.color}12` : 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${isSelected ? subject.color + '40' : BORDER}`,
-                    borderRadius: '8px',
-                    color: isSelected ? subject.color : TEXT2,
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    textAlign: 'left',
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: '18px',
-                      color: subject.color,
-                      fontWeight: '800',
-                      lineHeight: 1,
-                      textShadow: `0 0 10px ${subject.color}50`,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '24px',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {subject.icon}
-                  </span>
-                  <span style={{ flex: 1 }}>{subject.name}</span>
-                  {isSelected && <span>✓</span>}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* ── TOPIC SELECTION (if scope is 'topic') ─────────────────────── */}
-        {scope === 'topic' && availableTopics.length > 0 && (
+        {isSelectionMode ? (
           <div>
             <label style={{
               display: 'block',
@@ -244,48 +187,202 @@ export default function TestConfigModal({
               fontWeight: '600',
               marginBottom: '10px',
             }}>
-              Select Topics
+              Selected Text Source
             </label>
-            <div style={{ 
-              maxHeight: '200px', 
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
+            <div style={{
+              borderRadius: '12px',
+              border: `1px solid ${BORDER}`,
+              background: 'rgba(255,255,255,0.03)',
+              padding: '14px',
             }}>
-              {availableTopics.map(topic => {
-                const isSelected = selectedTopics.includes(topic.id)
-                return (
-                  <button
-                    key={topic.id}
-                    type="button"
-                    onClick={() => toggleTopic(topic.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '8px 12px',
-                      background: isSelected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.02)',
-                      border: `1px solid ${isSelected ? 'rgba(139,92,246,0.3)' : BORDER}`,
-                      borderRadius: '6px',
-                      color: isSelected ? '#a78bfa' : TEXT2,
-                      fontFamily: "'DM Sans', sans-serif",
-                      fontSize: '12px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <span style={{ flex: 1 }}>
-                      {topic.name} <span style={{ color: TEXT3, fontSize: '11px' }}>({topic.subjectName})</span>
-                    </span>
-                    {isSelected && <span>✓</span>}
-                  </button>
-                )
-              })}
+              <div style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: '700' }}>
+                {selectionContext.noteTitle || 'Selected Note'}
+              </div>
+              <div style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', marginTop: '5px' }}>
+                {selectionContext.topicName || 'Topic'} • {selectionContext.subjectName || 'Subject'}
+              </div>
+              <div
+                style={{
+                  marginTop: '12px',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(139,92,246,0.18)',
+                  background: 'rgba(139,92,246,0.08)',
+                  color: TEXT2,
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: '12px',
+                  lineHeight: 1.65,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {truncatePreview(selectionContext.selectedText)}
+              </div>
             </div>
           </div>
+        ) : (
+          <>
+            {/* ── TEST SCOPE ─────────────────────────────────────────────────── */}
+            <div>
+              <label style={{
+                display: 'block',
+                color: TEXT1,
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '13px',
+                fontWeight: '600',
+                marginBottom: '10px',
+              }}>
+                Test Scope
+              </label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2.5">
+                {[
+                  { id: 'subject', label: 'Whole Subject' },
+                  { id: 'topic', label: 'Specific Topics' },
+                  { id: 'multi-subject', label: 'Multiple Subjects' },
+                ].map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => {
+                      setScope(option.id)
+                      setSelectedSubjects([])
+                      setSelectedTopics([])
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      background: scope === option.id ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${scope === option.id ? 'rgba(139,92,246,0.4)' : BORDER}`,
+                      borderRadius: '8px',
+                      color: scope === option.id ? '#a78bfa' : TEXT2,
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── SUBJECT SELECTION ──────────────────────────────────────────── */}
+            <div>
+              <label style={{
+                display: 'block',
+                color: TEXT1,
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '13px',
+                fontWeight: '600',
+                marginBottom: '10px',
+              }}>
+                {scope === 'multi-subject' ? 'Select Subjects (Multiple)' : 'Select Subject'}
+              </label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {subjects.map(subject => {
+                  const isSelected = selectedSubjects.includes(subject.id)
+                  return (
+                    <button
+                      key={subject.id}
+                      type="button"
+                      onClick={() => toggleSubject(subject.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 12px',
+                        background: isSelected ? `${subject.color}12` : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${isSelected ? subject.color + '40' : BORDER}`,
+                        borderRadius: '8px',
+                        color: isSelected ? subject.color : TEXT2,
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: '18px',
+                          color: subject.color,
+                          fontWeight: '800',
+                          lineHeight: 1,
+                          textShadow: `0 0 10px ${subject.color}50`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '24px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {subject.icon}
+                      </span>
+                      <span style={{ flex: 1 }}>{subject.name}</span>
+                      {isSelected && <span>✓</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* ── TOPIC SELECTION (if scope is 'topic') ─────────────────────── */}
+            {scope === 'topic' && availableTopics.length > 0 && (
+              <div>
+                <label style={{
+                  display: 'block',
+                  color: TEXT1,
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  marginBottom: '10px',
+                }}>
+                  Select Topics
+                </label>
+                <div style={{ 
+                  maxHeight: '200px', 
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}>
+                  {availableTopics.map(topic => {
+                    const isSelected = selectedTopics.includes(topic.id)
+                    return (
+                      <button
+                        key={topic.id}
+                        type="button"
+                        onClick={() => toggleTopic(topic.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 12px',
+                          background: isSelected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.02)',
+                          border: `1px solid ${isSelected ? 'rgba(139,92,246,0.3)' : BORDER}`,
+                          borderRadius: '6px',
+                          color: isSelected ? '#a78bfa' : TEXT2,
+                          fontFamily: "'DM Sans', sans-serif",
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <span style={{ flex: 1 }}>
+                          {topic.name} <span style={{ color: TEXT3, fontSize: '11px' }}>({topic.subjectName})</span>
+                        </span>
+                        {isSelected && <span>✓</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* ── NUMBER OF QUESTIONS ────────────────────────────────────────── */}
@@ -500,7 +597,11 @@ export default function TestConfigModal({
             opacity: canGenerate && !isGenerating ? 1 : 0.5,
           }}
         >
-          {isGenerating ? '🤖 Generating Test with AI...' : '✨ Generate Test with AI'}
+          {isGenerating
+            ? '🤖 Generating Test with AI...'
+            : isSelectionMode
+              ? '✨ Generate Test From Selected Text'
+              : '✨ Generate Test with AI'}
         </button>
       </div>
     </Modal>

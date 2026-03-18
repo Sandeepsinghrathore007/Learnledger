@@ -124,7 +124,13 @@ function getSelectedTextPayload(editor) {
   }
 }
 
-export default function FloatingToolbar({ editor, themeStyles, containerRef, onAskAI = null }) {
+export default function FloatingToolbar({
+  editor,
+  themeStyles,
+  containerRef,
+  onAskAI = null,
+  onGenerateTest = null,
+}) {
   const toolbarRef = useRef(null)
   const [position, setPosition] = useState({ visible: false, top: 0, left: 0 })
   const palette = themeStyles || DEFAULT_THEME
@@ -252,7 +258,7 @@ export default function FloatingToolbar({ editor, themeStyles, containerRef, onA
         )
       })}
 
-      {onAskAI && (
+      {(onAskAI || onGenerateTest) && (
         <>
           <span
             aria-hidden="true"
@@ -265,30 +271,59 @@ export default function FloatingToolbar({ editor, themeStyles, containerRef, onA
             }}
           />
 
-          <button
-            type="button"
-            onMouseDown={(event) => {
-              event.preventDefault()
-              const payload = getSelectedTextPayload(editor)
-              if (!payload) return
-              onAskAI(payload)
-            }}
-            style={{
-              border: '0.5px solid rgba(124,58,237,0.3)',
-              background: 'rgba(124,58,237,0.15)',
-              color: '#a78bfa',
-              borderRadius: '4px',
-              padding: '3px 9px',
-              fontSize: '11px',
-              fontWeight: '600',
-              fontFamily: "'DM Sans', sans-serif",
-              height: '28px',
-              display: 'inline-flex',
-              alignItems: 'center',
-            }}
-          >
-            ✦ Ask AI
-          </button>
+          {onAskAI && (
+            <button
+              type="button"
+              onMouseDown={(event) => {
+                event.preventDefault()
+                const payload = getSelectedTextPayload(editor)
+                if (!payload) return
+                onAskAI(payload)
+              }}
+              style={{
+                border: '0.5px solid rgba(124,58,237,0.3)',
+                background: 'rgba(124,58,237,0.15)',
+                color: '#a78bfa',
+                borderRadius: '4px',
+                padding: '3px 9px',
+                fontSize: '11px',
+                fontWeight: '600',
+                fontFamily: "'DM Sans', sans-serif",
+                height: '28px',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              ✦ Ask AI
+            </button>
+          )}
+
+          {onGenerateTest && (
+            <button
+              type="button"
+              onMouseDown={(event) => {
+                event.preventDefault()
+                const payload = getSelectedTextPayload(editor)
+                if (!payload) return
+                onGenerateTest(payload)
+              }}
+              style={{
+                border: '0.5px solid rgba(34,197,94,0.32)',
+                background: 'rgba(34,197,94,0.12)',
+                color: '#86efac',
+                borderRadius: '4px',
+                padding: '3px 9px',
+                fontSize: '11px',
+                fontWeight: '600',
+                fontFamily: "'DM Sans', sans-serif",
+                height: '28px',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              ✓ Test
+            </button>
+          )}
         </>
       )}
     </div>

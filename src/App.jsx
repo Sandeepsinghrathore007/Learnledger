@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import SubjectsPage from "@/pages/SubjectsPage";
@@ -6,6 +6,7 @@ import NotesPage from "@/pages/NotesPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import SubjectDetailPage from "@/pages/SubjectDetailPage";
 import MockTestsPage from "@/pages/MockTestsPage";
+import QuestionBankPage from "@/pages/QuestionBankPage";
 import AIAssistantPage from "@/pages/AIAssistantPage";
 import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
@@ -25,6 +26,74 @@ import { uid } from "@/utils/id";
 
 const MOBILE_BREAKPOINT = 1024;
 const AI_CHAT_STORAGE_KEY = "aiChat";
+const DEFAULT_PAGE = "subjects";
+const PAGE_HASHES = {
+  subjects: "#/subjects",
+  questions: "#/questions",
+  questionBank: "#/question-bank",
+  ai: "#/ai",
+  analytics: "#/analytics",
+  notes: "#/notes",
+  login: "#/login",
+  signup: "#/signup",
+};
+const PAGE_IDS = Object.keys(PAGE_HASHES);
+
+function normalizePageHash(hashValue = "") {
+  const hash = String(hashValue || "").trim().replace(/^#/, "");
+
+  if (!hash || hash === "/") return "/subjects";
+
+  return hash.startsWith("/") ? hash : `/${hash}`;
+}
+
+function getPageHash(page) {
+  return PAGE_HASHES[page] || PAGE_HASHES[DEFAULT_PAGE];
+}
+
+function readPageFromLocation() {
+  if (typeof window === "undefined") return DEFAULT_PAGE;
+
+  const normalizedHash = normalizePageHash(window.location.hash);
+  const matchedPage = Object.entries(PAGE_HASHES).find(
+    ([, hash]) => normalizePageHash(hash) === normalizedHash,
+  );
+
+  return matchedPage?.[0] || DEFAULT_PAGE;
+}
+
+function syncPageHash(page, { replace = false } = {}) {
+  if (typeof window === "undefined") return;
+
+  const nextHash = getPageHash(page);
+  if (window.location.hash === nextHash) return;
+
+  const nextUrl = `${window.location.pathname}${window.location.search}${nextHash}`;
+
+  if (replace) {
+    window.history.replaceState(null, "", nextUrl);
+    return;
+  }
+
+  window.location.hash = nextHash;
+}
+
+function PersistentPage({ active, mounted, children }) {
+  if (!mounted && !active) return null;
+
+  return (
+    <div
+      hidden={!active}
+      aria-hidden={!active}
+      style={{
+        display: active ? "block" : "none",
+        minWidth: 0,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 function createDefaultAIChatState() {
   return {
@@ -316,7 +385,11 @@ VITE_FIREBASE_FUNCTIONS_REGION`}
 }
 
 export default function App() {
-  const [activePage, setActivePage] = useState("subjects");
+  const initialPage = readPageFromLocation();
+  const [activePage, setActivePage] = useState(initialPage);
+  const [mountedPages, setMountedPages] = useState(() => ({
+    [initialPage]: true,
+  }));
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(
@@ -334,6 +407,22 @@ export default function App() {
   const [installPending, setInstallPending] = useState(false);
   const [installNotice, setInstallNotice] = useState("");
   const { canInstall, installApp, lastOutcome } = usePWAInstallPrompt();
+  const navigationScopeKey = authUser?.uid || "guest";
+  const previousNavigationScopeRef = useRef(navigationScopeKey);
+
+  const handlePageChange = (page, options = {}) => {
+    const nextPage = PAGE_HASHES[page] ? page : DEFAULT_PAGE;
+
+    setActivePage(nextPage);
+
+    if (options.syncLocation !== false) {
+      syncPageHash(nextPage, { replace: options.replaceHistory === true });
+    }
+
+    if (options.closeMobileNav !== false && isMobile) {
+      setMobileNavOpen(false);
+    }
+  };
 
   const {
     subjects,
@@ -356,6 +445,39 @@ export default function App() {
   } = useSubjects(authUser);
 
   useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const syncActivePageFromHash = () => {
+      setActivePage(readPageFromLocation());
+      setMobileNavOpen(false);
+    };
+
+    const currentPage = readPageFromLocation();
+    if (window.location.hash !== getPageHash(currentPage)) {
+      syncPageHash(currentPage, { replace: true });
+    }
+
+    window.addEventListener("hashchange", syncActivePageFromHash);
+
+    return () => window.removeEventListener("hashchange", syncActivePageFromHash);
+  }, []);
+
+  useEffect(() => {
+    if (previousNavigationScopeRef.current === navigationScopeKey) return;
+
+    previousNavigationScopeRef.current = navigationScopeKey;
+    setMountedPages({ [activePage]: true });
+  }, [activePage, navigationScopeKey]);
+
+  useEffect(() => {
+    setMountedPages((currentPages) =>
+      currentPages[activePage]
+        ? currentPages
+        : { ...currentPages, [activePage]: true },
+    );
+  }, [activePage]);
+
+  useEffect(() => {
     if (!isFirebaseConfigured) {
       setAuthLoading(false);
       return undefined;
@@ -365,13 +487,7 @@ export default function App() {
       setAuthUser(user);
       setAuthLoading(false);
 
-      if (user) {
-        setActivePage((currentPage) =>
-          currentPage === "login" || currentPage === "signup"
-            ? "subjects"
-            : currentPage,
-        );
-      } else {
+      if (!user) {
         setAiChatState(createDefaultAIChatState());
         setAssistantLaunchContext(null);
         setSubjectNoteLaunch(null);
@@ -383,6 +499,14 @@ export default function App() {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!authUser) return;
+    if (activePage !== "login" && activePage !== "signup") return;
+
+    setActivePage(DEFAULT_PAGE);
+    syncPageHash(DEFAULT_PAGE, { replace: true });
+  }, [activePage, authUser]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -433,14 +557,6 @@ export default function App() {
     authPageTitles[activePage] ??
     "Dashboard";
 
-  const handlePageChange = (page) => {
-    setActivePage(page);
-    if (page !== "subjects") setSelected(null);
-    if (page !== "subjects") setSubjectNoteLaunch(null);
-    if (page !== "subjects") setSubjectSectionLaunch(null);
-    if (isMobile) setMobileNavOpen(false);
-  };
-
   const handleSelectSubject = (subject) => {
     setSubjectSectionLaunch(null);
     setSubjectNoteLaunch(null);
@@ -453,7 +569,7 @@ export default function App() {
       setSelected(null);
       setSubjectNoteLaunch(null);
       setSubjectSectionLaunch(null);
-      setActivePage("subjects");
+      handlePageChange(DEFAULT_PAGE, { replaceHistory: true });
       setAiChatState(createDefaultAIChatState());
       if (typeof window !== "undefined") {
         window.sessionStorage.removeItem(AI_CHAT_STORAGE_KEY);
@@ -491,8 +607,7 @@ export default function App() {
       ...context,
       launchId: uid(),
     });
-    setActivePage("ai");
-    if (isMobile) setMobileNavOpen(false);
+    handlePageChange("ai");
   };
 
   const handleOpenSubjectFromAnalytics = (subject, options = {}) => {
@@ -505,8 +620,7 @@ export default function App() {
       launchId: uid(),
     });
     setSelected(subject);
-    setActivePage("subjects");
-    if (isMobile) setMobileNavOpen(false);
+    handlePageChange("subjects");
   };
 
   const handleOpenNoteFromNotes = (note, subjectId, topicId) => {
@@ -521,24 +635,16 @@ export default function App() {
     });
     setSubjectSectionLaunch(null);
     setSelected(subject);
-    setActivePage("subjects");
-
-    if (isMobile) setMobileNavOpen(false);
+    handlePageChange("subjects");
   };
 
   const handleOpenSavedAINote = () => {
     setSubjectNoteLaunch(null);
-    setActivePage("notes");
-
-    if (isMobile) setMobileNavOpen(false);
+    handlePageChange("notes");
   };
 
-  const renderPage = () => {
-    if (authLoading) {
-      return <LoadingView />;
-    }
-
-    if (activePage === "login") {
+  const renderPageContent = (page) => {
+    if (page === "login") {
       return (
         <LoginPage
           onSwitchToSignup={() => handlePageChange("signup")}
@@ -547,7 +653,7 @@ export default function App() {
       );
     }
 
-    if (activePage === "signup") {
+    if (page === "signup") {
       return (
         <SignupPage
           onSwitchToLogin={() => handlePageChange("login")}
@@ -556,11 +662,7 @@ export default function App() {
       );
     }
 
-    if (loading && authUser && subjects.length === 0) {
-      return <LoadingView />;
-    }
-
-    if (activePage === "questions") {
+    if (page === "questions") {
       return (
         <MockTestsPage
           user={authUser}
@@ -570,7 +672,16 @@ export default function App() {
       );
     }
 
-    if (activePage === "analytics") {
+    if (page === "questionBank") {
+      return (
+        <QuestionBankPage
+          subjects={subjects}
+          onUpdateSubject={updateSubject}
+        />
+      );
+    }
+
+    if (page === "analytics") {
       return (
         <AnalyticsPage
           user={authUser}
@@ -581,7 +692,7 @@ export default function App() {
       );
     }
 
-    if (activePage === "notes") {
+    if (page === "notes") {
       return (
         <NotesPage
           subjects={subjects}
@@ -591,7 +702,7 @@ export default function App() {
       );
     }
 
-    if (activePage === "ai") {
+    if (page === "ai") {
       if (!authUser) {
         return (
           <GuestAIBlockedView onOpenLogin={() => handlePageChange("login")} />
@@ -611,7 +722,7 @@ export default function App() {
       );
     }
 
-    if (activePage === "subjects") {
+    if (page === "subjects") {
       if (selected) {
         const liveSubject =
           subjects.find((item) => item.id === selected.id) || selected;
@@ -625,6 +736,11 @@ export default function App() {
                     note: subjectNoteLaunch.note,
                     topicId: subjectNoteLaunch.topicId,
                   }
+                : null
+            }
+            noteLaunchKey={
+              subjectNoteLaunch?.subjectId === liveSubject.id
+                ? subjectNoteLaunch.launchId
                 : null
             }
             initialSection={
@@ -660,12 +776,20 @@ export default function App() {
       );
     }
 
-    return <ComingSoonPage pageId={activePage} />;
+    return <ComingSoonPage pageId={page} />;
   };
 
   if (!isFirebaseConfigured) {
     return <FirebaseSetupView />;
   }
+
+  const showLoadingView =
+    authLoading ||
+    (loading &&
+      authUser &&
+      subjects.length === 0 &&
+      activePage !== "login" &&
+      activePage !== "signup");
 
   return (
     <div className="flex min-h-screen" style={{ background: BG }}>
@@ -750,7 +874,19 @@ export default function App() {
             </div>
           )}
 
-          {renderPage()}
+          {showLoadingView ? (
+            <LoadingView />
+          ) : (
+            PAGE_IDS.map((pageId) => (
+              <PersistentPage
+                key={`${navigationScopeKey}-${pageId}`}
+                active={activePage === pageId}
+                mounted={activePage === pageId || Boolean(mountedPages[pageId])}
+              >
+                {renderPageContent(pageId)}
+              </PersistentPage>
+            ))
+          )}
         </div>
       </main>
 

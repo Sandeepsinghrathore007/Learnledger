@@ -25,6 +25,15 @@ export const NAV_ITEMS = [
     comingSoon: false,
   },
   {
+    id: 'questionBank',
+    label: 'Question Bank',
+    icon: 'questionBank',
+    iconColor: '#f59e0b',
+    iconBg: 'rgba(245,158,11,0.16)',
+    iconBorder: 'rgba(245,158,11,0.28)',
+    comingSoon: false,
+  },
+  {
     id: 'ai',
     label: 'AI Assistant',
     icon: 'ai',

@@ -89,6 +89,15 @@ function normalizeTest(snapshot) {
 function generateTestTitle(config, metadata) {
   const subjectNames = (metadata.subjects || []).map((subject) => subject.name).join(' + ')
 
+  if (config.scope === 'selection') {
+    const selectionTitle =
+      metadata.selection?.noteTitle ||
+      metadata.notes?.[0]?.title ||
+      'Selected Text'
+
+    return `${subjectNames || 'Study'} - ${selectionTitle} Selection Test`
+  }
+
   if (config.scope === 'topic' && metadata.topics.length === 1) {
     return `${subjectNames} - ${metadata.topics[0].name}`
   }

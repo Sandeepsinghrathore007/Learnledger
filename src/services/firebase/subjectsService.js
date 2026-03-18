@@ -8,6 +8,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { uid } from '@/utils/id'
+import { normalizeQuestionBank } from '@/utils/questionBank'
 import { db } from './firebaseConfig'
 import {
   userPdfKnowledgeChunksCol,
@@ -47,6 +48,7 @@ function normalizeSubject(snapshot) {
     topicsCount: Number.isFinite(data.topicsCount) ? data.topicsCount : 0,
     notesCount: Number.isFinite(data.notesCount) ? data.notesCount : 0,
     pdfs: Array.isArray(data.pdfs) ? data.pdfs : [],
+    questionBank: normalizeQuestionBank(data.questionBank, { subjectId: snapshot.id }),
     createdAt: toIso(data.createdAt),
     updatedAt: toIso(data.updatedAt),
   }
@@ -97,6 +99,7 @@ export async function createSubject(userId, subjectInput) {
     topicsCount: Number.isFinite(subjectInput?.topicsCount) ? subjectInput.topicsCount : 0,
     notesCount: Number.isFinite(subjectInput?.notesCount) ? subjectInput.notesCount : 0,
     pdfs: Array.isArray(subjectInput?.pdfs) ? subjectInput.pdfs : [],
+    questionBank: normalizeQuestionBank(subjectInput?.questionBank, { subjectId }),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
@@ -131,6 +134,10 @@ export async function updateSubject(userId, subjectId, updates) {
 
   if (Object.prototype.hasOwnProperty.call(payload, 'pdfs') && !Array.isArray(payload.pdfs)) {
     payload.pdfs = []
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'questionBank')) {
+    payload.questionBank = normalizeQuestionBank(payload.questionBank, { subjectId })
   }
 
   await updateDoc(userSubjectDocRef(userId, subjectId), payload)

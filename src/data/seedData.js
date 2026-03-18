@@ -15,6 +15,7 @@ export const SEED_SUBJECTS = [
     aiScore: 78,
     testsAttempted: 4,
     pdfs: [],
+    questionBank: [],
     topics: [
       {
         id: 't1',
@@ -90,6 +91,7 @@ export const SEED_SUBJECTS = [
     aiScore: 62,
     testsAttempted: 2,
     pdfs: [],
+    questionBank: [],
     topics: [
       {
         id: 't3',
@@ -125,6 +127,7 @@ export const SEED_SUBJECTS = [
     aiScore: 91,
     testsAttempted: 7,
     pdfs: [],
+    questionBank: [],
     topics: [
       {
         id: 't4',
@@ -160,6 +163,7 @@ export const SEED_SUBJECTS = [
     aiScore: null,
     testsAttempted: 0,
     pdfs: [],
+    questionBank: [],
     topics: [
       {
         id: 't5',

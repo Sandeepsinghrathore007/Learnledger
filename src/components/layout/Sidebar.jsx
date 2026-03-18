@@ -6,6 +6,7 @@ import {
   BackIcon,
   MockTestsIcon,
   NoteIcon,
+  QuestionBankIcon,
   SubjectsIcon,
 } from '@/components/ui/Icons'
 
@@ -13,6 +14,7 @@ const NAV_ICONS = {
   subjects: SubjectsIcon,
   notes: NoteIcon,
   tests: MockTestsIcon,
+  questionBank: QuestionBankIcon,
   ai: AIAssistantIcon,
   analytics: AnalyticsIcon,
 }

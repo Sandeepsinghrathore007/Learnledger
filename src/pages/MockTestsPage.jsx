@@ -21,6 +21,7 @@ import TestCard from '@/components/tests/TestCard'
 import PrimaryCtaButton from '@/components/ui/PrimaryCtaButton'
 import { MockTestsIcon, PlusIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
+import { buildQuestionBankSubjectUpdates } from '@/utils/questionBank'
 
 const mockTestCtaTheme = {
   '--cta-start': '#38bdf8',
@@ -49,6 +50,15 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
   const handleGenerateTest = async (config) => {
     try {
       const test = await generateTest(config)
+
+      if (onUpdateSubject) {
+        const subjectUpdates = buildQuestionBankSubjectUpdates(subjects, test)
+
+        for (const updatedSubject of subjectUpdates) {
+          await onUpdateSubject(updatedSubject)
+        }
+      }
+
       setConfigModalOpen(false)
       
       // Start test immediately
