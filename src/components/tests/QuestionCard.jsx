@@ -15,6 +15,10 @@ export default function QuestionCard({
   isBookmarked,
   onToggleBookmark,
   hasUsedHint,
+  questionLanguage = 'english',
+  onChangeQuestionLanguage,
+  isTranslationLoading = false,
+  translationError = '',
 }) {
   return (
     <div className="p-4 sm:p-6" style={{
@@ -38,29 +42,88 @@ export default function QuestionCard({
           </h3>
         </div>
 
-        <button
-          type="button"
-          onClick={onToggleBookmark}
-          aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'}
-          style={{
-            width: '32px',
-            height: '32px',
-            display: 'flex',
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div style={{
+            display: 'inline-flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            background: 'transparent',
-            border: 'none',
-            borderRadius: '8px',
-            color: isBookmarked ? '#7c3aed' : '#4a4066',
-            cursor: 'pointer',
-            padding: 0,
-          }}
-        >
-          <span style={{ width: '18px', height: '18px', display: 'inline-flex' }}>
-            <BookmarkIcon filled={isBookmarked} />
-          </span>
-        </button>
+            gap: '4px',
+            padding: '4px',
+            borderRadius: '10px',
+            border: `1px solid ${BORDER}`,
+            background: 'rgba(255,255,255,0.03)',
+          }}>
+            {[
+              { id: 'english', label: 'English' },
+              { id: 'hindi', label: 'Hindi' },
+            ].map((language) => {
+              const isActive = questionLanguage === language.id
+
+              return (
+                <button
+                  key={language.id}
+                  type="button"
+                  onClick={() => onChangeQuestionLanguage?.(language.id)}
+                  disabled={isTranslationLoading && isActive}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: isActive ? 'rgba(14,165,233,0.16)' : 'transparent',
+                    color: isActive ? '#dbeafe' : TEXT2,
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    opacity: isTranslationLoading && isActive ? 0.75 : 1,
+                  }}
+                >
+                  {language.label}
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={onToggleBookmark}
+            aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'}
+            style={{
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: '8px',
+              color: isBookmarked ? '#7c3aed' : '#4a4066',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            <span style={{ width: '18px', height: '18px', display: 'inline-flex' }}>
+              <BookmarkIcon filled={isBookmarked} />
+            </span>
+          </button>
+        </div>
       </div>
+
+      {(isTranslationLoading || translationError) && (
+        <div style={{
+          marginTop: '-8px',
+          marginBottom: '16px',
+          padding: '10px 12px',
+          borderRadius: '10px',
+          border: `1px solid ${translationError ? 'rgba(239,68,68,0.24)' : 'rgba(14,165,233,0.24)'}`,
+          background: translationError ? 'rgba(239,68,68,0.08)' : 'rgba(14,165,233,0.08)',
+          color: translationError ? '#fca5a5' : '#bae6fd',
+          fontFamily: "'DM Sans', sans-serif",
+          fontSize: '12px',
+          lineHeight: 1.5,
+        }}>
+          {translationError || `Translating question to ${questionLanguage === 'hindi' ? 'Hindi' : 'English'}...`}
+        </div>
+      )}
 
       {/* Options */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>

@@ -337,6 +337,8 @@ export async function extractPdfKnowledgeFromFile(file) {
     pageCount: pdfDocument.numPages,
     fullTextLength: compressedText.length,
     storedCharCount: storedText.length,
+    fullText: compressedText,
+    text: storedText,
     summary: buildExtractiveSummary(storedText),
     preview: storedText.slice(0, 700),
     chunks,

@@ -37,7 +37,13 @@ function ReviewOptions({ question, userAnswer }) {
   )
 }
 
-export default function TestResultsView({ testAttempt, onClose, onRetake = null, closeLabel = 'Back to Tests' }) {
+export default function TestResultsView({
+  testAttempt,
+  onClose,
+  onRetake = null,
+  closeLabel = 'Back to Tests',
+  onTakeWeakAreaMockTest = null,
+}) {
   const [expandedQuestions, setExpandedQuestions] = useState(new Set())
 
   const { 
@@ -69,6 +75,7 @@ export default function TestResultsView({ testAttempt, onClose, onRetake = null,
   const bookmarkedQuestionItems = questions
     .map((question, index) => ({ question, index }))
     .filter(({ question }) => bookmarkedQuestions.includes(question.id))
+  const weakestTopic = weakAreas.weakAreas[0] || null
 
   return (
     <div className="animate-fade-in" style={{ maxWidth: '900px', margin: '0 auto' }}>
@@ -140,6 +147,108 @@ export default function TestResultsView({ testAttempt, onClose, onRetake = null,
           topicPerformance={weakAreas.allTopics}
           weakAreas={weakAreas.weakAreas}
         />
+      )}
+
+      {(weakAreas.weakSubjects.length > 0 || weakAreas.weakAreas.length > 0) && (
+        <div
+          style={{
+            marginTop: '24px',
+            background: 'rgba(255,255,255,0.02)',
+            border: `1px solid ${BORDER}`,
+            borderRadius: '14px',
+            padding: '18px',
+          }}
+        >
+          <div style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '16px', fontWeight: '700' }}>
+            Weak Areas Detected
+          </div>
+          <p style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', margin: '6px 0 0', lineHeight: 1.6 }}>
+            Focus on the lowest-performing subjects and topics before your next attempt.
+          </p>
+
+          {weakAreas.weakSubjects.length > 0 && (
+            <div style={{ marginTop: '14px' }}>
+              <div style={{ color: TEXT2, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: '700', marginBottom: '8px' }}>
+                Weak Subjects
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {weakAreas.weakSubjects.map((subject) => (
+                  <span
+                    key={subject.subjectId || subject.subjectName}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      borderRadius: '999px',
+                      padding: '6px 10px',
+                      background: 'rgba(239,68,68,0.1)',
+                      border: '1px solid rgba(239,68,68,0.2)',
+                      color: '#fca5a5',
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: '11px',
+                      fontWeight: '700',
+                    }}
+                  >
+                    {subject.subjectName}
+                    <span style={{ color: TEXT3 }}>{subject.percentage}%</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {weakAreas.weakAreas.length > 0 && (
+            <div style={{ marginTop: '14px' }}>
+              <div style={{ color: TEXT2, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: '700', marginBottom: '8px' }}>
+                Weak Topics
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {weakAreas.weakAreas.map((topic) => (
+                  <span
+                    key={topic.topicId}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      borderRadius: '999px',
+                      padding: '6px 10px',
+                      background: 'rgba(245,158,11,0.1)',
+                      border: '1px solid rgba(245,158,11,0.22)',
+                      color: '#fbbf24',
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: '11px',
+                      fontWeight: '700',
+                    }}
+                  >
+                    {topic.topicName}
+                    <span style={{ color: TEXT3 }}>{topic.percentage}%</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {typeof onTakeWeakAreaMockTest === 'function' && weakestTopic?.topicId && weakestTopic?.subjectId && (
+            <button
+              type="button"
+              onClick={() => onTakeWeakAreaMockTest(weakestTopic)}
+              style={{
+                marginTop: '16px',
+                padding: '11px 14px',
+                border: 'none',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                color: '#fff',
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '12px',
+                fontWeight: '800',
+                cursor: 'pointer',
+              }}
+            >
+              Take Mock Test for Weak Topic: {weakestTopic.topicName}
+            </button>
+          )}
+        </div>
       )}
 
       {/* Questions Review */}

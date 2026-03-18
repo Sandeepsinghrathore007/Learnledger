@@ -28,6 +28,7 @@ const DEFAULT_FORM = {
   icon: '∑',
   color: '#8b5cf6',
 }
+const AI_MASTER_NOTE_ID = '__ai_master_note__'
 
 function cloneGuestSubjects() {
   return JSON.parse(JSON.stringify(SEED_SUBJECTS))
@@ -35,6 +36,23 @@ function cloneGuestSubjects() {
 
 function toSafeArray(value) {
   return Array.isArray(value) ? value : []
+}
+
+function syncAIMasterNoteTitles(subject) {
+  const subjectName = String(subject?.name || '').trim() || 'Untitled Subject'
+  const masterTitle = `AI Notes — ${subjectName}`
+
+  return {
+    ...subject,
+    topics: toSafeArray(subject?.topics).map((topic) => ({
+      ...topic,
+      notes: toSafeArray(topic?.notes).map((note) => (
+        note?.isAIMaster || note?.id === AI_MASTER_NOTE_ID
+          ? { ...note, title: masterTitle }
+          : note
+      )),
+    })),
+  }
 }
 
 function sortByMostRecent(items, field = 'updatedAt') {
@@ -94,12 +112,21 @@ function topicIsDifferent(previousTopic, nextTopic) {
 }
 
 function buildSubjects(subjectDocs, topicDocs, noteDocs) {
+  const subjectNameById = new Map(
+    subjectDocs.map((subject) => [subject.id, subject.name || 'Untitled Subject'])
+  )
   const notesByTopic = new Map()
 
   noteDocs.forEach((note) => {
     const normalized = normalizeNote(note)
+    const withResolvedTitle = normalized.isAIMaster || normalized.id === AI_MASTER_NOTE_ID
+      ? {
+          ...normalized,
+          title: `AI Notes — ${subjectNameById.get(note.subjectId) || 'Untitled Subject'}`,
+        }
+      : normalized
     const existing = notesByTopic.get(note.topicId) || []
-    existing.push(normalized)
+    existing.push(withResolvedTitle)
     notesByTopic.set(note.topicId, existing)
   })
 
@@ -185,6 +212,12 @@ export function useSubjects(user) {
     if (!selected) return
     if (!subjects.some((subject) => subject.id === selected.id)) {
       setSelected(null)
+      return
+    }
+
+    const liveSubject = subjects.find((subject) => subject.id === selected.id)
+    if (liveSubject && liveSubject !== selected) {
+      setSelected(liveSubject)
     }
   }, [selected, subjects])
 
@@ -312,16 +345,18 @@ export function useSubjects(user) {
     setError('')
 
     if (!isAuthenticated) {
+      const nextSubject = syncAIMasterNoteTitles({
+        ...editTarget,
+        name: form.name,
+        description: form.description,
+        icon: form.icon,
+        color: form.color,
+      })
+
       setGuestSubjects((previous) =>
         previous.map((subject) =>
           subject.id === editTarget.id
-            ? {
-              ...subject,
-              name: form.name,
-              description: form.description,
-              icon: form.icon,
-              color: form.color,
-            }
+            ? nextSubject
             : subject
         )
       )
@@ -372,18 +407,19 @@ export function useSubjects(user) {
   }, [isAuthenticated, selected?.id, user?.uid])
 
   const syncSubjectGraph = useCallback(async (previousSubject, nextSubject) => {
-    const nextTopics = toSafeArray(nextSubject.topics)
+    const syncedSubject = syncAIMasterNoteTitles(nextSubject)
+    const nextTopics = toSafeArray(syncedSubject.topics)
     const totalNotes = nextTopics.reduce((sum, topic) => sum + toSafeArray(topic.notes).length, 0)
 
-    await updateSubjectDoc(user.uid, nextSubject.id, {
-      name: nextSubject.name,
-      description: nextSubject.description,
-      icon: nextSubject.icon,
-      color: nextSubject.color,
-      aiScore: nextSubject.aiScore ?? null,
-      testsAttempted: Number.isFinite(nextSubject.testsAttempted) ? nextSubject.testsAttempted : 0,
-      pdfs: toSafeArray(nextSubject.pdfs),
-      questionBank: normalizeQuestionBank(nextSubject.questionBank, { subjectId: nextSubject.id }),
+    await updateSubjectDoc(user.uid, syncedSubject.id, {
+      name: syncedSubject.name,
+      description: syncedSubject.description,
+      icon: syncedSubject.icon,
+      color: syncedSubject.color,
+      aiScore: syncedSubject.aiScore ?? null,
+      testsAttempted: Number.isFinite(syncedSubject.testsAttempted) ? syncedSubject.testsAttempted : 0,
+      pdfs: toSafeArray(syncedSubject.pdfs),
+      questionBank: normalizeQuestionBank(syncedSubject.questionBank, { subjectId: syncedSubject.id }),
       topicsCount: nextTopics.length,
       notesCount: totalNotes,
     })
@@ -409,25 +445,25 @@ export function useSubjects(user) {
       const previousTopic = previousTopicMap.get(nextTopic.id)
 
       if (!previousTopic) {
-        await createTopic(user.uid, {
-          id: nextTopic.id,
-          subjectId: nextSubject.id,
-          name: nextTopic.name,
-          questionsCount: nextTopic.questionsCount || 0,
-          notesCount: nextTopic.notes.length,
+          await createTopic(user.uid, {
+            id: nextTopic.id,
+            subjectId: syncedSubject.id,
+            name: nextTopic.name,
+            questionsCount: nextTopic.questionsCount || 0,
+            notesCount: nextTopic.notes.length,
           isCompleted: Boolean(nextTopic.isCompleted),
           completedAt: nextTopic.completedAt || null,
         })
 
         await safeLogActivity(user.uid, {
           type: ACTIVITY_TYPES.TOPIC_CREATED,
-          subjectId: nextSubject.id,
+          subjectId: syncedSubject.id,
           topicId: nextTopic.id,
           timestamp: nextTopic.updatedAt || new Date().toISOString(),
         })
       } else if (topicIsDifferent(previousTopic, nextTopic)) {
-        await updateTopicDoc(user.uid, nextSubject.id, nextTopic.id, {
-          subjectId: nextSubject.id,
+        await updateTopicDoc(user.uid, syncedSubject.id, nextTopic.id, {
+          subjectId: syncedSubject.id,
           name: nextTopic.name,
           questionsCount: nextTopic.questionsCount || 0,
           notesCount: nextTopic.notes.length,
@@ -438,7 +474,7 @@ export function useSubjects(user) {
         if (!previousTopic.isCompleted && nextTopic.isCompleted) {
           await safeLogActivity(user.uid, {
             type: ACTIVITY_TYPES.TOPIC_COMPLETED,
-            subjectId: nextSubject.id,
+            subjectId: syncedSubject.id,
             topicId: nextTopic.id,
             timestamp: nextTopic.completedAt || nextTopic.updatedAt || new Date().toISOString(),
           })
@@ -461,7 +497,7 @@ export function useSubjects(user) {
 
         const notePayload = {
           id: nextNote.id,
-          subjectId: nextSubject.id,
+          subjectId: syncedSubject.id,
           topicId: nextTopic.id,
           title: nextNote.title,
           content: nextNote.content,
@@ -482,7 +518,7 @@ export function useSubjects(user) {
 
           await safeLogActivity(user.uid, {
             type: ACTIVITY_TYPES.NOTE_CREATED,
-            subjectId: nextSubject.id,
+            subjectId: syncedSubject.id,
             topicId: nextTopic.id,
             noteId: nextNote.id,
             timestamp: nextNote.updatedAt || new Date().toISOString(),
@@ -492,8 +528,8 @@ export function useSubjects(user) {
         }
 
         if (notesAreDifferent(previousNote, nextNote)) {
-          await updateNoteDoc(user.uid, nextSubject.id, nextTopic.id, nextNote.id, {
-            subjectId: nextSubject.id,
+          await updateNoteDoc(user.uid, syncedSubject.id, nextTopic.id, nextNote.id, {
+            subjectId: syncedSubject.id,
             topicId: nextTopic.id,
             title: nextNote.title,
             content: nextNote.content,
@@ -511,7 +547,7 @@ export function useSubjects(user) {
 
           await safeLogActivity(user.uid, {
             type: ACTIVITY_TYPES.NOTE_UPDATED,
-            subjectId: nextSubject.id,
+            subjectId: syncedSubject.id,
             topicId: nextTopic.id,
             noteId: nextNote.id,
             timestamp: nextNote.updatedAt || nextNote.lastOpenedAt || new Date().toISOString(),

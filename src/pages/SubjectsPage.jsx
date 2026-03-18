@@ -17,15 +17,18 @@
  * Main responsibilities:
  *   - Filter subjects by search query
  *   - Render summary stats row
- *   - Render subject card grid with staggered fade-up animation
+ *   - Render subject card grid
  */
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import SubjectCard from '@/components/subjects/SubjectCard'
 import PrimaryCtaButton from '@/components/ui/PrimaryCtaButton'
-import { SearchIcon, PlusIcon, SubjectsIcon, MockTestsIcon } from '@/components/ui/Icons'
+import PaginationControls from '@/components/ui/PaginationControls'
+import { SearchIcon, PlusIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT3 } from '@/constants/theme'
 import { getTotalTests } from '@/utils/subjectStats'
+
+const SUBJECTS_PAGE_SIZE = 8
 
 const subjectCtaTheme = {
   '--cta-start': '#9d62ff',
@@ -36,12 +39,33 @@ const subjectCtaTheme = {
 
 export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDelete }) {
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
 
   // Filter subjects by name or description
-  const filtered = subjects.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.description.toLowerCase().includes(search.toLowerCase())
+  const filtered = useMemo(
+    () => subjects.filter(s =>
+      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      s.description.toLowerCase().includes(search.toLowerCase())
+    ),
+    [search, subjects]
   )
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / SUBJECTS_PAGE_SIZE))
+  const pageStart = (page - 1) * SUBJECTS_PAGE_SIZE
+  const visibleSubjects = useMemo(
+    () => filtered.slice(pageStart, pageStart + SUBJECTS_PAGE_SIZE),
+    [filtered, pageStart]
+  )
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, subjects.length])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
 
   const summaryStats = [
     {
@@ -49,21 +73,19 @@ export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDele
       value: subjects.length,
       color: '#8b5cf6',
       glow: 'rgba(124,58,237,0.22)',
-      icon: SubjectsIcon,
     },
     {
       label: 'Tests Done',
       value: getTotalTests(subjects),
       color: '#22c55e',
       glow: 'rgba(34,197,94,0.2)',
-      icon: MockTestsIcon,
     },
   ]
 
   return (
     <>
       {/* ── TOP ROW: search + new subject button ────────────────────── */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Search bar */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: '10px',
@@ -96,9 +118,9 @@ export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDele
 
       {/* ── SUMMARY STATS ────────────────────────────────────────────── */}
       <div
-        className="mb-6 grid grid-cols-2 gap-3 md:mb-8"
+        className="mb-4 grid grid-cols-2 gap-3 md:mb-5"
         style={{
-          padding: '12px',
+          padding: '10px',
           borderRadius: '18px',
           border: `1px solid ${BORDER}`,
           background: 'linear-gradient(135deg, rgba(20,16,36,0.96), rgba(11,9,22,0.98))',
@@ -106,8 +128,6 @@ export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDele
         }}
       >
         {summaryStats.map((stat) => {
-          const Icon = stat.icon
-
           return (
             <div
               key={stat.label}
@@ -115,7 +135,7 @@ export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDele
                 position: 'relative',
                 overflow: 'hidden',
                 minWidth: 0,
-                padding: '14px 16px',
+                padding: '14px 18px',
                 borderRadius: '14px',
                 border: `1px solid ${stat.color}26`,
                 background: `linear-gradient(135deg, ${stat.glow}, rgba(255,255,255,0.03))`,
@@ -137,29 +157,10 @@ export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDele
                 style={{
                   position: 'relative',
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
                 }}
               >
-                <div
-                  style={{
-                    width: '42px',
-                    height: '42px',
-                    flexShrink: 0,
-                    borderRadius: '13px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: stat.color,
-                    background: `${stat.color}18`,
-                    border: `1px solid ${stat.color}2e`,
-                    boxShadow: `0 10px 26px ${stat.glow}`,
-                  }}
-                >
-                  <span style={{ width: '19px', height: '19px' }}>
-                    <Icon />
-                  </span>
-                </div>
                 <div style={{ minWidth: 0 }}>
                   <div
                     style={{
@@ -197,22 +198,29 @@ export default function SubjectsPage({ subjects, onSelect, onAdd, onEdit, onDele
       {filtered.length === 0 ? (
         <EmptyState search={search} onAdd={onAdd} />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(264px,1fr))', gap: '15px' }}>
-          {/* Subject cards with staggered fade-up animation */}
-          {filtered.map((subject, i) => (
-            <div
-              key={subject.id}
-              style={{ animation: `fadeUp 0.3s ease ${i * 0.05}s both` }}
-            >
+        <>
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4"
+            style={{ gap: '12px', alignItems: 'stretch' }}
+          >
+            {visibleSubjects.map((subject) => (
               <SubjectCard
+                key={subject.id}
                 subject={subject}
                 onSelect={onSelect}
                 onEdit={onEdit}
                 onDelete={onDelete}
               />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            label={`Showing ${pageStart + 1}-${Math.min(pageStart + SUBJECTS_PAGE_SIZE, filtered.length)} of ${filtered.length} subjects`}
+          />
+        </>
       )}
     </>
   )

@@ -621,6 +621,15 @@ export function parseAIResponse(responseText) {
         correctAnswer: OPTION_IDS[correctIndex],
         explanation: question.explanation.trim(),
         difficulty: normalizeDifficulty(question.difficulty),
+        ...(typeof question.subjectName === 'string' && question.subjectName.trim()
+          ? { subjectName: question.subjectName.trim() }
+          : {}),
+        ...(typeof question.topicName === 'string' && question.topicName.trim()
+          ? { topicName: question.topicName.trim() }
+          : {}),
+        ...(typeof question.sourceQuestion === 'string' && question.sourceQuestion.trim()
+          ? { sourceQuestion: question.sourceQuestion.trim() }
+          : {}),
       }
     })
 

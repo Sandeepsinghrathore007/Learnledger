@@ -20,12 +20,23 @@
 
 import { useEffect, useState } from 'react'
 import Modal from '@/components/ui/Modal'
-import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
+import { ACCENT_BORDER, ACCENT_SOFT, BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 
 function truncatePreview(value, maxLength = 240) {
   const text = String(value || '').trim()
   if (!text || text.length <= maxLength) return text
   return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`
+}
+
+const INACTIVE_OPTION_BACKGROUND = 'rgba(255,255,255,0.045)'
+const INACTIVE_OPTION_BORDER = 'rgba(148,163,184,0.3)'
+
+function getOptionTone(isSelected) {
+  return {
+    background: isSelected ? ACCENT_SOFT : INACTIVE_OPTION_BACKGROUND,
+    border: `1px solid ${isSelected ? ACCENT_BORDER : INACTIVE_OPTION_BORDER}`,
+    color: TEXT1,
+  }
 }
 
 export default function TestConfigModal({ 
@@ -35,6 +46,8 @@ export default function TestConfigModal({
   onGenerate,
   isGenerating = false,
   selectionContext = null,
+  allowTopicScope = true,
+  presetTopicContext = null,
 }) {
   // ── FORM STATE ─────────────────────────────────────────────────────────────
   const [scope, setScope] = useState('subject') // 'subject' | 'topic' | 'multi-subject'
@@ -46,6 +59,7 @@ export default function TestConfigModal({
   const [timingMode, setTimingMode] = useState('total') // 'total' | 'per-question'
   const [timePerQuestion, setTimePerQuestion] = useState(60) // seconds
   const isSelectionMode = Boolean(String(selectionContext?.selectedText || '').trim())
+  const isPresetTopicMode = Boolean(presetTopicContext?.subjectId && presetTopicContext?.topicId)
   const selectionSubjectId = selectionContext?.subjectId || null
   const selectionTopicId = selectionContext?.topicId || null
 
@@ -76,6 +90,21 @@ export default function TestConfigModal({
     setSelectedTopics(selectionTopicId ? [selectionTopicId] : [])
   }, [isSelectionMode, open, selectionSubjectId, selectionTopicId])
 
+  useEffect(() => {
+    if (!open || !isPresetTopicMode) return
+
+    setScope('topic')
+    setSelectedSubjects([presetTopicContext.subjectId])
+    setSelectedTopics([presetTopicContext.topicId])
+  }, [isPresetTopicMode, open, presetTopicContext])
+
+  useEffect(() => {
+    if (!open || isSelectionMode || isPresetTopicMode || allowTopicScope || scope !== 'topic') return
+
+    setScope('subject')
+    setSelectedTopics([])
+  }, [allowTopicScope, isPresetTopicMode, isSelectionMode, open, scope])
+
   // ── HANDLE CLOSE ───────────────────────────────────────────────────────────
   const handleClose = () => {
     if (!isGenerating) {
@@ -86,12 +115,22 @@ export default function TestConfigModal({
 
   // ── HANDLE GENERATE ────────────────────────────────────────────────────────
   const handleGenerate = () => {
-    const effectiveScope = isSelectionMode ? 'selection' : scope
+    const effectiveScope = isSelectionMode
+      ? 'selection'
+      : isPresetTopicMode
+        ? 'topic'
+        : scope
     const effectiveSubjectIds = isSelectionMode
       ? (selectionSubjectId ? [selectionSubjectId] : [])
-      : selectedSubjects
+      : isPresetTopicMode
+        ? [presetTopicContext.subjectId]
+        : selectedSubjects
     const effectiveTopicIds = effectiveScope === 'topic'
-      ? selectedTopics
+      ? (
+          isPresetTopicMode
+            ? [presetTopicContext.topicId]
+            : selectedTopics
+        )
       : effectiveScope === 'selection' && selectionTopicId
         ? [selectionTopicId]
         : null
@@ -101,7 +140,7 @@ export default function TestConfigModal({
       return
     }
 
-    if (effectiveScope === 'topic' && selectedTopics.length === 0) {
+    if (effectiveScope === 'topic' && effectiveTopicIds.length === 0) {
       alert('Please select at least one topic')
       return
     }
@@ -166,7 +205,9 @@ export default function TestConfigModal({
   // ── VALIDATION ─────────────────────────────────────────────────────────────
   const canGenerate = isSelectionMode
     ? Boolean(selectionSubjectId && String(selectionContext?.selectedText || '').trim())
-    : selectedSubjects.length > 0 && (scope !== 'topic' || selectedTopics.length > 0)
+    : isPresetTopicMode
+      ? true
+      : selectedSubjects.length > 0 && (scope !== 'topic' || selectedTopics.length > 0)
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
@@ -219,6 +260,32 @@ export default function TestConfigModal({
               </div>
             </div>
           </div>
+        ) : isPresetTopicMode ? (
+          <div>
+            <label style={{
+              display: 'block',
+              color: TEXT1,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '13px',
+              fontWeight: '600',
+              marginBottom: '10px',
+            }}>
+              Topic Source
+            </label>
+            <div style={{
+              borderRadius: '12px',
+              border: `1px solid ${BORDER}`,
+              background: 'rgba(255,255,255,0.03)',
+              padding: '14px',
+            }}>
+              <div style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: '700' }}>
+                {presetTopicContext.topicName || 'Selected Topic'}
+              </div>
+              <div style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', marginTop: '5px' }}>
+                {presetTopicContext.subjectName || 'Selected Subject'}
+              </div>
+            </div>
+          </div>
         ) : (
           <>
             {/* ── TEST SCOPE ─────────────────────────────────────────────────── */}
@@ -236,8 +303,8 @@ export default function TestConfigModal({
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2.5">
                 {[
                   { id: 'subject', label: 'Whole Subject' },
-                  { id: 'topic', label: 'Specific Topics' },
                   { id: 'multi-subject', label: 'Multiple Subjects' },
+                  ...(allowTopicScope ? [{ id: 'topic', label: 'Specific Topics' }] : []),
                 ].map(option => (
                   <button
                     key={option.id}
@@ -250,10 +317,8 @@ export default function TestConfigModal({
                     style={{
                       flex: 1,
                       padding: '10px',
-                      background: scope === option.id ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${scope === option.id ? 'rgba(139,92,246,0.4)' : BORDER}`,
+                      ...getOptionTone(scope === option.id),
                       borderRadius: '8px',
-                      color: scope === option.id ? '#a78bfa' : TEXT2,
                       fontFamily: "'DM Sans', sans-serif",
                       fontSize: '12px',
                       fontWeight: '600',
@@ -292,16 +357,17 @@ export default function TestConfigModal({
                         alignItems: 'center',
                         gap: '8px',
                         padding: '10px 12px',
-                        background: isSelected ? `${subject.color}12` : 'rgba(255,255,255,0.02)',
-                        border: `1px solid ${isSelected ? subject.color + '40' : BORDER}`,
+                        background: isSelected ? `${subject.color}16` : INACTIVE_OPTION_BACKGROUND,
+                        border: `1px solid ${isSelected ? `${subject.color}66` : INACTIVE_OPTION_BORDER}`,
                         borderRadius: '8px',
-                        color: isSelected ? subject.color : TEXT2,
+                        color: TEXT1,
                         fontFamily: "'DM Sans', sans-serif",
                         fontSize: '12px',
                         fontWeight: '600',
                         cursor: 'pointer',
                         transition: 'all 0.15s',
                         textAlign: 'left',
+                        boxShadow: isSelected ? `inset 0 0 0 1px ${subject.color}20` : 'none',
                       }}
                     >
                       <span
@@ -321,7 +387,7 @@ export default function TestConfigModal({
                         {subject.icon}
                       </span>
                       <span style={{ flex: 1 }}>{subject.name}</span>
-                      {isSelected && <span>✓</span>}
+                      {isSelected && <span style={{ color: subject.color }}>✓</span>}
                     </button>
                   )
                 })}
@@ -360,10 +426,8 @@ export default function TestConfigModal({
                           alignItems: 'center',
                           gap: '8px',
                           padding: '8px 12px',
-                          background: isSelected ? 'rgba(139,92,246,0.12)' : 'rgba(255,255,255,0.02)',
-                          border: `1px solid ${isSelected ? 'rgba(139,92,246,0.3)' : BORDER}`,
+                          ...getOptionTone(isSelected),
                           borderRadius: '6px',
-                          color: isSelected ? '#a78bfa' : TEXT2,
                           fontFamily: "'DM Sans', sans-serif",
                           fontSize: '12px',
                           fontWeight: '500',
@@ -406,10 +470,8 @@ export default function TestConfigModal({
                 style={{
                   flex: 1,
                   padding: '8px',
-                  background: questionCount === count ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${questionCount === count ? 'rgba(139,92,246,0.4)' : BORDER}`,
+                  ...getOptionTone(questionCount === count),
                   borderRadius: '6px',
-                  color: questionCount === count ? '#a78bfa' : TEXT2,
                   fontFamily: "'DM Sans', sans-serif",
                   fontSize: '13px',
                   fontWeight: '600',
@@ -449,10 +511,8 @@ export default function TestConfigModal({
                 style={{
                   flex: 1,
                   padding: '8px',
-                  background: difficulty === level.id ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${difficulty === level.id ? 'rgba(139,92,246,0.4)' : BORDER}`,
+                  ...getOptionTone(difficulty === level.id),
                   borderRadius: '6px',
-                  color: difficulty === level.id ? '#a78bfa' : TEXT2,
                   fontFamily: "'DM Sans', sans-serif",
                   fontSize: '12px',
                   fontWeight: '600',
@@ -491,10 +551,8 @@ export default function TestConfigModal({
               style={{
                 flex: 1,
                 padding: '8px',
-                background: timingMode === 'total' ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${timingMode === 'total' ? 'rgba(139,92,246,0.4)' : BORDER}`,
+                ...getOptionTone(timingMode === 'total'),
                 borderRadius: '6px',
-                color: timingMode === 'total' ? '#a78bfa' : TEXT2,
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: '11px',
                 fontWeight: '600',
@@ -509,10 +567,8 @@ export default function TestConfigModal({
               style={{
                 flex: 1,
                 padding: '8px',
-                background: timingMode === 'per-question' ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${timingMode === 'per-question' ? 'rgba(139,92,246,0.4)' : BORDER}`,
+                ...getOptionTone(timingMode === 'per-question'),
                 borderRadius: '6px',
-                color: timingMode === 'per-question' ? '#a78bfa' : TEXT2,
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: '11px',
                 fontWeight: '600',
@@ -525,8 +581,8 @@ export default function TestConfigModal({
 
           {/* Time Options */}
           {timingMode === 'total' ? (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {[10, 15, 20, 30, 'unlimited'].map(time => (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[10, 15, 20, 30, 60, 120, 180, 'unlimited'].map(time => (
                 <button
                   key={time}
                   type="button"
@@ -534,10 +590,8 @@ export default function TestConfigModal({
                   style={{
                     flex: 1,
                     padding: '8px',
-                    background: timeLimit === time ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${timeLimit === time ? 'rgba(139,92,246,0.4)' : BORDER}`,
+                    ...getOptionTone(timeLimit === time),
                     borderRadius: '6px',
-                    color: timeLimit === time ? '#a78bfa' : TEXT2,
                     fontFamily: "'DM Sans', sans-serif",
                     fontSize: '12px',
                     fontWeight: '600',
@@ -558,10 +612,8 @@ export default function TestConfigModal({
                   style={{
                     flex: 1,
                     padding: '8px',
-                    background: timePerQuestion === seconds ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${timePerQuestion === seconds ? 'rgba(139,92,246,0.4)' : BORDER}`,
+                    ...getOptionTone(timePerQuestion === seconds),
                     borderRadius: '6px',
-                    color: timePerQuestion === seconds ? '#a78bfa' : TEXT2,
                     fontFamily: "'DM Sans', sans-serif",
                     fontSize: '12px',
                     fontWeight: '600',

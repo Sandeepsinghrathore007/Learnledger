@@ -11,81 +11,6 @@ import { deletePdfBinary, MAX_PDF_FILE_BYTES, storePdfBinary } from '@/utils/pdf
 import { uid } from '@/utils/id'
 import { extractPdfKnowledgeFromFile } from '@/utils/pdfKnowledge'
 
-const overviewIconProps = {
-  viewBox: '0 0 24 24',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-}
-
-function StreakIcon() {
-  return (
-    <svg {...overviewIconProps} strokeWidth="1.9">
-      <path d="M12 2c1.8 2.2 3.3 4.3 3.3 6.8A3.3 3.3 0 0 1 12 12a3.8 3.8 0 0 0-3.8 3.8c0 3.2 2.4 5.2 3.8 6.2 1.6-1.1 4.8-3.5 4.8-7.3a6 6 0 0 0-2.4-4.8" />
-      <path d="M9.2 8.8C7.3 10.2 6 12 6 14.7 6 18.3 8.4 20.9 12 22" />
-    </svg>
-  )
-}
-
-function TrophyIcon() {
-  return (
-    <svg {...overviewIconProps} strokeWidth="1.9">
-      <path d="M8 4h8v3a4 4 0 0 1-4 4 4 4 0 0 1-4-4V4Z" />
-      <path d="M8 5H5a2 2 0 0 0 2 4h1" />
-      <path d="M16 5h3a2 2 0 0 1-2 4h-1" />
-      <path d="M12 11v4" />
-      <path d="M9 21h6" />
-      <path d="M10 15h4v3h-4z" />
-    </svg>
-  )
-}
-
-function SubjectsIcon() {
-  return (
-    <svg {...overviewIconProps} strokeWidth="1.9">
-      <rect x="3" y="4" width="7" height="7" rx="2" />
-      <rect x="14" y="4" width="7" height="7" rx="2" />
-      <rect x="3" y="13" width="7" height="7" rx="2" />
-      <rect x="14" y="13" width="7" height="7" rx="2" />
-    </svg>
-  )
-}
-
-function TopicsIcon() {
-  return (
-    <svg {...overviewIconProps} strokeWidth="1.9">
-      <path d="M4 6.5h16" />
-      <path d="M4 12h16" />
-      <path d="M4 17.5h10" />
-      <circle cx="18" cy="17.5" r="2.5" />
-    </svg>
-  )
-}
-
-function TestsIcon() {
-  return (
-    <svg {...overviewIconProps} strokeWidth="1.9">
-      <path d="M8 3h8" />
-      <path d="M9 3v3" />
-      <path d="M15 3v3" />
-      <rect x="5" y="6" width="14" height="15" rx="3" />
-      <path d="m9 14 2 2 4-5" />
-    </svg>
-  )
-}
-
-function AIQuestionsIcon() {
-  return (
-    <svg {...overviewIconProps} strokeWidth="1.9">
-      <path d="M12 4a4 4 0 0 1 4 4v1.2a2.8 2.8 0 0 0 .8 2l.4.4A2 2 0 0 1 15.8 15H8.2a2 2 0 0 1-1.4-3.4l.4-.4a2.8 2.8 0 0 0 .8-2V8a4 4 0 0 1 4-4Z" />
-      <path d="M9.5 18a2.5 2.5 0 0 0 5 0" />
-      <path d="M10 9.5h4" />
-      <path d="M12 9.5v3" />
-    </svg>
-  )
-}
-
 function formatValue(value) {
   if (!Number.isFinite(value)) return '0'
   return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(value)
@@ -111,7 +36,7 @@ function getGroupPdfKnowledgeSubjectId(groupId) {
   return `exam-group-${String(groupId || '').trim()}`
 }
 
-function OverviewTile({ label, value, tone = '#8b5cf6', helper, icon: Icon }) {
+function OverviewTile({ label, value, tone = '#8b5cf6', helper }) {
   return (
     <div
       style={{
@@ -119,32 +44,13 @@ function OverviewTile({ label, value, tone = '#8b5cf6', helper, icon: Icon }) {
         border: `1px solid ${tone}22`,
         borderRadius: '18px',
         padding: '18px',
-        minHeight: '116px',
+        minHeight: '96px',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
+        gap: '6px',
       }}
     >
-      <div
-        style={{
-          width: '42px',
-          height: '42px',
-          borderRadius: '14px',
-          background: `${tone}18`,
-          border: `1px solid ${tone}30`,
-          boxShadow: `0 10px 24px ${tone}18`,
-          color: tone,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {typeof Icon === 'function' && (
-          <span style={{ width: '20px', height: '20px', display: 'inline-flex' }}>
-            <Icon />
-          </span>
-        )}
-      </div>
       <div>
         <div
           style={{
@@ -411,9 +317,9 @@ function ExamGroupCard({
   onEdit,
   onDelete,
   onOpenSubject,
+  onGiveExam,
   onAddGroupPdf,
   onDeleteGroupPdf,
-  onAskGroupPdfAI,
   pdfFeedback = null,
 }) {
   const accent = group.subjects[0]?.color || '#22c55e'
@@ -533,6 +439,26 @@ function ExamGroupCard({
           gap: '12px',
         }}
       >
+        {typeof onGiveExam === 'function' && (
+          <button
+            type="button"
+            onClick={() => onGiveExam(group)}
+            style={{
+              minHeight: '42px',
+              borderRadius: '12px',
+              border: 'none',
+              background: `linear-gradient(135deg, ${accent}, #0ea5e9)`,
+              color: '#fff',
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '12px',
+              fontWeight: '800',
+              padding: '0 14px',
+            }}
+          >
+            Give Exam
+          </button>
+        )}
+
         <div
           className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           style={{
@@ -605,13 +531,13 @@ function ExamGroupCard({
             color={accent}
             onAdd={(file) => onAddGroupPdf?.(group, file)}
             onDelete={(pdfId) => onDeleteGroupPdf?.(group, pdfId)}
-            onAskAI={(pdf) => onAskGroupPdfAI?.(group, pdf)}
             feedback={pdfFeedback}
             binaryContext={{ userId: group.userId || null, subjectId: getGroupPdfKnowledgeSubjectId(group.id) }}
             title="📄 Group Study Materials"
             helperText={`Upload PDFs once for the whole ${group.name} group.`}
             emptyTitle={`Upload PDFs for ${group.name}`}
             emptyDescription="Add syllabus PDFs, exam notes, PYQs, or important material for this entire exam group."
+            showAskAI={false}
           />
         )}
       </div>
@@ -639,7 +565,7 @@ export default function AnalyticsPage({
   user,
   subjects,
   onOpenSubject = null,
-  onOpenAIContext = null,
+  onOpenExamGroup = null,
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState(null)
@@ -893,21 +819,6 @@ export default function AnalyticsPage({
     }
   }
 
-  const handleAskAIForGroupPdf = (group, pdf) => {
-    if (!group?.id || !pdf?.id || !onOpenAIContext) return
-
-    onOpenAIContext({
-      subjectId: '',
-      subjectName: '',
-      pdfId: pdf.id,
-      pdfName: pdf.name,
-      pdfStatus: pdf.aiStatus || 'not-processed',
-      pdfKnowledgeSubjectId: getGroupPdfKnowledgeSubjectId(group.id),
-      pdfScopeLabel: `${group.name} group`,
-      typedContext: `Use the attached PDF "${pdf.name}" as the main study source for the ${group.name} exam group.`,
-    })
-  }
-
   const handleDeleteGroup = async (group) => {
     if (!window.confirm(`Delete "${group.name}"?`)) return
 
@@ -1010,37 +921,31 @@ export default function AnalyticsPage({
           label="Current Streak"
           value={`${analytics.streak.currentStreak}d`}
           tone="#22c55e"
-          icon={StreakIcon}
         />
         <OverviewTile
           label="Longest Streak"
           value={`${analytics.streak.longestStreak}d`}
           tone="#3b82f6"
-          icon={TrophyIcon}
         />
         <OverviewTile
           label="Total Subjects"
           value={formatValue(analytics.overview.totalSubjects)}
           tone="#8b5cf6"
-          icon={SubjectsIcon}
         />
         <OverviewTile
           label="Total Topics"
           value={formatValue(analytics.overview.totalTopics)}
           tone="#14b8a6"
-          icon={TopicsIcon}
         />
         <OverviewTile
           label="Tests Taken"
           value={formatValue(analytics.overview.totalTestsTaken)}
           tone="#f59e0b"
-          icon={TestsIcon}
         />
         <OverviewTile
           label="AI Questions Attempted"
           value={formatValue(analytics.overview.totalAIQuestionsAttempted)}
           tone="#06b6d4"
-          icon={AIQuestionsIcon}
         />
       </div>
 
@@ -1113,13 +1018,13 @@ export default function AnalyticsPage({
                 group={group}
                 onEdit={isAuthenticated ? handleOpenEdit : null}
                 onDelete={isAuthenticated ? handleDeleteGroup : null}
-              onOpenSubject={onOpenSubject}
-              onAddGroupPdf={isAuthenticated ? handleAddGroupPdf : null}
-              onDeleteGroupPdf={isAuthenticated ? handleDeleteGroupPdf : null}
-              onAskGroupPdfAI={isAuthenticated ? handleAskAIForGroupPdf : null}
-              pdfFeedback={groupPdfFeedback[group.id] || null}
-            />
-          ))}
+                onOpenSubject={onOpenSubject}
+                onGiveExam={onOpenExamGroup}
+                onAddGroupPdf={isAuthenticated ? handleAddGroupPdf : null}
+                onDeleteGroupPdf={isAuthenticated ? handleDeleteGroupPdf : null}
+                pdfFeedback={groupPdfFeedback[group.id] || null}
+              />
+            ))}
           </div>
         )}
       </SectionCard>
@@ -1127,12 +1032,12 @@ export default function AnalyticsPage({
       <div className="grid gap-5 xl:grid-cols-2">
         <SectionCard
           title="AI Practice Snapshot"
-          subtitle="Core AI metrics derived from generated mock tests and saved assistant interactions."
+          subtitle="Core AI metrics derived from generated tests, exams, and saved assistant interactions."
         >
           <div className="grid grid-cols-2 gap-3">
             <MetricChip label="Questions Generated" value={formatValue(analytics.aiPractice.totalQuestionsGenerated)} />
             <MetricChip label="Questions Attempted" value={formatValue(analytics.aiPractice.totalQuestionsAttempted)} />
-            <MetricChip label="Mock Tests" value={formatValue(analytics.aiPractice.totalMockTestsCreated)} />
+            <MetricChip label="AI Tests" value={formatValue(analytics.aiPractice.totalMockTestsCreated)} />
             <MetricChip label="Accuracy" value={formatPercent(analytics.aiPractice.accuracy)} />
           </div>
 

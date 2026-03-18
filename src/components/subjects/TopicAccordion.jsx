@@ -22,7 +22,7 @@ import { SURFACE, BORDER, BORDER2, TEXT1, TEXT2, TEXT3 } from '@/constants/theme
 
 export default function TopicAccordion({
   topic, subjectColor,
-  onAddNote, onOpenNote, onDeleteNote, onDeleteTopic,
+  onAddNote, onOpenNote, onDeleteNote, onDeleteTopic, onTakeTest = null,
 }) {
   const [isOpen, setIsOpen] = useState(true)
 
@@ -66,6 +66,26 @@ export default function TopicAccordion({
           className="flex w-full justify-end gap-1.5 sm:w-auto"
           onClick={(e) => e.stopPropagation()}
         >
+          {typeof onTakeTest === 'function' && (
+            <button
+              onClick={() => onTakeTest(topic)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '7px',
+                background: `${subjectColor}12`,
+                border: `1px solid ${subjectColor}24`,
+                color: subjectColor,
+                fontSize: '12px',
+                fontFamily: "'DM Sans',sans-serif",
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              Take Test
+            </button>
+          )}
           <button
             onClick={() => onAddNote(topic.id)}
             style={{

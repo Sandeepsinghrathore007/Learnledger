@@ -1,15 +1,20 @@
 /**
  * TopBar.jsx — Sticky header bar shown at the top of the main content area.
  *
- * Displays the current page title and today's date.
- *
- * Props:
- *   pageTitle {string} — Human-readable page title
- *
- * State: none (pure display)
+ * Displays the current page title, today's date, the global theme switcher,
+ * and optional install action.
  */
 
-import { BORDER, TEXT1, TEXT3 } from '@/constants/theme'
+import {
+  BORDER,
+  BUTTON_GRADIENT,
+  CONTROL_BG,
+  CONTROL_BORDER,
+  TEXT1,
+  TEXT2,
+  TEXT3,
+  TOPBAR_BG,
+} from '@/constants/theme'
 
 function MenuIcon() {
   return (
@@ -47,29 +52,143 @@ function InstallIcon() {
   )
 }
 
+function ThemeSwitcher({
+  activeThemeId,
+  themeOptions,
+  onThemeChange,
+  compact = false,
+}) {
+  if (!themeOptions.length) return null
+
+  if (compact) {
+    return (
+      <div style={{ minWidth: '112px', position: 'relative' }}>
+        <select
+          value={activeThemeId}
+          onChange={(event) => onThemeChange(event.target.value)}
+          aria-label="Select app theme"
+          style={{
+            width: '100%',
+            height: '34px',
+            borderRadius: '10px',
+            border: `1px solid ${CONTROL_BORDER}`,
+            background: CONTROL_BG,
+            color: TEXT2,
+            padding: '0 30px 0 10px',
+            fontFamily: "'DM Sans',sans-serif",
+            fontSize: '11.5px',
+            fontWeight: '700',
+            appearance: 'none',
+            WebkitAppearance: 'none',
+            MozAppearance: 'none',
+            outline: 'none',
+            backdropFilter: 'blur(16px)',
+          }}
+        >
+          {themeOptions.map((theme) => (
+            <option key={theme.id} value={theme.id}>
+              {theme.label}
+            </option>
+          ))}
+        </select>
+        <span
+          style={{
+            position: 'absolute',
+            right: '10px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: TEXT3,
+            fontSize: '10px',
+            pointerEvents: 'none',
+          }}
+        >
+          v
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '4px',
+        borderRadius: '12px',
+        border: `1px solid ${CONTROL_BORDER}`,
+        background: CONTROL_BG,
+        backdropFilter: 'blur(18px)',
+      }}
+    >
+      {themeOptions.map((theme) => {
+        const isActive = theme.id === activeThemeId
+
+        return (
+          <button
+            key={theme.id}
+            type="button"
+            onClick={() => onThemeChange(theme.id)}
+            title={theme.description}
+            aria-pressed={isActive}
+            style={{
+              minWidth: '72px',
+              height: '30px',
+              padding: '0 10px',
+              borderRadius: '8px',
+              border: 'none',
+              background: isActive ? BUTTON_GRADIENT : 'transparent',
+              color: isActive ? '#ffffff' : TEXT3,
+              fontFamily: "'DM Sans',sans-serif",
+              fontSize: '11.5px',
+              fontWeight: '800',
+              letterSpacing: '-0.1px',
+              cursor: 'pointer',
+              transition: 'background 0.18s ease, color 0.18s ease, opacity 0.18s ease',
+              opacity: isActive ? 1 : 0.92,
+            }}
+          >
+            {theme.shortLabel || theme.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function TopBar({
   pageTitle,
   showMenuButton = false,
   onMenuClick = () => {},
+  activeThemeId = '',
+  themeOptions = [],
+  onThemeChange = () => {},
   canInstall = false,
   onInstallClick = () => {},
   isInstallPending = false,
 }) {
   const today = new Date().toLocaleDateString('en-IN', {
     weekday: 'long',
-    month:   'long',
-    day:     'numeric',
+    month: 'long',
+    day: 'numeric',
   })
 
   return (
-    <header className="px-4 sm:px-6 lg:px-7" style={{
-      height: '58px',
-      background: 'rgba(7,5,16,0.88)',
-      backdropFilter: 'blur(20px)',
-      borderBottom: `1px solid ${BORDER}`,
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      position: 'sticky', top: 0, zIndex: 40,
-    }}>
+    <header
+      className="px-4 sm:px-6 lg:px-7"
+      style={{
+        height: '58px',
+        background: TOPBAR_BG,
+        backdropFilter: 'blur(20px)',
+        borderBottom: `1px solid ${BORDER}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'sticky',
+        top: 0,
+        zIndex: 40,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
         {showMenuButton && (
           <button
@@ -80,13 +199,14 @@ export default function TopBar({
               width: '34px',
               height: '34px',
               borderRadius: '10px',
-              border: `1px solid ${BORDER}`,
-              background: 'rgba(255,255,255,0.03)',
-              color: '#c4b5f5',
+              border: `1px solid ${CONTROL_BORDER}`,
+              background: CONTROL_BG,
+              color: TEXT2,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
+              backdropFilter: 'blur(16px)',
             }}
             aria-label="Open navigation"
           >
@@ -94,33 +214,46 @@ export default function TopBar({
           </button>
         )}
         <div style={{ minWidth: 0 }}>
-        <h1 style={{
-          color: TEXT1, fontFamily: "'DM Sans',sans-serif",
-          fontWeight: '700', fontSize: '16px',
-          margin: 0, letterSpacing: '-0.3px',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {pageTitle}
-        </h1>
-        <p style={{ color: TEXT3, fontSize: '11px', margin: 0, fontFamily: "'DM Sans',sans-serif" }}>
-          {today}
-        </p>
+          <h1
+            style={{
+              color: TEXT1,
+              fontFamily: "'DM Sans',sans-serif",
+              fontWeight: '700',
+              fontSize: '16px',
+              margin: 0,
+              letterSpacing: '-0.3px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {pageTitle}
+          </h1>
+          <p style={{ color: TEXT3, fontSize: '11px', margin: 0, fontFamily: "'DM Sans',sans-serif" }}>
+            {today}
+          </p>
         </div>
       </div>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        <ThemeSwitcher
+          activeThemeId={activeThemeId}
+          themeOptions={themeOptions}
+          onThemeChange={onThemeChange}
+          compact={showMenuButton}
+        />
+
         {canInstall && (
           <button
             type="button"
             onClick={onInstallClick}
             disabled={isInstallPending}
             style={{
-              border: `1px solid ${BORDER}`,
-              borderRadius: '999px',
+              border: `1px solid ${CONTROL_BORDER}`,
+              borderRadius: '10px',
               padding: '8px 12px',
-              background: isInstallPending
-                ? 'rgba(124,58,237,0.12)'
-                : 'linear-gradient(135deg,rgba(139,92,246,0.18),rgba(79,70,229,0.16))',
-              color: '#e9ddff',
+              background: isInstallPending ? 'var(--ll-accent-soft)' : BUTTON_GRADIENT,
+              color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               gap: '7px',
@@ -128,7 +261,7 @@ export default function TopBar({
               fontSize: '12px',
               fontWeight: '700',
               letterSpacing: '-0.1px',
-              opacity: isInstallPending ? 0.7 : 1,
+              opacity: isInstallPending ? 0.76 : 1,
             }}
             aria-label="Install LearnLedger app"
           >

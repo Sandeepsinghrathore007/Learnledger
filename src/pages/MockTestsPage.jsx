@@ -12,16 +12,21 @@
  *  onUpdateSubject {Function} — Update subject callback
  */
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAITest } from '@/hooks/useAITest'
 import TestConfigModal from '@/components/tests/TestConfigModal'
 import TestTakingView from '@/components/tests/TestTakingView'
 import TestResultsView from '@/components/tests/TestResultsView'
 import TestCard from '@/components/tests/TestCard'
+import PaginationControls from '@/components/ui/PaginationControls'
 import PrimaryCtaButton from '@/components/ui/PrimaryCtaButton'
 import { MockTestsIcon, PlusIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 import { buildQuestionBankSubjectUpdates } from '@/utils/questionBank'
+import { resolveTestDisplay } from '@/utils/testDisplay'
+import { isMockTest } from '@/utils/testKinds'
+
+const RECENT_TESTS_PAGE_SIZE = 20
 
 const mockTestCtaTheme = {
   '--cta-start': '#38bdf8',
@@ -30,11 +35,20 @@ const mockTestCtaTheme = {
   '--cta-glow': 'rgba(56, 189, 248, 0.44)',
 }
 
-export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
+export default function MockTestsPage({
+  subjects,
+  onUpdateSubject,
+  user,
+  initialTopicContext = null,
+  topicLaunchKey = null,
+  isActive = true,
+}) {
   // ── STATE ──────────────────────────────────────────────────────────────────
   const [configModalOpen, setConfigModalOpen] = useState(false)
   const [activeTest, setActiveTest] = useState(null) // Currently taking test
   const [viewingResults, setViewingResults] = useState(null) // Viewing results
+  const [historyPage, setHistoryPage] = useState(1)
+  const [topicPreset, setTopicPreset] = useState(null)
 
   // ── AI TEST HOOK ───────────────────────────────────────────────────────────
   const {
@@ -44,7 +58,46 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
     generateTest,
     saveTestResult,
     deleteTest,
-  } = useAITest(subjects, onUpdateSubject, user)
+  } = useAITest(subjects, onUpdateSubject, user, {
+    subscribe: isActive,
+    syncSubjectStats: isActive,
+  })
+
+  const displayTestHistory = useMemo(
+    () => testHistory
+      .filter((test) => isMockTest(test))
+      .map((test) => resolveTestDisplay(test, subjects))
+      .sort((left, right) => (right.completedAt || right.createdAt || '').localeCompare(left.completedAt || left.createdAt || '')),
+    [subjects, testHistory]
+  )
+  const totalHistoryPages = Math.max(1, Math.ceil(displayTestHistory.length / RECENT_TESTS_PAGE_SIZE))
+  const historyPageStart = (historyPage - 1) * RECENT_TESTS_PAGE_SIZE
+  const paginatedHistory = useMemo(
+    () => displayTestHistory.slice(historyPageStart, historyPageStart + RECENT_TESTS_PAGE_SIZE),
+    [displayTestHistory, historyPageStart]
+  )
+
+  useEffect(() => {
+    if (historyPage > totalHistoryPages) {
+      setHistoryPage(totalHistoryPages)
+    }
+  }, [historyPage, totalHistoryPages])
+
+  useEffect(() => {
+    setHistoryPage(1)
+  }, [displayTestHistory.length])
+
+  useEffect(() => {
+    if (!topicLaunchKey || !initialTopicContext?.topicId || !initialTopicContext?.subjectId) return
+
+    setTopicPreset({
+      subjectId: initialTopicContext.subjectId,
+      subjectName: initialTopicContext.subjectName || 'Subject',
+      topicId: initialTopicContext.topicId,
+      topicName: initialTopicContext.topicName || 'Topic',
+    })
+    setConfigModalOpen(true)
+  }, [initialTopicContext, topicLaunchKey])
 
   // ── HANDLE GENERATE TEST ──────────────────────────────────────────────────
   const handleGenerateTest = async (config) => {
@@ -60,10 +113,13 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
       }
 
       setConfigModalOpen(false)
+      setTopicPreset(null)
       
       // Start test immediately
+      const displayTest = resolveTestDisplay(test, subjects)
+
       setActiveTest({
-        ...test,
+        ...displayTest,
         startTime: new Date().toISOString(),
         answers: {},
         bookmarkedQuestions: [],
@@ -84,14 +140,26 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
 
   // ── HANDLE RETAKE TEST ─────────────────────────────────────────────────────
   const handleRetakeTest = (test) => {
+    const displayTest = resolveTestDisplay(test, subjects)
+
     setViewingResults(null)
     setActiveTest({
-      ...test,
+      ...displayTest,
       startTime: new Date().toISOString(),
       answers: {},
       bookmarkedQuestions: [],
       hintsUsed: [],
     })
+  }
+
+  const handleOpenGeneralConfig = () => {
+    setTopicPreset(null)
+    setConfigModalOpen(true)
+  }
+
+  const handleCloseConfigModal = () => {
+    setConfigModalOpen(false)
+    setTopicPreset(null)
   }
 
   // ── RENDER: ACTIVE TEST ────────────────────────────────────────────────────
@@ -145,7 +213,7 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
 
         <PrimaryCtaButton
           className="w-full sm:w-auto"
-          onClick={() => setConfigModalOpen(true)}
+          onClick={handleOpenGeneralConfig}
           icon={MockTestsIcon}
           style={mockTestCtaTheme}
         >
@@ -178,19 +246,19 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
           margin: '0 0 12px',
         }}>
           Recent Tests
-          {testHistory.length > 0 && (
+          {displayTestHistory.length > 0 && (
             <span style={{
               color: TEXT3,
               fontSize: '13px',
               fontWeight: '400',
               marginLeft: '8px',
             }}>
-              ({testHistory.length})
+              ({displayTestHistory.length})
             </span>
           )}
         </h3>
 
-        {testHistory.length === 0 ? (
+        {displayTestHistory.length === 0 ? (
           <div style={{
             textAlign: 'center',
             padding: '60px 20px',
@@ -208,7 +276,7 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
               No tests taken yet
             </p>
             <PrimaryCtaButton
-              onClick={() => setConfigModalOpen(true)}
+              onClick={handleOpenGeneralConfig}
               icon={PlusIcon}
               style={mockTestCtaTheme}
             >
@@ -217,18 +285,22 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {testHistory
-              .slice()
-              .reverse() // Show newest first
-              .map(test => (
+            {paginatedHistory.map(test => (
                 <TestCard
                   key={test.id}
                   test={test}
-                  onView={() => setViewingResults(test)}
+                  onView={() => setViewingResults(resolveTestDisplay(test, subjects))}
                   onRetake={() => handleRetakeTest(test)}
                   onDelete={() => deleteTest(test.id)}
                 />
               ))}
+
+            <PaginationControls
+              page={historyPage}
+              totalPages={totalHistoryPages}
+              onPageChange={setHistoryPage}
+              label={`Showing ${historyPageStart + 1}-${Math.min(historyPageStart + RECENT_TESTS_PAGE_SIZE, displayTestHistory.length)} of ${displayTestHistory.length}`}
+            />
           </div>
         )}
       </div>
@@ -236,10 +308,12 @@ export default function MockTestsPage({ subjects, onUpdateSubject, user }) {
       {/* ── CONFIG MODAL ────────────────────────────────────────────────── */}
       <TestConfigModal
         open={configModalOpen}
-        onClose={() => setConfigModalOpen(false)}
+        onClose={handleCloseConfigModal}
         subjects={subjects}
         onGenerate={handleGenerateTest}
         isGenerating={isGenerating}
+        allowTopicScope={false}
+        presetTopicContext={topicPreset}
       />
     </div>
   )

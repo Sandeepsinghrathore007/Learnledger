@@ -36,12 +36,12 @@ export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
       style={{
         background:  hovered ? SURF2 : SURFACE,
         border:      `1px solid ${hovered ? subject.color + '30' : BORDER}`,
-        borderRadius: '18px', padding: '22px',
+        borderRadius: '18px', padding: '18px',
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
         transition: 'all 0.22s ease',
-        transform:   hovered ? 'translateY(-3px)' : 'translateY(0)',
+        transform:   hovered ? 'translateY(-2px)' : 'translateY(0)',
         boxShadow:   hovered
-          ? `0 16px 48px ${subject.color}14, 0 2px 12px rgba(0,0,0,0.5)`
+          ? `0 14px 40px ${subject.color}14, 0 2px 12px rgba(0,0,0,0.5)`
           : '0 2px 8px rgba(0,0,0,0.4)',
       }}
     >
@@ -56,14 +56,14 @@ export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
 
       {/* Edit / Delete buttons — visible on hover */}
       <div style={{
-        position: 'absolute', top: '14px', right: '14px',
+        position: 'absolute', top: '12px', right: '12px',
         display: 'flex', gap: '5px',
         opacity: hovered ? 1 : 0, transition: 'opacity 0.18s',
       }}>
         <button
           onClick={(e) => { e.stopPropagation(); onEdit(subject) }}
           style={{
-            width: '28px', height: '28px', borderRadius: '7px',
+            width: '26px', height: '26px', borderRadius: '7px',
             background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
             color: TEXT1, display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
@@ -73,7 +73,7 @@ export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(subject.id) }}
           style={{
-            width: '28px', height: '28px', borderRadius: '7px',
+            width: '26px', height: '26px', borderRadius: '7px',
             background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.12)',
             color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
@@ -85,27 +85,27 @@ export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
       {/* Main clickable area */}
       <div onClick={() => onSelect(subject)}>
         {/* Subject icon + name */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
           <div style={{
-            width: '50px', height: '50px', borderRadius: '14px', flexShrink: 0,
+            width: '42px', height: '42px', borderRadius: '12px', flexShrink: 0,
             background: `linear-gradient(135deg,${subject.color}20,${subject.color}08)`,
             border: `1px solid ${subject.color}28`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '22px', color: subject.color,
+            fontSize: '20px', color: subject.color,
           }}>
             {subject.icon}
           </div>
-          <div style={{ minWidth: 0, paddingRight: '44px' }}>
+          <div style={{ minWidth: 0, paddingRight: '38px' }}>
             <h3 style={{
               color: TEXT1, fontFamily: "'DM Sans',sans-serif",
-              fontWeight: '700', fontSize: '15.5px',
+              fontWeight: '700', fontSize: '15px',
               margin: '0 0 3px', letterSpacing: '-0.3px',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
               {subject.name}
             </h3>
             <p style={{
-              color: TEXT3, fontSize: '12px', fontFamily: "'DM Sans',sans-serif",
+              color: TEXT3, fontSize: '11.5px', fontFamily: "'DM Sans',sans-serif",
               margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
               {subject.description}
@@ -114,7 +114,7 @@ export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
         </div>
 
         {/* Stats grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '9px', marginBottom: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px', marginBottom: '12px' }}>
           {stats.map((stat) => (
             <div
               key={stat.label}
@@ -122,8 +122,8 @@ export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
                 background: 'linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))',
                 border: '1px solid rgba(255,255,255,0.05)',
                 borderRadius: '12px',
-                padding: '11px 12px 10px',
-                minHeight: '82px',
+                padding: '10px 11px 9px',
+                minHeight: '68px',
                 textAlign: 'left',
                 display: 'flex',
                 flexDirection: 'column',
@@ -135,7 +135,7 @@ export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
                 style={{
                   color: stat.color,
                   fontWeight: '900',
-                  fontSize: '24px',
+                  fontSize: '21px',
                   fontFamily: "'DM Sans',sans-serif",
                   lineHeight: 1,
                   letterSpacing: '-0.6px',
@@ -150,7 +150,7 @@ export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
                   fontSize: '10px',
                   fontFamily: "'DM Sans',sans-serif",
                   lineHeight: 1.2,
-                  marginTop: '10px',
+                  marginTop: '7px',
                   maxWidth: '92px',
                 }}
               >
@@ -162,7 +162,7 @@ export default function SubjectCard({ subject, onSelect, onEdit, onDelete }) {
 
         {/* AI performance badge */}
         <div style={{
-          paddingTop: '11px', borderTop: `1px solid ${BORDER}`,
+          paddingTop: '10px', borderTop: `1px solid ${BORDER}`,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <span style={{ color: TEXT3, fontSize: '11px', fontFamily: "'DM Sans',sans-serif", textTransform: 'uppercase', letterSpacing: '0.5px' }}>

@@ -12,7 +12,6 @@
 import { NAV_ITEMS, PAGE_DESCRIPTIONS } from '@/constants/navigation'
 import { BORDER } from '@/constants/theme'
 import {
-  AIAssistantIcon,
   AnalyticsIcon,
   ConstructionIcon,
   MockTestsIcon,
@@ -24,7 +23,6 @@ const NAV_ICONS = {
   subjects: SubjectsIcon,
   notes: NoteIcon,
   tests: MockTestsIcon,
-  ai: AIAssistantIcon,
   analytics: AnalyticsIcon,
 }
 

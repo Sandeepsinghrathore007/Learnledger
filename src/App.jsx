@@ -6,8 +6,8 @@ import NotesPage from "@/pages/NotesPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import SubjectDetailPage from "@/pages/SubjectDetailPage";
 import MockTestsPage from "@/pages/MockTestsPage";
+import ExamsPage from "@/pages/ExamsPage";
 import QuestionBankPage from "@/pages/QuestionBankPage";
-import AIAssistantPage from "@/pages/AIAssistantPage";
 import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
 import ComingSoonPage from "@/pages/ComingSoonPage";
@@ -15,7 +15,15 @@ import SubjectFormModal from "@/components/subjects/SubjectFormModal";
 import { useSubjects } from "@/hooks/useSubjects";
 import { usePWAInstallPrompt } from "@/hooks/usePWAInstallPrompt";
 import { NAV_ITEMS } from "@/constants/navigation";
-import { BG, BORDER, SURFACE } from "@/constants/theme";
+import {
+  APP_THEME_OPTIONS,
+  BG,
+  BORDER,
+  SURFACE,
+  THEME_STORAGE_KEY,
+  applyAppTheme,
+  readStoredAppThemeId,
+} from "@/constants/theme";
 import {
   firebaseConfigError,
   isFirebaseConfigured,
@@ -25,13 +33,12 @@ import { logoutUser, observeAuthState } from "@/services/firebase/authService";
 import { uid } from "@/utils/id";
 
 const MOBILE_BREAKPOINT = 1024;
-const AI_CHAT_STORAGE_KEY = "aiChat";
 const DEFAULT_PAGE = "subjects";
 const PAGE_HASHES = {
   subjects: "#/subjects",
   questions: "#/questions",
+  exams: "#/exams",
   questionBank: "#/question-bank",
-  ai: "#/ai",
   analytics: "#/analytics",
   notes: "#/notes",
   login: "#/login",
@@ -93,38 +100,6 @@ function PersistentPage({ active, mounted, children }) {
       {children}
     </div>
   );
-}
-
-function createDefaultAIChatState() {
-  return {
-    messages: [],
-    selectedSubjectId: null,
-    extraContext: "",
-    language: "english",
-  };
-}
-
-function readStoredAIChatState() {
-  if (typeof window === "undefined") return createDefaultAIChatState();
-
-  try {
-    const rawValue = window.sessionStorage.getItem(AI_CHAT_STORAGE_KEY);
-    if (!rawValue) return createDefaultAIChatState();
-
-    const parsed = JSON.parse(rawValue);
-    return {
-      messages: Array.isArray(parsed?.messages) ? parsed.messages : [],
-      selectedSubjectId:
-        typeof parsed?.selectedSubjectId === "string" && parsed.selectedSubjectId
-          ? parsed.selectedSubjectId
-          : null,
-      extraContext:
-        typeof parsed?.extraContext === "string" ? parsed.extraContext : "",
-      language: parsed?.language === "hindi" ? "hindi" : "english",
-    };
-  } catch {
-    return createDefaultAIChatState();
-  }
 }
 
 function LoadingSubjectCard({ index }) {
@@ -236,61 +211,6 @@ function LoadingView() {
   );
 }
 
-function GuestAIBlockedView({ onOpenLogin }) {
-  return (
-    <div className="animate-fade-in flex min-h-[calc(100vh-180px)] items-center justify-center">
-      <div
-        style={{
-          maxWidth: "520px",
-          width: "100%",
-          border: "1px solid rgba(139,92,246,0.25)",
-          borderRadius: "14px",
-          background: "rgba(139,92,246,0.08)",
-          padding: "20px",
-          textAlign: "center",
-        }}
-      >
-        <h2
-          style={{
-            margin: "0 0 8px",
-            color: "#ede6ff",
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "20px",
-            fontWeight: "700",
-          }}
-        >
-          AI Assistant
-        </h2>
-        <p
-          style={{
-            margin: "0 0 16px",
-            color: "#c8b9ef",
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "14px",
-          }}
-        >
-          Please login to use the AI assistant.
-        </p>
-        <button
-          type="button"
-          onClick={onOpenLogin}
-          style={{
-            border: "none",
-            borderRadius: "10px",
-            padding: "10px 16px",
-            background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
-            color: "#fff",
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "13px",
-            fontWeight: "700",
-          }}
-        >
-          Login
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function FirebaseSetupView() {
   const isGitHubPages =
@@ -397,10 +317,11 @@ export default function App() {
       ? window.innerWidth < MOBILE_BREAKPOINT
       : false,
   );
-  const [assistantLaunchContext, setAssistantLaunchContext] = useState(null);
-  const [aiChatState, setAiChatState] = useState(() => readStoredAIChatState());
+  const [themeId, setThemeId] = useState(() => readStoredAppThemeId());
   const [subjectNoteLaunch, setSubjectNoteLaunch] = useState(null);
   const [subjectSectionLaunch, setSubjectSectionLaunch] = useState(null);
+  const [mockTestLaunch, setMockTestLaunch] = useState(null);
+  const [examLaunch, setExamLaunch] = useState(null);
 
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -488,12 +409,9 @@ export default function App() {
       setAuthLoading(false);
 
       if (!user) {
-        setAiChatState(createDefaultAIChatState());
-        setAssistantLaunchContext(null);
         setSubjectNoteLaunch(null);
-        if (typeof window !== "undefined") {
-          window.sessionStorage.removeItem(AI_CHAT_STORAGE_KEY);
-        }
+        setMockTestLaunch(null);
+        setExamLaunch(null);
       }
     });
 
@@ -526,6 +444,14 @@ export default function App() {
   }, [isMobile]);
 
   useEffect(() => {
+    applyAppTheme(themeId);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(THEME_STORAGE_KEY, themeId);
+    }
+  }, [themeId]);
+
+  useEffect(() => {
     if (!installNotice) return undefined;
 
     const timeoutId = window.setTimeout(() => {
@@ -534,15 +460,6 @@ export default function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [installNotice]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    window.sessionStorage.setItem(
-      AI_CHAT_STORAGE_KEY,
-      JSON.stringify(aiChatState),
-    );
-  }, [aiChatState]);
 
   const sidebarWidth = isMobile ? 0 : collapsed ? 68 : 228;
 
@@ -569,11 +486,9 @@ export default function App() {
       setSelected(null);
       setSubjectNoteLaunch(null);
       setSubjectSectionLaunch(null);
+      setMockTestLaunch(null);
+      setExamLaunch(null);
       handlePageChange(DEFAULT_PAGE, { replaceHistory: true });
-      setAiChatState(createDefaultAIChatState());
-      if (typeof window !== "undefined") {
-        window.sessionStorage.removeItem(AI_CHAT_STORAGE_KEY);
-      }
     } catch (logoutError) {
       console.error("Failed to logout:", logoutError);
     }
@@ -600,14 +515,6 @@ export default function App() {
     } finally {
       setInstallPending(false);
     }
-  };
-
-  const handleOpenAIWithContext = (context) => {
-    setAssistantLaunchContext({
-      ...context,
-      launchId: uid(),
-    });
-    handlePageChange("ai");
   };
 
   const handleOpenSubjectFromAnalytics = (subject, options = {}) => {
@@ -638,10 +545,36 @@ export default function App() {
     handlePageChange("subjects");
   };
 
-  const handleOpenSavedAINote = () => {
-    setSubjectNoteLaunch(null);
-    handlePageChange("notes");
+  const handleOpenMockTestsForTopic = (subjectOrWeakArea, topic) => {
+    const subject = topic ? subjectOrWeakArea : null
+    const weakArea = topic ? null : subjectOrWeakArea
+    const subjectId = subject?.id || weakArea?.subjectId || null
+    const topicId = topic?.id || weakArea?.topicId || null
+    const subjectName = subject?.name || weakArea?.subjectName || 'Subject'
+    const topicName = topic?.name || weakArea?.topicName || 'Topic'
+    if (!subjectId || !topicId) return;
+
+    setMockTestLaunch({
+      subjectId,
+      subjectName,
+      topicId,
+      topicName,
+      launchId: uid(),
+    });
+    handlePageChange("questions");
   };
+
+  const handleOpenExamGroup = (group) => {
+    if (!group?.id) return
+
+    setExamLaunch({
+      id: group.id,
+      name: group.name || 'Exam Group',
+      subjectIds: Array.isArray(group.subjectIds) ? group.subjectIds : [],
+      launchId: uid(),
+    })
+    handlePageChange("exams")
+  }
 
   const renderPageContent = (page) => {
     if (page === "login") {
@@ -668,8 +601,25 @@ export default function App() {
           user={authUser}
           subjects={subjects}
           onUpdateSubject={updateSubject}
+          initialTopicContext={mockTestLaunch}
+          topicLaunchKey={mockTestLaunch?.launchId || null}
+          isActive={activePage === "questions"}
         />
       );
+    }
+
+    if (page === "exams") {
+      return (
+        <ExamsPage
+          user={authUser}
+          subjects={subjects}
+          onUpdateSubject={updateSubject}
+          initialGroupContext={examLaunch}
+          groupLaunchKey={examLaunch?.launchId || null}
+          onOpenWeakAreaMockTest={handleOpenMockTestsForTopic}
+          isActive={activePage === "exams"}
+        />
+      )
     }
 
     if (page === "questionBank") {
@@ -687,7 +637,7 @@ export default function App() {
           user={authUser}
           subjects={subjects}
           onOpenSubject={handleOpenSubjectFromAnalytics}
-          onOpenAIContext={handleOpenAIWithContext}
+          onOpenExamGroup={handleOpenExamGroup}
         />
       );
     }
@@ -702,26 +652,6 @@ export default function App() {
       );
     }
 
-    if (page === "ai") {
-      if (!authUser) {
-        return (
-          <GuestAIBlockedView onOpenLogin={() => handlePageChange("login")} />
-        );
-      }
-
-      return (
-        <AIAssistantPage
-          user={authUser}
-          subjects={subjects}
-          onUpdateSubject={updateSubject}
-          initialContext={assistantLaunchContext}
-          aiChatState={aiChatState}
-          onAiChatStateChange={setAiChatState}
-          onOpenSavedNote={handleOpenSavedAINote}
-        />
-      );
-    }
-
     if (page === "subjects") {
       if (selected) {
         const liveSubject =
@@ -730,6 +660,7 @@ export default function App() {
         return (
           <SubjectDetailPage
             subject={liveSubject}
+            allSubjects={subjects}
             initialOpenNote={
               subjectNoteLaunch?.subjectId === liveSubject.id
                 ? {
@@ -760,7 +691,7 @@ export default function App() {
             }}
             onUpdateSubject={updateSubject}
             user={authUser}
-            onOpenAIContext={handleOpenAIWithContext}
+            onOpenMockTestsForTopic={handleOpenMockTestsForTopic}
           />
         );
       }
@@ -831,6 +762,9 @@ export default function App() {
           pageTitle={pageTitle}
           showMenuButton={isMobile}
           onMenuClick={() => setMobileNavOpen((value) => !value)}
+          activeThemeId={themeId}
+          themeOptions={APP_THEME_OPTIONS}
+          onThemeChange={setThemeId}
           canInstall={canInstall}
           onInstallClick={handleInstallApp}
           isInstallPending={installPending}

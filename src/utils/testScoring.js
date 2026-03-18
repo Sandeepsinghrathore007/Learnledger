@@ -113,8 +113,27 @@ export function determinePerformanceLevel(testHistory) {
  */
 export function analyzeWeakAreas(questions, answers, subjectData) {
   const topicPerformance = {}
+  const subjectPerformance = {}
 
   questions.forEach(question => {
+    const subjectId = question.sourceSubject || question.subjectName || null
+    if (subjectId) {
+      if (!subjectPerformance[subjectId]) {
+        subjectPerformance[subjectId] = {
+          subjectId: question.sourceSubject || null,
+          subjectName: question.subjectName || 'Unknown',
+          correct: 0,
+          total: 0,
+        }
+      }
+
+      subjectPerformance[subjectId].total++
+      const subjectUserAnswer = answers[question.id]
+      if (subjectUserAnswer === question.correctAnswer) {
+        subjectPerformance[subjectId].correct++
+      }
+    }
+
     const topicId = question.sourceTopic
     if (!topicId) return
 
@@ -122,6 +141,8 @@ export function analyzeWeakAreas(questions, answers, subjectData) {
       topicPerformance[topicId] = {
         topicId,
         topicName: question.topicName || 'Unknown',
+        subjectId: question.sourceSubject || null,
+        subjectName: question.subjectName || 'Unknown',
         correct: 0,
         total: 0,
       }
@@ -144,8 +165,21 @@ export function analyzeWeakAreas(questions, answers, subjectData) {
     .filter(topic => topic.percentage < 70)
     .sort((a, b) => a.percentage - b.percentage) // Worst first
 
+  const weakSubjects = Object.values(subjectPerformance)
+    .map(subject => ({
+      ...subject,
+      percentage: Math.round((subject.correct / subject.total) * 100),
+    }))
+    .filter(subject => subject.percentage < 70)
+    .sort((a, b) => a.percentage - b.percentage)
+
   return {
     weakAreas,
+    weakSubjects,
+    allSubjects: Object.values(subjectPerformance).map(subject => ({
+      ...subject,
+      percentage: Math.round((subject.correct / subject.total) * 100),
+    })),
     allTopics: Object.values(topicPerformance).map(topic => ({
       ...topic,
       percentage: Math.round((topic.correct / topic.total) * 100),

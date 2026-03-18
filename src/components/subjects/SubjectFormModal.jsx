@@ -19,7 +19,7 @@ import Modal       from '@/components/ui/Modal'
 import FormField   from '@/components/ui/FormField'
 import IconPicker  from '@/components/ui/IconPicker'
 import ColorPicker from '@/components/ui/ColorPicker'
-import { ACCENT, ACCENT2, TEXT3 } from '@/constants/theme'
+import { ACCENT, ACCENT2, ACCENT_SOFT, TEXT3 } from '@/constants/theme'
 
 export default function SubjectFormModal({
   open, onClose, form, setFormField, onSubmit, isEdit = false,
@@ -60,7 +60,7 @@ export default function SubjectFormModal({
           width: '100%', padding: '12px',
           background: canSubmit
             ? `linear-gradient(135deg,${ACCENT},${ACCENT2})`
-            : 'rgba(139,92,246,0.08)',
+            : ACCENT_SOFT,
           border: 'none', borderRadius: '11px',
           color: canSubmit ? '#fff' : TEXT3,
           fontWeight: '700', fontSize: '14px',

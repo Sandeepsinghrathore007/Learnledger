@@ -1,7 +1,6 @@
 import { NAV_ITEMS } from '@/constants/navigation'
-import { BG, BORDER, BORDER2, SURF2, TEXT1, TEXT2, TEXT3, ACCENT } from '@/constants/theme'
+import { ACCENT, BG, BORDER, BORDER2, BUTTON_GRADIENT, CONTROL_BG, SURF2, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 import {
-  AIAssistantIcon,
   AnalyticsIcon,
   BackIcon,
   MockTestsIcon,
@@ -15,7 +14,6 @@ const NAV_ICONS = {
   notes: NoteIcon,
   tests: MockTestsIcon,
   questionBank: QuestionBankIcon,
-  ai: AIAssistantIcon,
   analytics: AnalyticsIcon,
 }
 
@@ -78,7 +76,7 @@ export default function Sidebar({
           width: '34px',
           height: '34px',
           flexShrink: 0,
-          background: 'linear-gradient(135deg,#7c3aed,#4f46e5)',
+          background: BUTTON_GRADIENT,
           borderRadius: '9px',
           display: 'flex',
           alignItems: 'center',
@@ -86,7 +84,7 @@ export default function Sidebar({
           fontSize: '16px',
           fontWeight: '800',
           color: '#fff',
-          boxShadow: '0 0 16px rgba(124,58,237,0.4)',
+          boxShadow: 'var(--ll-shadow-soft)',
         }}>
           S
         </div>
@@ -123,9 +121,9 @@ export default function Sidebar({
                 borderRadius: '9px',
                 padding: isCompact ? '10px 16px' : '9px 11px',
                 background: isActive
-                  ? 'linear-gradient(135deg,rgba(124,58,237,0.22),rgba(79,70,229,0.12))'
+                  ? 'var(--ll-accent-soft)'
                   : 'transparent',
-                color: isActive ? '#c4b5f5' : TEXT3,
+                color: isActive ? ACCENT : TEXT3,
                 border: 'none',
                 justifyContent: isCompact ? 'center' : 'flex-start',
                 transition: 'all 0.16s',
@@ -133,7 +131,7 @@ export default function Sidebar({
               }}
               onMouseEnter={(event) => {
                 if (!isActive) {
-                  event.currentTarget.style.background = 'rgba(139,92,246,0.08)'
+                  event.currentTarget.style.background = 'var(--ll-accent-soft)'
                   event.currentTarget.style.color = TEXT2
                 }
               }}
@@ -203,7 +201,7 @@ export default function Sidebar({
             height: '28px',
             flexShrink: 0,
             borderRadius: '50%',
-            background: 'linear-gradient(135deg,#7c3aed,#ec4899)',
+            background: BUTTON_GRADIENT,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -272,8 +270,8 @@ export default function Sidebar({
                 }}
                 style={{
                   border: `1px solid ${BORDER2}`,
-                  background: 'rgba(139,92,246,0.1)',
-                  color: '#c4b5f5',
+                  background: 'var(--ll-accent-soft)',
+                  color: TEXT1,
                   borderRadius: '8px',
                   padding: '8px 9px',
                   fontSize: '11.5px',
@@ -291,8 +289,8 @@ export default function Sidebar({
                 }}
                 style={{
                   border: `1px solid ${BORDER2}`,
-                  background: 'linear-gradient(135deg,rgba(124,58,237,0.24),rgba(109,40,217,0.2))',
-                  color: '#e9ddff',
+                  background: BUTTON_GRADIENT,
+                  color: '#ffffff',
                   borderRadius: '8px',
                   padding: '8px 9px',
                   fontSize: '11.5px',
@@ -338,8 +336,8 @@ export default function Sidebar({
                   }}
                   style={{
                     border: `1px solid ${BORDER2}`,
-                    background: 'rgba(139,92,246,0.1)',
-                    color: '#c4b5f5',
+                    background: 'var(--ll-accent-soft)',
+                    color: TEXT1,
                     borderRadius: '8px',
                     padding: '7px 0',
                     fontSize: '10px',
@@ -358,8 +356,8 @@ export default function Sidebar({
                   }}
                   style={{
                     border: `1px solid ${BORDER2}`,
-                    background: 'linear-gradient(135deg,rgba(124,58,237,0.24),rgba(109,40,217,0.2))',
-                    color: '#e9ddff',
+                    background: BUTTON_GRADIENT,
+                    color: '#ffffff',
                     borderRadius: '8px',
                     padding: '7px 0',
                     fontSize: '10px',
@@ -394,7 +392,7 @@ export default function Sidebar({
             zIndex: 10,
             transition: 'all 0.2s',
           }}
-          onMouseEnter={(event) => (event.currentTarget.style.background = '#2d2645')}
+          onMouseEnter={(event) => (event.currentTarget.style.background = CONTROL_BG)}
           onMouseLeave={(event) => (event.currentTarget.style.background = SURF2)}
         >
           <span style={{

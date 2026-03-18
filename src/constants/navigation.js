@@ -25,21 +25,21 @@ export const NAV_ITEMS = [
     comingSoon: false,
   },
   {
+    id: 'exams',
+    label: 'Exams',
+    icon: 'tests',
+    iconColor: '#22c55e',
+    iconBg: 'rgba(34,197,94,0.14)',
+    iconBorder: 'rgba(34,197,94,0.28)',
+    comingSoon: false,
+  },
+  {
     id: 'questionBank',
     label: 'Question Bank',
     icon: 'questionBank',
     iconColor: '#f59e0b',
     iconBg: 'rgba(245,158,11,0.16)',
     iconBorder: 'rgba(245,158,11,0.28)',
-    comingSoon: false,
-  },
-  {
-    id: 'ai',
-    label: 'AI Assistant',
-    icon: 'ai',
-    iconColor: '#a78bfa',
-    iconBg: 'rgba(167,139,250,0.16)',
-    iconBorder: 'rgba(167,139,250,0.28)',
     comingSoon: false,
   },
   {
@@ -57,5 +57,4 @@ export const NAV_ITEMS = [
 export const PAGE_DESCRIPTIONS = {
   analytics: 'Track streaks, performance, and AI-driven study progress',
   questions: 'AI-generated MCQs from your notes',
-  ai:        'Generate questions, summaries, and study plans',
 }

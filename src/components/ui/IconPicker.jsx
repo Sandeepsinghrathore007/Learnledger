@@ -8,7 +8,7 @@
  * State: none (controlled)
  */
 
-import { SUBJECT_ICONS, ACCENT, TEXT1, TEXT3 } from '@/constants/theme'
+import { ACCENT_BORDER, ACCENT_SOFT_STRONG, SUBJECT_ICONS, TEXT1, TEXT3 } from '@/constants/theme'
 
 export default function IconPicker({ value, onChange }) {
   return (
@@ -28,8 +28,8 @@ export default function IconPicker({ value, onChange }) {
             onClick={() => onChange(ic.v)}
             style={{
               height: '34px', borderRadius: '8px',
-              background:  value === ic.v ? 'rgba(124,58,237,0.28)' : 'rgba(255,255,255,0.025)',
-              border:      value === ic.v ? `1px solid ${ACCENT}60`  : '1px solid rgba(255,255,255,0.05)',
+              background: value === ic.v ? ACCENT_SOFT_STRONG : 'rgba(255,255,255,0.025)',
+              border: value === ic.v ? `1px solid ${ACCENT_BORDER}` : '1px solid rgba(255,255,255,0.05)',
               color: TEXT1, fontSize: '15px',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'all 0.12s',

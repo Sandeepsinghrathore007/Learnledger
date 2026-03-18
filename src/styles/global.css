@@ -12,6 +12,30 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --ll-page-background: radial-gradient(circle at top right, rgba(6,182,212,0.10), transparent 24%), radial-gradient(circle at top left, rgba(124,58,237,0.14), transparent 26%), #0B0F1A;
+  --ll-bg: #0B0F1A;
+  --ll-surface: #111827;
+  --ll-surface-2: #0F172A;
+  --ll-border: rgba(148,163,184,0.18);
+  --ll-border-strong: rgba(124,58,237,0.34);
+  --ll-text-1: #E5E7EB;
+  --ll-text-2: #CBD5E1;
+  --ll-text-3: #9CA3AF;
+  --ll-accent: #7C3AED;
+  --ll-accent-2: #06B6D4;
+  --ll-secondary: #06B6D4;
+  --ll-accent-soft: rgba(124,58,237,0.14);
+  --ll-accent-soft-strong: rgba(124,58,237,0.24);
+  --ll-accent-border: rgba(124,58,237,0.36);
+  --ll-topbar-bg: rgba(11,15,26,0.86);
+  --ll-control-bg: rgba(255,255,255,0.035);
+  --ll-control-border: rgba(148,163,184,0.18);
+  --ll-button-gradient: linear-gradient(135deg, #7C3AED, #06B6D4);
+  --ll-selection-bg: rgba(124,58,237,0.36);
+  --ll-shadow-soft: 0 18px 40px rgba(2,6,23,0.26);
+}
+
 /* ── FONT SMOOTHING ─────────────────────────────────────────────────────────── */
 * {
   -webkit-font-smoothing: antialiased;
@@ -21,16 +45,34 @@
 
 body,
 #root {
-  background: #070510;
+  background: var(--ll-page-background);
   margin: 0;
   padding: 0;
   font-family: 'DM Sans', 'Noto Sans Devanagari', sans-serif;
   overflow-x: hidden;
+  color: var(--ll-text-1);
+}
+
+body {
+  min-height: 100vh;
+  transition: background 0.22s ease, color 0.22s ease;
+}
+
+html.learnledger-square-ui {
+  --learnledger-global-radius: 6px;
+}
+
+html.learnledger-square-ui,
+html.learnledger-square-ui body,
+html.learnledger-square-ui body *,
+html.learnledger-square-ui body *::before,
+html.learnledger-square-ui body *::after {
+  border-radius: var(--learnledger-global-radius) !important;
 }
 
 /* Text selection highlight */
 ::selection {
-  background: rgba(139, 92, 246, 0.38);
+  background: var(--ll-selection-bg);
   color: #fff;
 }
 
@@ -48,6 +90,10 @@ body,
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(139, 92, 246, 0.4);
+}
+
+html.learnledger-square-ui ::-webkit-scrollbar-thumb {
+  border-radius: var(--learnledger-global-radius) !important;
 }
 
 /* ── ANIMATIONS ─────────────────────────────────────────────────────────────── */

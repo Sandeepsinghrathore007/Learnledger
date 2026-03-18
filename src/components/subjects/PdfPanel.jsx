@@ -11,6 +11,7 @@ import {
   UploadIcon,
   XIcon,
 } from '@/components/ui/Icons'
+import PaginationControls from '@/components/ui/PaginationControls'
 import { getCloudinaryPdfPageImageUrl, getCloudinaryPdfUrl } from '@/services/cloudinaryService'
 import { SURFACE, SURF2, BORDER, BORDER2, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 import { getPdfBinaryFile } from '@/utils/pdfBinaryStore'
@@ -142,6 +143,7 @@ export default function PdfPanel({
   emptyDescription = 'Click anywhere to upload a PDF and prepare it for study sessions across your devices.',
   showAskAI = true,
   showAiStatus = true,
+  itemsPerPage = null,
 }) {
   const inputRef = useRef(null)
   const localObjectUrlRef = useRef('')
@@ -150,6 +152,7 @@ export default function PdfPanel({
   const [viewerMode, setViewerMode] = useState('direct')
   const [localViewingUrl, setLocalViewingUrl] = useState('')
   const [isResolvingLocalBinary, setIsResolvingLocalBinary] = useState(false)
+  const [page, setPage] = useState(1)
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0]
@@ -210,6 +213,9 @@ export default function PdfPanel({
   }
 
   const pdfCountLabel = `${pdfs.length} PDF${pdfs.length === 1 ? '' : 's'}`
+  const totalPages = itemsPerPage ? Math.max(1, Math.ceil(pdfs.length / itemsPerPage)) : 1
+  const pageStart = itemsPerPage ? (page - 1) * itemsPerPage : 0
+  const visiblePdfs = itemsPerPage ? pdfs.slice(pageStart, pageStart + itemsPerPage) : pdfs
   const remoteViewingUrl = getResolvedPdfUrl(viewing)
   const resolvedViewingUrl = localViewingUrl || remoteViewingUrl
   const activeViewerSrc = viewerMode === 'google'
@@ -236,6 +242,15 @@ export default function PdfPanel({
   const viewerPages = viewerUsesCloudinaryPages
     ? Array.from({ length: getViewerPageCount(viewing) }, (_, index) => index + 1)
     : []
+
+  useEffect(() => {
+    setPage((previous) => Math.min(previous, totalPages))
+  }, [totalPages])
+
+  useEffect(() => {
+    setPage(1)
+  }, [itemsPerPage])
+
   useEffect(() => {
     if (!viewing) return undefined
 
@@ -386,7 +401,7 @@ export default function PdfPanel({
         </button>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
-          {pdfs.map((pdf) => {
+          {visiblePdfs.map((pdf) => {
             const aiStatus = getAiStatusMeta(pdf)
             const resolvedPdfUrl = getResolvedPdfUrl(pdf)
             const blobUrl = isBlobPdfUrl(resolvedPdfUrl)
@@ -478,7 +493,7 @@ export default function PdfPanel({
                   </div>
 
                   <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
-                    {showAskAI && (
+                    {showAskAI && typeof onAskAI === 'function' && (
                       <button
                         type="button"
                         className="flex-1 sm:flex-none"
@@ -546,6 +561,17 @@ export default function PdfPanel({
               </article>
             )
           })}
+
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            label={
+              itemsPerPage
+                ? `Showing ${pageStart + 1}-${Math.min(pageStart + itemsPerPage, pdfs.length)} of ${pdfs.length}`
+                : null
+            }
+          />
         </div>
       )}
 

@@ -16,13 +16,14 @@
  *   newTopicName{string}      — Controlled input for new topic name
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Editor             from '@/components/editor/Editor'
 import TopicAccordion     from '@/components/subjects/TopicAccordion'
 import PdfPanel           from '@/components/subjects/PdfPanel'
 import Modal              from '@/components/ui/Modal'
 import FormField          from '@/components/ui/FormField'
 import AiScoreBadge       from '@/components/ui/AiScoreBadge'
+import PaginationControls from '@/components/ui/PaginationControls'
 import TestConfigModal    from '@/components/tests/TestConfigModal'
 import TestTakingView     from '@/components/tests/TestTakingView'
 import TestResultsView    from '@/components/tests/TestResultsView'
@@ -36,6 +37,11 @@ import { uploadPdfToCloudinary, deletePdfFromCloudinary } from '@/services/cloud
 import { generateTest, saveTestResult, subscribeToTests } from '@/services/firebase/testsService'
 import { buildQuestionBankSubjectUpdates } from '@/utils/questionBank'
 import { determinePerformanceLevel } from '@/utils/testScoring'
+import { resolveTestDisplay } from '@/utils/testDisplay'
+
+const TOPICS_PAGE_SIZE = 15
+const SUBJECT_PDFS_PAGE_SIZE = 10
+const COMPLETED_TESTS_PAGE_SIZE = 15
 
 function formatTestDateTime(value) {
   const date = new Date(value || '')
@@ -69,12 +75,13 @@ export default function SubjectDetailPage({
   subject,
   onBack,
   onUpdateSubject,
+  allSubjects = [],
   initialOpenNote = null,
   noteLaunchKey = null,
   initialSection = 'topics',
   sectionLaunchKey = null,
   user = null,
-  onOpenAIContext = null,
+  onOpenMockTestsForTopic = null,
 }) {
   // Local subject state — changes are pushed up via onUpdateSubject
   const [subj, setSubj] = useState(subject)
@@ -91,6 +98,8 @@ export default function SubjectDetailPage({
   const [activeSelectionTest, setActiveSelectionTest] = useState(null)
   const [selectionTestReview, setSelectionTestReview] = useState(null)
   const [pdfFeedback, setPdfFeedback] = useState(null)
+  const [topicsPage, setTopicsPage] = useState(1)
+  const [testsPage, setTestsPage] = useState(1)
   const [activeSection, setActiveSection] = useState(
     initialSection === 'materials'
       ? 'materials'
@@ -139,6 +148,7 @@ export default function SubjectDetailPage({
       (tests) => {
         const filtered = tests
           .filter((test) => isTestCompletedForSubject(test, subj.id))
+          .map((test) => resolveTestDisplay(test, allSubjects))
           .sort((a, b) => (b.completedAt || b.createdAt || '').localeCompare(a.completedAt || a.createdAt || ''))
 
         setSubjectTests(filtered)
@@ -152,7 +162,24 @@ export default function SubjectDetailPage({
     )
 
     return () => unsubscribe()
-  }, [user?.uid, subj?.id])
+  }, [allSubjects, user?.uid, subj?.id])
+
+  const subjectTestsForDisplay = useMemo(
+    () => subjectTests.map((test) => resolveTestDisplay(test, allSubjects)),
+    [allSubjects, subjectTests]
+  )
+  const topicTotalPages = Math.max(1, Math.ceil(subj.topics.length / TOPICS_PAGE_SIZE))
+  const topicPageStart = (topicsPage - 1) * TOPICS_PAGE_SIZE
+  const paginatedTopics = useMemo(
+    () => subj.topics.slice(topicPageStart, topicPageStart + TOPICS_PAGE_SIZE),
+    [subj.topics, topicPageStart]
+  )
+  const completedTestsTotalPages = Math.max(1, Math.ceil(subjectTestsForDisplay.length / COMPLETED_TESTS_PAGE_SIZE))
+  const testsPageStart = (testsPage - 1) * COMPLETED_TESTS_PAGE_SIZE
+  const paginatedSubjectTests = useMemo(
+    () => subjectTestsForDisplay.slice(testsPageStart, testsPageStart + COMPLETED_TESTS_PAGE_SIZE),
+    [subjectTestsForDisplay, testsPageStart]
+  )
 
   useEffect(() => {
     if (!pdfFeedback?.text) return undefined
@@ -167,6 +194,23 @@ export default function SubjectDetailPage({
   useEffect(() => {
     setSelectionTestContext(null)
   }, [openNote?.note?.id, openNote?.topicId])
+
+  useEffect(() => {
+    setTopicsPage(1)
+    setTestsPage(1)
+  }, [subject.id])
+
+  useEffect(() => {
+    if (topicsPage > topicTotalPages) {
+      setTopicsPage(topicTotalPages)
+    }
+  }, [topicTotalPages, topicsPage])
+
+  useEffect(() => {
+    if (testsPage > completedTestsTotalPages) {
+      setTestsPage(completedTestsTotalPages)
+    }
+  }, [completedTestsTotalPages, testsPage])
 
   /** Push local state up and keep local copy in sync */
   const save = async (updated) => {
@@ -544,20 +588,6 @@ export default function SubjectDetailPage({
     }).catch(() => {})
   }
 
-  const handleAskAIForPdf = (pdf) => {
-    if (!onOpenAIContext) return
-
-    onOpenAIContext({
-      subjectId: subjectRef.current.id,
-      subjectName: subjectRef.current.name,
-      pdfId: pdf.id,
-      pdfName: pdf.name,
-      pdfStatus: pdf.aiStatus || 'not-processed',
-      pdfKnowledgeSubjectId: subjectRef.current.id,
-      typedContext: `Use the attached PDF "${pdf.name}" as the main study source.`,
-    })
-  }
-
   const handleOpenSelectionTest = ({ text, noteTitle }) => {
     const selectedText = String(text || '').trim()
     if (!selectedText || !openNote) return
@@ -573,6 +603,12 @@ export default function SubjectDetailPage({
       subjectId: subjectRef.current.id,
       subjectName: subjectRef.current.name,
     })
+  }
+
+  const handleOpenTopicMockTest = (topic) => {
+    if (!topic || !onOpenMockTestsForTopic) return
+
+    onOpenMockTestsForTopic(subjectRef.current, topic)
   }
 
   const handleGenerateSelectionTest = async (config) => {
@@ -594,7 +630,7 @@ export default function SubjectDetailPage({
 
       setSelectionTestContext(null)
       setActiveSelectionTest({
-        ...generatedTest,
+        ...resolveTestDisplay(generatedTest, allSubjects),
         startTime: new Date().toISOString(),
         answers: {},
         bookmarkedQuestions: [],
@@ -865,7 +901,7 @@ export default function SubjectDetailPage({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-              {subj.topics.map(topic => (
+              {paginatedTopics.map(topic => (
                 <TopicAccordion
                   key={topic.id}
                   topic={topic}
@@ -874,10 +910,18 @@ export default function SubjectDetailPage({
                   onOpenNote={(note, topicId) => setOpenNote({ note, topicId })}
                   onDeleteNote={handleDeleteNote}
                   onDeleteTopic={handleDeleteTopic}
+                  onTakeTest={handleOpenTopicMockTest}
                 />
               ))}
             </div>
           )}
+
+          <PaginationControls
+            page={topicsPage}
+            totalPages={topicTotalPages}
+            onPageChange={setTopicsPage}
+            label={`Showing ${topicPageStart + 1}-${Math.min(topicPageStart + TOPICS_PAGE_SIZE, subj.topics.length)} of ${subj.topics.length} topics`}
+          />
 
         </>
       ) : activeSection === 'materials' ? (
@@ -886,9 +930,10 @@ export default function SubjectDetailPage({
           color={subj.color}
           onAdd={handleAddPdf}
           onDelete={handleDeletePdf}
-          onAskAI={handleAskAIForPdf}
           feedback={pdfFeedback}
           binaryContext={{ userId: user?.uid || null, subjectId: subj.id }}
+          showAskAI={false}
+          itemsPerPage={SUBJECT_PDFS_PAGE_SIZE}
         />
       ) : (
         <div>
@@ -929,7 +974,7 @@ export default function SubjectDetailPage({
               </div>
             )}
 
-            {!testsLoading && !testsError && subjectTests.length === 0 && (
+            {!testsLoading && !testsError && subjectTestsForDisplay.length === 0 && (
               <div style={{
                 border: `1px dashed ${BORDER}`,
                 borderRadius: '12px',
@@ -942,13 +987,13 @@ export default function SubjectDetailPage({
               </div>
             )}
 
-            {!testsLoading && !testsError && subjectTests.length > 0 && (
+            {!testsLoading && !testsError && subjectTestsForDisplay.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {subjectTests.map((test) => (
+                {paginatedSubjectTests.map((test) => (
                   <button
                     key={test.id}
                     type="button"
-                    onClick={() => setOpenTestReview(test)}
+                    onClick={() => setOpenTestReview(resolveTestDisplay(test, allSubjects))}
                     style={{
                       border: `1px solid ${BORDER}`,
                       borderRadius: '12px',
@@ -999,6 +1044,13 @@ export default function SubjectDetailPage({
               </div>
             )}
           </div>
+
+          <PaginationControls
+            page={testsPage}
+            totalPages={completedTestsTotalPages}
+            onPageChange={setTestsPage}
+            label={`Showing ${testsPageStart + 1}-${Math.min(testsPageStart + COMPLETED_TESTS_PAGE_SIZE, subjectTestsForDisplay.length)} of ${subjectTestsForDisplay.length} completed tests`}
+          />
         </div>
       )}
 

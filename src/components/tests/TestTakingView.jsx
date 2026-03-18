@@ -10,21 +10,85 @@
  * - Progress tracking
  */
 
-import { useState, useEffect } from 'react'
+import { startTransition, useEffect, useRef, useState } from 'react'
 import { useTestTimer } from '@/hooks/useTestTimer'
 import QuestionCard from '@/components/tests/QuestionCard'
 import QuestionNavigator from '@/components/tests/QuestionNavigator'
 import { calculateScore } from '@/utils/testScoring'
 import { formatTimerDisplay } from '@/utils/testScoring'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
+import {
+  inferQuestionLanguageFromQuestion,
+  normalizeQuestionLanguage,
+  translateQuestionBatch,
+} from '@/utils/questionTranslation'
+
+const QUESTION_TRANSLATION_BATCH_SIZE = 10
+
+function getBatchStartIndex(index) {
+  return Math.max(0, Math.floor(Number(index || 0) / QUESTION_TRANSLATION_BATCH_SIZE) * QUESTION_TRANSLATION_BATCH_SIZE)
+}
+
+function buildBatchStartOrder(currentIndex, totalQuestions) {
+  const totalBatches = Math.ceil(Number(totalQuestions || 0) / QUESTION_TRANSLATION_BATCH_SIZE)
+  const starts = Array.from({ length: totalBatches }, (_, index) => index * QUESTION_TRANSLATION_BATCH_SIZE)
+  const currentStart = getBatchStartIndex(currentIndex)
+
+  return [
+    currentStart,
+    ...starts.filter((start) => start > currentStart),
+    ...starts.filter((start) => start < currentStart),
+  ]
+}
 
 export default function TestTakingView({ test, onUpdateTest, onFinish, onExit }) {
+  const testDefaultLanguage = normalizeQuestionLanguage(
+    test?.metadata?.examSource?.language || test?.config?.language || 'english'
+  )
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [showHint, setShowHint] = useState(false)
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState(() => test.bookmarkedQuestions || [])
+  const [questionLanguage, setQuestionLanguage] = useState(() =>
+    inferQuestionLanguageFromQuestion(test?.questions?.[0], testDefaultLanguage)
+  )
+  const [translatedQuestions, setTranslatedQuestions] = useState({})
+  const [translationState, setTranslationState] = useState({
+    questionId: '',
+    language: '',
+    loading: false,
+    error: '',
+  })
+  const translatedQuestionsRef = useRef({})
+  const batchRequestsRef = useRef(new Map())
+  const completedBatchesRef = useRef(new Set())
+  const translationSessionRef = useRef(0)
 
   const currentQuestion = test.questions[currentQuestionIndex]
+  const currentQuestionBaseLanguage = inferQuestionLanguageFromQuestion(currentQuestion, testDefaultLanguage)
+  const translatedCurrentQuestion = translatedQuestions[currentQuestion.id]?.[questionLanguage] || null
+  const displayQuestion = translatedCurrentQuestion || currentQuestion
   const totalQuestions = test.questions.length
+  const expectedQuestionCount = Math.max(
+    totalQuestions,
+    Number(test?.metadata?.examGeneration?.totalQuestions || test?.metadata?.examSource?.questionCount || 0)
+  )
+  const isQuestionGenerationPending = Boolean(
+    test?.metadata?.examGeneration
+    && test.metadata.examGeneration.isComplete === false
+    && totalQuestions < expectedQuestionCount
+  )
+  const questionGenerationStatus = String(test?.metadata?.examGeneration?.statusText || '').trim()
+  const isTranslationLoading = (
+    translationState.loading
+    && translationState.questionId === currentQuestion.id
+    && translationState.language === questionLanguage
+  )
+  const translationError = (
+    translationState.questionId === currentQuestion.id
+    && translationState.language === questionLanguage
+      ? translationState.error
+      : ''
+  )
 
   // Timer
   const {
@@ -46,6 +110,165 @@ export default function TestTakingView({ test, onUpdateTest, onFinish, onExit })
   useEffect(() => {
     setBookmarkedQuestions(test.bookmarkedQuestions || [])
   }, [test.id])
+
+  useEffect(() => {
+    translatedQuestionsRef.current = translatedQuestions
+  }, [translatedQuestions])
+
+  useEffect(() => {
+    translationSessionRef.current += 1
+    translatedQuestionsRef.current = {}
+    batchRequestsRef.current = new Map()
+    completedBatchesRef.current = new Set()
+    setQuestionLanguage(inferQuestionLanguageFromQuestion(test?.questions?.[0], testDefaultLanguage))
+    setTranslatedQuestions({})
+    setTranslationState({
+      questionId: '',
+      language: '',
+      loading: false,
+      error: '',
+    })
+  }, [test.id, testDefaultLanguage])
+
+  const requestQuestionBatchTranslation = (targetLanguage, batchStartIndex, surfaceQuestionId = '') => {
+    const normalizedLanguage = normalizeQuestionLanguage(targetLanguage)
+    const batchKey = `${normalizedLanguage}:${batchStartIndex}`
+    const sessionId = translationSessionRef.current
+    const batchQuestions = test.questions
+      .slice(batchStartIndex, batchStartIndex + QUESTION_TRANSLATION_BATCH_SIZE)
+      .filter((question) => {
+        if (!question?.id) return false
+        const baseLanguage = inferQuestionLanguageFromQuestion(question, testDefaultLanguage)
+        if (baseLanguage === normalizedLanguage) return false
+        return !translatedQuestionsRef.current[question.id]?.[normalizedLanguage]
+      })
+
+    const syncSurfaceState = (patch) => {
+      if (!surfaceQuestionId) return
+
+      setTranslationState((previous) => {
+        if (
+          previous.questionId
+          && previous.questionId !== surfaceQuestionId
+          && previous.language === normalizedLanguage
+          && previous.loading
+        ) {
+          return previous
+        }
+
+        return {
+          questionId: surfaceQuestionId,
+          language: normalizedLanguage,
+          ...patch,
+        }
+      })
+    }
+
+    if (batchQuestions.length === 0) {
+      completedBatchesRef.current.add(batchKey)
+      syncSurfaceState({ loading: false, error: '' })
+      return Promise.resolve()
+    }
+
+    syncSurfaceState({ loading: true, error: '' })
+
+    if (completedBatchesRef.current.has(batchKey)) {
+      syncSurfaceState({ loading: false, error: '' })
+      return Promise.resolve()
+    }
+
+    const existingRequest = batchRequestsRef.current.get(batchKey)
+    if (existingRequest) {
+      return existingRequest
+        .then(() => {
+          if (translationSessionRef.current !== sessionId) return
+          syncSurfaceState({ loading: false, error: '' })
+        })
+        .catch((error) => {
+          if (translationSessionRef.current !== sessionId) return
+
+          syncSurfaceState({
+            loading: false,
+            error: error?.message || 'Question translation is unavailable right now.',
+          })
+
+          throw error
+        })
+    }
+
+    const requestPromise = translateQuestionBatch(batchQuestions, normalizedLanguage)
+      .then((translatedBatch) => {
+        if (translationSessionRef.current !== sessionId) return
+
+        startTransition(() => {
+          setTranslatedQuestions((previous) => {
+            const nextState = { ...previous }
+
+            translatedBatch.forEach((translatedQuestion) => {
+              const questionId = translatedQuestion.id
+              nextState[questionId] = {
+                ...(nextState[questionId] || {}),
+                [normalizedLanguage]: translatedQuestion,
+              }
+            })
+
+            translatedQuestionsRef.current = nextState
+            return nextState
+          })
+        })
+
+        completedBatchesRef.current.add(batchKey)
+        syncSurfaceState({ loading: false, error: '' })
+      })
+      .catch((error) => {
+        if (translationSessionRef.current !== sessionId) return
+
+        syncSurfaceState({
+          loading: false,
+          error: error?.message || 'Question translation is unavailable right now.',
+        })
+
+        throw error
+      })
+      .finally(() => {
+        if (batchRequestsRef.current.get(batchKey) === requestPromise) {
+          batchRequestsRef.current.delete(batchKey)
+        }
+      })
+
+    batchRequestsRef.current.set(batchKey, requestPromise)
+    return requestPromise
+  }
+
+  useEffect(() => {
+    if (!currentQuestion?.id) return
+    if (questionLanguage === currentQuestionBaseLanguage) return
+
+    const sessionId = translationSessionRef.current
+    const orderedBatchStarts = buildBatchStartOrder(currentQuestionIndex, totalQuestions)
+    let cancelled = false
+
+    ;(async () => {
+      for (let index = 0; index < orderedBatchStarts.length; index += 1) {
+        if (cancelled || translationSessionRef.current !== sessionId) return
+
+        const batchStartIndex = orderedBatchStarts[index]
+        const surfaceQuestionId = index === 0 ? currentQuestion.id : ''
+
+        try {
+          await requestQuestionBatchTranslation(questionLanguage, batchStartIndex, surfaceQuestionId)
+        } catch {
+          if (index === 0) {
+            return
+          }
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentQuestion?.id, currentQuestionBaseLanguage, currentQuestionIndex, questionLanguage, test.id, totalQuestions])
 
   // Handle time up
   const handleTimeUp = () => {
@@ -112,6 +335,25 @@ export default function TestTakingView({ test, onUpdateTest, onFinish, onExit })
     }
   }
 
+  const handleQuestionLanguageChange = (nextLanguage) => {
+    const normalizedLanguage = normalizeQuestionLanguage(nextLanguage)
+    const isRetryingCurrentLanguage = (
+      normalizedLanguage === questionLanguage
+      && Boolean(translationError)
+      && normalizedLanguage !== currentQuestionBaseLanguage
+    )
+
+    setQuestionLanguage(normalizedLanguage)
+
+    if (isRetryingCurrentLanguage) {
+      requestQuestionBatchTranslation(
+        normalizedLanguage,
+        getBatchStartIndex(currentQuestionIndex),
+        currentQuestion.id
+      )
+    }
+  }
+
   // Finish test
   const handleFinish = () => {
     const endTime = new Date().toISOString()
@@ -160,7 +402,10 @@ export default function TestTakingView({ test, onUpdateTest, onFinish, onExit })
             {test.title}
           </h2>
           <p style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', margin: '4px 0 0' }}>
-            Question {currentQuestionIndex + 1} of {totalQuestions} • {answeredCount} answered
+            Question {currentQuestionIndex + 1} of {totalQuestions}
+            {expectedQuestionCount > totalQuestions ? ` loaded (${expectedQuestionCount} total)` : ''}
+            {' • '}
+            {answeredCount} answered
           </p>
         </div>
 
@@ -180,9 +425,24 @@ export default function TestTakingView({ test, onUpdateTest, onFinish, onExit })
         )}
       </div>
 
+      {isQuestionGenerationPending && (
+        <div style={{
+          padding: '12px 14px',
+          background: 'rgba(14,165,233,0.08)',
+          border: '1px solid rgba(14,165,233,0.2)',
+          borderRadius: '10px',
+          color: '#bae6fd',
+          fontFamily: "'DM Sans', sans-serif",
+          fontSize: '12px',
+          lineHeight: 1.5,
+        }}>
+          {questionGenerationStatus || `Generating remaining questions in background. ${totalQuestions} of ${expectedQuestionCount} are ready.`}
+        </div>
+      )}
+
       {/* Question Card */}
       <QuestionCard
-        question={currentQuestion}
+        question={displayQuestion}
         questionNumber={currentQuestionIndex + 1}
         selectedAnswer={test.answers[currentQuestion.id]}
         onSelectAnswer={handleSelectAnswer}
@@ -191,6 +451,10 @@ export default function TestTakingView({ test, onUpdateTest, onFinish, onExit })
         isBookmarked={bookmarkedQuestions.includes(currentQuestion.id)}
         onToggleBookmark={handleToggleBookmark}
         hasUsedHint={(test.hintsUsed || []).includes(currentQuestion.id)}
+        questionLanguage={questionLanguage}
+        onChangeQuestionLanguage={handleQuestionLanguageChange}
+        isTranslationLoading={isTranslationLoading}
+        translationError={translationError}
       />
 
       {/* Question Navigator */}
@@ -262,6 +526,25 @@ export default function TestTakingView({ test, onUpdateTest, onFinish, onExit })
               }}
             >
               Next →
+            </button>
+          ) : isQuestionGenerationPending ? (
+            <button
+              className="w-full sm:w-auto"
+              type="button"
+              disabled
+              style={{
+                padding: '12px 24px',
+                background: 'rgba(14,165,233,0.12)',
+                border: '1px solid rgba(14,165,233,0.24)',
+                borderRadius: '10px',
+                color: '#7dd3fc',
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '13px',
+                fontWeight: '700',
+                cursor: 'wait',
+              }}
+            >
+              Generating More Questions...
             </button>
           ) : (
             <button

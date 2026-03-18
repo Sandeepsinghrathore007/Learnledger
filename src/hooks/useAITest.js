@@ -7,10 +7,15 @@ import {
   subscribeToTests,
 } from '@/services/firebase/testsService'
 
-export function useAITest(subjects, onUpdateSubject, user) {
+export function useAITest(subjects, onUpdateSubject, user, options = {}) {
+  const {
+    subscribe = true,
+    syncSubjectStats = true,
+  } = options
   const [cloudTestHistory, setCloudTestHistory] = useState([])
   const [guestTestHistory, setGuestTestHistory] = useState([])
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generationStatus, setGenerationStatus] = useState('')
   const [error, setError] = useState(null)
 
   const isAuthenticated = Boolean(user?.uid)
@@ -20,6 +25,8 @@ export function useAITest(subjects, onUpdateSubject, user) {
   )
 
   useEffect(() => {
+    if (!subscribe) return undefined
+
     if (!isAuthenticated) {
       setCloudTestHistory([])
       return
@@ -37,41 +44,74 @@ export function useAITest(subjects, onUpdateSubject, user) {
     )
 
     return () => unsubscribe()
-  }, [isAuthenticated, user?.uid])
+  }, [isAuthenticated, subscribe, user?.uid])
 
   useEffect(() => {
+    if (!syncSubjectStats) return
     if (!onUpdateSubject) return
     if (!isAuthenticated && guestTestHistory.length === 0) return
 
-    subjects.forEach((subject) => {
-      const subjectTests = testHistory.filter((test) =>
-        test.metadata?.subjects?.some((item) => item.id === subject.id)
-      )
+    let cancelled = false
 
-      const aiScore = determinePerformanceLevel(subjectTests)
-      const testsAttempted = subjectTests.length
+    const syncSubjectStatsSequentially = async () => {
+      for (const subject of subjects) {
+        if (cancelled) break
 
-      if (subject.aiScore === aiScore && subject.testsAttempted === testsAttempted) {
-        return
+        const subjectTests = testHistory.filter((test) =>
+          test.metadata?.subjects?.some((item) => item.id === subject.id)
+        )
+
+        const aiScore = determinePerformanceLevel(subjectTests)
+        const testsAttempted = subjectTests.length
+
+        if (subject.aiScore === aiScore && subject.testsAttempted === testsAttempted) {
+          continue
+        }
+
+        try {
+          await onUpdateSubject({
+            ...subject,
+            aiScore,
+            testsAttempted,
+          })
+        } catch (syncError) {
+          if (!cancelled) {
+            console.error('Failed to sync subject stats from tests:', syncError)
+            setError(syncError?.message || 'Unable to refresh subject test stats.')
+          }
+          break
+        }
       }
+    }
 
-      onUpdateSubject({
-        ...subject,
-        aiScore,
-        testsAttempted,
-      })
-    })
-  }, [guestTestHistory.length, isAuthenticated, onUpdateSubject, subjects, testHistory])
+    syncSubjectStatsSequentially()
 
-  const generateTest = useCallback(async (config) => {
+    return () => {
+      cancelled = true
+    }
+  }, [guestTestHistory.length, isAuthenticated, onUpdateSubject, subjects, syncSubjectStats, testHistory])
+
+  const generateTest = useCallback(async (config, options = {}) => {
     setIsGenerating(true)
     setError(null)
+    setGenerationStatus('')
 
     try {
       const test = await generateTestFromService({
         config,
         subjects,
         userId: user?.uid || null,
+        onProgress: (progress) => {
+          const message = typeof progress === 'string'
+            ? progress
+            : String(progress?.message || '').trim()
+
+          setGenerationStatus(message)
+
+          if (typeof options?.onProgress === 'function') {
+            options.onProgress(progress)
+          }
+        },
       })
 
       return test
@@ -81,6 +121,7 @@ export function useAITest(subjects, onUpdateSubject, user) {
       throw generationError
     } finally {
       setIsGenerating(false)
+      setGenerationStatus('')
     }
   }, [subjects, user?.uid])
 
@@ -125,6 +166,7 @@ export function useAITest(subjects, onUpdateSubject, user) {
   return {
     testHistory,
     isGenerating,
+    generationStatus,
     error,
     generateTest,
     saveTestResult,
