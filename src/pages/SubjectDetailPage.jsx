@@ -258,8 +258,14 @@ export default function SubjectDetailPage({
     setAddTopicOpen(false)
   }
 
-  const handleDeleteTopic = (topicId) =>
+  const handleDeleteTopic = (topicId) => {
+    const topic = subj.topics.find((item) => item.id === topicId)
+    const topicName = topic?.name?.trim() || 'this topic'
+
+    if (!window.confirm(`Delete "${topicName}" and all its notes?`)) return
+
     save({ ...subj, topics: subj.topics.filter(t => t.id !== topicId) })
+  }
 
   // ── NOTE ACTIONS ──────────────────────────────────────────────────────────
   const handleAddNote = (topicId) => {
@@ -319,13 +325,20 @@ export default function SubjectDetailPage({
     )
   }
 
-  const handleDeleteNote = (topicId, noteId) =>
+  const handleDeleteNote = (topicId, noteId) => {
+    const topic = subj.topics.find((item) => item.id === topicId)
+    const note = topic?.notes.find((item) => item.id === noteId)
+    const noteTitle = note?.title?.trim() || 'this note'
+
+    if (!window.confirm(`Delete "${noteTitle}"?`)) return
+
     save({
       ...subj,
       topics: subj.topics.map(t =>
         t.id !== topicId ? t : { ...t, notes: t.notes.filter(n => n.id !== noteId) }
       ),
     })
+  }
 
   // ── LINKED NOTES ACTIONS ──────────────────────────────────────────────────
   /**

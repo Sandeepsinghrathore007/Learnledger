@@ -28,7 +28,7 @@ import {
 import LinkedNotesPanel from '@/components/notes/LinkedNotesPanel'
 import { buildEditorExtensions } from '@/components/editor/EditorExtensions'
 import { getInlineNoteSlashCommandState } from '@/components/editor/inlineNoteSlashCommand'
-import { BackIcon, PlusIcon, SaveIcon } from '@/components/ui/Icons'
+import { BackIcon, PlusIcon, SaveIcon, TopicsIcon } from '@/components/ui/Icons'
 import { uid } from '@/utils/id'
 
 const EMPTY_DOC_HTML = '<p></p>'
@@ -45,6 +45,8 @@ const EMPTY_SLASH_MENU = {
   top: 0,
   left: 0,
 }
+const STICKY_EDITOR_TOP = 74
+const HEADER_TO_CONTENT_GAP = 14
 
 function escapeHtml(text = '') {
   return text
@@ -254,6 +256,7 @@ export default function Editor({
   const [fontSizeId, setFontSizeId] = useState(() => getNoteFontSizeId(note.fontSize))
   const [outlineItems, setOutlineItems] = useState([])
   const [activeOutlineId, setActiveOutlineId] = useState(null)
+  const [headerBarHeight, setHeaderBarHeight] = useState(0)
   const [saveState, setSaveState] = useState('saved')
   const [aiPanel, setAiPanel] = useState(EMPTY_AI_PANEL)
   const [slashMenu, setSlashMenu] = useState(EMPTY_SLASH_MENU)
@@ -265,12 +268,16 @@ export default function Editor({
   const activeNoteIdRef = useRef(note.id)
   const saveTimerRef = useRef(null)
   const initialContentRef = useRef(getInitialContent(note))
+  const headerBarRef = useRef(null)
   const editorFrameRef = useRef(null)
+  const outlineSectionRef = useRef(null)
 
   const extensions = useMemo(() => buildEditorExtensions(), [])
   const currentTheme = getNoteTheme(themeId)
   const currentFontSize = getNoteFontSize(fontSizeId)
   const showLinkedNotes = Boolean(onAddLinkedNote && onRemoveLinkedNote && allNotes.length > 0)
+  const sidebarStickyTop = STICKY_EDITOR_TOP + headerBarHeight + HEADER_TO_CONTENT_GAP
+  const editorBodyHeight = `calc(100dvh - ${sidebarStickyTop}px - 16px)`
 
   const editor = useEditor(
     {
@@ -368,6 +375,13 @@ export default function Editor({
     },
     [editor]
   )
+
+  const handleJumpToOutline = useCallback(() => {
+    outlineSectionRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  }, [])
 
   const handleOpenAiAssistant = useCallback(({ text, range, insertionPos }) => {
     setAiPanel({
@@ -635,9 +649,38 @@ export default function Editor({
     []
   )
 
+  useEffect(() => {
+    const headerNode = headerBarRef.current
+    if (!headerNode) return undefined
+
+    const syncHeaderHeight = () => {
+      setHeaderBarHeight(headerNode.getBoundingClientRect().height)
+    }
+
+    syncHeaderHeight()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', syncHeaderHeight)
+      return () => window.removeEventListener('resize', syncHeaderHeight)
+    }
+
+    const observer = new ResizeObserver(() => {
+      syncHeaderHeight()
+    })
+
+    observer.observe(headerNode)
+    window.addEventListener('resize', syncHeaderHeight)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', syncHeaderHeight)
+    }
+  }, [])
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div
+        ref={headerBarRef}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -647,6 +690,11 @@ export default function Editor({
           border: `1px solid ${currentTheme.panelBorder}`,
           borderRadius: '14px',
           padding: '10px 12px',
+          position: 'sticky',
+          top: `${STICKY_EDITOR_TOP}px`,
+          zIndex: 25,
+          boxShadow: '0 18px 36px rgba(5,4,18,0.22)',
+          backdropFilter: 'blur(20px)',
         }}
       >
         <button
@@ -831,11 +879,19 @@ export default function Editor({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3.5 xl:flex-row">
+      <div className="flex flex-col gap-3.5 md:flex-row md:items-start">
         {/* Main Editor Area */}
-        <div style={{ flex: 1 }}>
+        <div
+          className="md:[height:var(--editor-body-height)]"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            '--editor-body-height': editorBodyHeight,
+          }}
+        >
           <div
             ref={editorFrameRef}
+            className="flex flex-col md:h-full"
             style={{
               position: 'relative',
               background: currentTheme.editorFrameBackground,
@@ -863,12 +919,21 @@ export default function Editor({
               left={slashMenu.left}
               onInsert={handleInsertInlineNote}
             />
-            <EditorContent editor={editor} className="learnledger-tiptap-shell" />
+            <EditorContent
+              editor={editor}
+              className="learnledger-tiptap-shell min-h-0 flex-1 overflow-y-auto"
+            />
           </div>
         </div>
 
-        <div className="w-full xl:w-[280px] xl:flex-shrink-0">
-          <div className="flex flex-col gap-3.5">
+        <div className="w-full md:w-[260px] md:flex-shrink-0 lg:w-[280px]">
+          <div
+            className="flex flex-col gap-3.5 md:sticky md:overflow-y-auto md:pr-1 md:[top:var(--editor-sidebar-top)] md:[max-height:calc(100vh-var(--editor-sidebar-top)-16px)]"
+            style={{
+              alignSelf: 'flex-start',
+              '--editor-sidebar-top': `${sidebarStickyTop}px`,
+            }}
+          >
             <AiAssistantPanel
               open={aiPanel.open}
               selectedText={aiPanel.selectedText}
@@ -876,11 +941,17 @@ export default function Editor({
               onInsert={handleInsertAiResponse}
             />
 
-            <OutlinePanel
-              items={outlineItems}
-              activeId={activeOutlineId}
-              onSelect={handleSelectOutlineItem}
-            />
+            <div
+              ref={outlineSectionRef}
+              id="note-outline-panel"
+              style={{ scrollMarginTop: '84px' }}
+            >
+              <OutlinePanel
+                items={outlineItems}
+                activeId={activeOutlineId}
+                onSelect={handleSelectOutlineItem}
+              />
+            </div>
 
             {showLinkedNotes && (
               <LinkedNotesPanel
@@ -894,6 +965,35 @@ export default function Editor({
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={handleJumpToOutline}
+        aria-label="Go to outline"
+        title="Go to outline"
+        className="fixed bottom-4 right-4 z-30 inline-flex items-center gap-1.5 rounded-full px-3 py-2 md:hidden"
+        style={{
+          background: currentTheme.actionBackground,
+          border: `1px solid ${currentTheme.actionBorder}`,
+          color: currentTheme.actionText,
+          boxShadow: '0 12px 24px rgba(5,4,18,0.28)',
+          backdropFilter: 'blur(18px)',
+        }}
+      >
+        <span style={{ width: '12px', height: '12px', flexShrink: 0 }}>
+          <TopicsIcon />
+        </span>
+        <span
+          style={{
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: '11px',
+            fontWeight: '700',
+            lineHeight: 1,
+          }}
+        >
+          Outline
+        </span>
+      </button>
     </div>
   )
 }
