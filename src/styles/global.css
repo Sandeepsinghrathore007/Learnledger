@@ -167,6 +167,7 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   line-height: var(--note-editor-line-height, 1.8);
   font-family: var(--note-editor-font-family, 'DM Sans', 'Noto Sans Devanagari', sans-serif);
   white-space: pre-wrap;
+  tab-size: 4;
 }
 .learnledger-tiptap-shell .ProseMirror:focus {
   outline: none;

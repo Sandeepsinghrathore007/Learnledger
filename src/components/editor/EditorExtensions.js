@@ -6,7 +6,7 @@
 
 import { Extension, Mark, mergeAttributes } from '@tiptap/core'
 import Heading from '@tiptap/extension-heading'
-import { Plugin } from '@tiptap/pm/state'
+import { Plugin, TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import { AiCalloutNode } from '@/components/editor/AiCalloutNode'
 import { buildHeadingIdFromText, createHeadingIdGenerator } from '@/components/editor/headingOutline'
@@ -163,6 +163,144 @@ const HeadingIdSync = Extension.create({
   },
 })
 
+const TAB_CHARACTER = '\t'
+const TAB_WIDTH = 4
+
+function clampEditorPosition(doc, position) {
+  return Math.max(0, Math.min(position, doc.content.size))
+}
+
+function setMappedSelection(transaction, selection) {
+  const nextFrom = clampEditorPosition(transaction.doc, transaction.mapping.map(selection.from, 1))
+  const nextTo = clampEditorPosition(transaction.doc, transaction.mapping.map(selection.to, 1))
+
+  try {
+    transaction.setSelection(TextSelection.create(transaction.doc, nextFrom, nextTo))
+  } catch {
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(nextTo)))
+  }
+}
+
+function getSelectedTextblocks(doc, from, to) {
+  const blocks = []
+  const seenStarts = new Set()
+
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (!node.isTextblock) return
+
+    const start = pos + 1
+    if (seenStarts.has(start)) return
+
+    seenStarts.add(start)
+    blocks.push({ start, text: node.textContent || '' })
+  })
+
+  return blocks
+}
+
+function getLeadingIndent(text = '') {
+  if (text.startsWith(TAB_CHARACTER)) return TAB_CHARACTER
+
+  const leadingSpaces = text.match(/^ +/)?.[0] || ''
+  if (!leadingSpaces) return ''
+
+  return leadingSpaces.slice(0, TAB_WIDTH)
+}
+
+function indentSelectedText(editor) {
+  const { state, view } = editor
+  const { selection } = state
+  const transaction = state.tr
+
+  if (selection.empty) {
+    transaction.insertText(TAB_CHARACTER, selection.from, selection.to)
+    const cursorPos = clampEditorPosition(transaction.doc, transaction.mapping.map(selection.to, 1))
+    transaction.setSelection(TextSelection.create(transaction.doc, cursorPos, cursorPos))
+    view.dispatch(transaction.scrollIntoView())
+    return true
+  }
+
+  const blocks = getSelectedTextblocks(state.doc, selection.from, selection.to)
+  if (blocks.length === 0) return false
+
+  blocks
+    .slice()
+    .reverse()
+    .forEach(({ start }) => {
+      transaction.insertText(TAB_CHARACTER, start, start)
+    })
+
+  setMappedSelection(transaction, selection)
+  view.dispatch(transaction.scrollIntoView())
+  return true
+}
+
+function outdentSelectedText(editor) {
+  const { state, view } = editor
+  const { selection } = state
+  const transaction = state.tr
+
+  if (selection.empty) {
+    const blockStart = selection.$from.start()
+    const indent = getLeadingIndent(selection.$from.parent.textContent || '')
+    if (!indent) return false
+
+    transaction.delete(blockStart, blockStart + indent.length)
+    const cursorPos = clampEditorPosition(transaction.doc, transaction.mapping.map(selection.from, 1))
+    transaction.setSelection(TextSelection.create(transaction.doc, cursorPos, cursorPos))
+    view.dispatch(transaction.scrollIntoView())
+    return true
+  }
+
+  const blocks = getSelectedTextblocks(state.doc, selection.from, selection.to)
+  if (blocks.length === 0) return false
+
+  let changed = false
+
+  blocks
+    .slice()
+    .reverse()
+    .forEach(({ start }) => {
+      const mappedStart = clampEditorPosition(transaction.doc, transaction.mapping.map(start, 1))
+      const resolvedStart = transaction.doc.resolve(mappedStart)
+      const indent = getLeadingIndent(resolvedStart.parent.textContent || '')
+
+      if (!indent) return
+
+      transaction.delete(mappedStart, mappedStart + indent.length)
+      changed = true
+    })
+
+  if (!changed) return false
+
+  setMappedSelection(transaction, selection)
+  view.dispatch(transaction.scrollIntoView())
+  return true
+}
+
+const SelectionTabIndentation = Extension.create({
+  name: 'selectionTabIndentation',
+
+  addKeyboardShortcuts() {
+    return {
+      Tab: () => {
+        if (this.editor.isActive('listItem') && this.editor.commands.sinkListItem('listItem')) {
+          return true
+        }
+
+        return indentSelectedText(this.editor)
+      },
+      'Shift-Tab': () => {
+        if (this.editor.isActive('listItem') && this.editor.commands.liftListItem('listItem')) {
+          return true
+        }
+
+        return outdentSelectedText(this.editor)
+      },
+    }
+  },
+})
+
 /**
  * Exported factory keeps extension setup declarative and easy to test.
  */
@@ -182,5 +320,6 @@ export function buildEditorExtensions() {
     AiCalloutNode,
     InlineNoteNode,
     InlineNoteSlashCommand,
+    SelectionTabIndentation,
   ]
 }
