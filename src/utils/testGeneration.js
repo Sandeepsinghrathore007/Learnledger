@@ -32,7 +32,18 @@ function clampPositiveInteger(value, fallback) {
  */
 function stripHtml(html) {
   if (!html) return ''
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  return String(html)
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6]|blockquote|tr|table)>/gi, '\n')
+    .replace(/<\/(td|th)>/gi, ' | ')
+    .replace(/<img\b[^>]*alt=["']([^"']+)["'][^>]*>/gi, ' [Image: $1] ')
+    .replace(/<img\b[^>]*>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\s*\|\s*(\n|$)/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
 }
 
 /**

@@ -4,9 +4,10 @@
  * Single place to configure TipTap extensions used by the note editor.
  */
 
-import { Extension, Mark, mergeAttributes } from '@tiptap/core'
+import { Extension, Mark, Node, mergeAttributes } from '@tiptap/core'
 import Heading from '@tiptap/extension-heading'
 import { Plugin, TextSelection } from '@tiptap/pm/state'
+import { addRowAfter, goToNextCell, isInTable, tableEditing } from '@tiptap/pm/tables'
 import StarterKit from '@tiptap/starter-kit'
 import { AiCalloutNode } from '@/components/editor/AiCalloutNode'
 import { buildHeadingIdFromText, createHeadingIdGenerator } from '@/components/editor/headingOutline'
@@ -163,6 +164,447 @@ const HeadingIdSync = Extension.create({
   },
 })
 
+const DEFAULT_TABLE_ROWS = 3
+const DEFAULT_TABLE_COLUMNS = 3
+const MAX_TABLE_ROWS = 20
+const MAX_TABLE_COLUMNS = 12
+
+function clampTableDimension(value, fallback, max) {
+  const parsed = Number.parseInt(value, 10)
+
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback
+  return Math.min(parsed, max)
+}
+
+function parseColwidthAttribute(element) {
+  const rawValue = element.getAttribute('data-colwidth')
+
+  if (!rawValue) return null
+
+  const values = rawValue
+    .split(',')
+    .map((segment) => Number.parseInt(segment.trim(), 10))
+    .filter((segment) => Number.isFinite(segment) && segment > 0)
+
+  return values.length > 0 ? values : null
+}
+
+function createTableNode(schema, options = {}) {
+  const safeRows = clampTableDimension(options.rows, DEFAULT_TABLE_ROWS, MAX_TABLE_ROWS)
+  const safeColumns = clampTableDimension(options.cols, DEFAULT_TABLE_COLUMNS, MAX_TABLE_COLUMNS)
+  const withHeaderRow = options.withHeaderRow !== false
+
+  if (!schema?.nodes?.table || !schema?.nodes?.tableRow || !schema?.nodes?.tableCell || !schema?.nodes?.tableHeader) {
+    return null
+  }
+
+  const rows = Array.from({ length: safeRows }, (_, rowIndex) => {
+    const cellType = rowIndex === 0 && withHeaderRow
+      ? schema.nodes.tableHeader
+      : schema.nodes.tableCell
+
+    const cells = Array.from({ length: safeColumns }, () => cellType.createAndFill())
+    return schema.nodes.tableRow.create(null, cells)
+  })
+
+  return schema.nodes.table.create(null, rows)
+}
+
+function moveSelectionInsideTable(transaction, insertPos) {
+  const cursorPos = clampEditorPosition(transaction.doc, insertPos + 4)
+
+  try {
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(cursorPos)))
+  } catch {
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(insertPos)))
+  }
+}
+
+const Table = Node.create({
+  name: 'table',
+  group: 'block',
+  content: 'tableRow+',
+  isolating: true,
+
+  parseHTML() {
+    return [{ tag: 'table' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['table', mergeAttributes(HTMLAttributes), ['tbody', 0]]
+  },
+
+  addCommands() {
+    return {
+      insertTable:
+        (options = {}) =>
+        ({ state, dispatch }) => {
+          const tableNode = createTableNode(state.schema, options)
+          if (!tableNode) return false
+
+          const insertPos = state.selection.from
+          const transaction = state.tr.replaceSelectionWith(tableNode, false)
+          moveSelectionInsideTable(transaction, insertPos)
+
+          if (dispatch) {
+            dispatch(transaction.scrollIntoView())
+          }
+
+          return true
+        },
+      goToNextTableCell:
+        () =>
+        ({ state, dispatch, view }) => {
+          if (goToNextCell(1)(state, dispatch, view)) return true
+          if (!addRowAfter(state, dispatch)) return false
+          return goToNextCell(1)(state, dispatch, view)
+        },
+      goToPreviousTableCell:
+        () =>
+        ({ state, dispatch, view }) =>
+          goToNextCell(-1)(state, dispatch, view),
+    }
+  },
+
+  addProseMirrorPlugins() {
+    return [tableEditing()]
+  },
+
+  extendNodeSchema(extension) {
+    if (extension.name !== this.name) return {}
+    return { tableRole: 'table' }
+  },
+})
+
+const TableRow = Node.create({
+  name: 'tableRow',
+  content: '(tableCell | tableHeader)*',
+
+  parseHTML() {
+    return [{ tag: 'tr' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['tr', mergeAttributes(HTMLAttributes), 0]
+  },
+
+  extendNodeSchema(extension) {
+    if (extension.name !== this.name) return {}
+    return { tableRole: 'row' }
+  },
+})
+
+const cellAttributes = {
+  colspan: {
+    default: 1,
+    parseHTML: (element) => Number.parseInt(element.getAttribute('colspan') || '1', 10) || 1,
+    renderHTML: (attributes) => (
+      Number(attributes.colspan) > 1
+        ? { colspan: Number(attributes.colspan) }
+        : {}
+    ),
+  },
+  rowspan: {
+    default: 1,
+    parseHTML: (element) => Number.parseInt(element.getAttribute('rowspan') || '1', 10) || 1,
+    renderHTML: (attributes) => (
+      Number(attributes.rowspan) > 1
+        ? { rowspan: Number(attributes.rowspan) }
+        : {}
+    ),
+  },
+  colwidth: {
+    default: null,
+    parseHTML: (element) => parseColwidthAttribute(element),
+    renderHTML: (attributes) => (
+      Array.isArray(attributes.colwidth) && attributes.colwidth.length > 0
+        ? { 'data-colwidth': attributes.colwidth.join(',') }
+        : {}
+    ),
+  },
+}
+
+const TableCell = Node.create({
+  name: 'tableCell',
+  content: 'block+',
+  isolating: true,
+
+  addAttributes() {
+    return cellAttributes
+  },
+
+  parseHTML() {
+    return [{ tag: 'td' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['td', mergeAttributes(HTMLAttributes), 0]
+  },
+
+  extendNodeSchema(extension) {
+    if (extension.name !== this.name) return {}
+    return { tableRole: 'cell' }
+  },
+})
+
+const TableHeader = Node.create({
+  name: 'tableHeader',
+  content: 'block+',
+  isolating: true,
+
+  addAttributes() {
+    return cellAttributes
+  },
+
+  parseHTML() {
+    return [{ tag: 'th' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['th', mergeAttributes(HTMLAttributes), 0]
+  },
+
+  extendNodeSchema(extension) {
+    if (extension.name !== this.name) return {}
+    return { tableRole: 'header_cell' }
+  },
+})
+
+const ImageNode = Node.create({
+  name: 'image',
+  group: 'block',
+  atom: true,
+  draggable: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      src: {
+        default: null,
+      },
+      alt: {
+        default: null,
+      },
+      title: {
+        default: null,
+      },
+    }
+  },
+
+  parseHTML() {
+    return [{ tag: 'img[src]' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['img', mergeAttributes({
+      loading: 'lazy',
+      referrerpolicy: 'no-referrer',
+    }, HTMLAttributes)]
+  },
+})
+
+const ClickableLinkNode = Node.create({
+  name: 'clickableLink',
+  group: 'block',
+  atom: true,
+  draggable: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      href: {
+        default: '',
+        parseHTML: (element) => element.getAttribute('data-href') || '',
+        renderHTML: (attributes) => (
+          attributes.href
+            ? { 'data-href': attributes.href }
+            : {}
+        ),
+      },
+      label: {
+        default: '',
+        parseHTML: (element) => element.getAttribute('data-label') || '',
+        renderHTML: (attributes) => (
+          attributes.label
+            ? { 'data-label': attributes.label }
+            : {}
+        ),
+      },
+    }
+  },
+
+  parseHTML() {
+    return [{ tag: 'div[data-type="clickable-link"]' }]
+  },
+
+  renderHTML({ node, HTMLAttributes }) {
+    const href = String(node.attrs?.href || '').trim()
+    const label = String(node.attrs?.label || '').trim() || href
+
+    return [
+      'div',
+      mergeAttributes(
+        {
+          'data-type': 'clickable-link',
+        },
+        HTMLAttributes
+      ),
+      [
+        'a',
+        {
+          href,
+          target: '_blank',
+          rel: 'noopener noreferrer',
+        },
+        label,
+      ],
+    ]
+  },
+
+  addNodeView() {
+    return ({ node, editor, getPos }) => {
+      let currentNode = node
+
+      const dom = document.createElement('div')
+      dom.className = 'learnledger-link-block'
+      dom.dataset.selected = 'false'
+      dom.setAttribute('contenteditable', 'false')
+
+      const anchor = document.createElement('a')
+      anchor.className = 'learnledger-link-block__anchor'
+      anchor.target = '_blank'
+      anchor.rel = 'noopener noreferrer'
+
+      const title = document.createElement('span')
+      title.className = 'learnledger-link-block__title'
+
+      const hrefText = document.createElement('span')
+      hrefText.className = 'learnledger-link-block__href'
+
+      anchor.appendChild(title)
+      anchor.appendChild(hrefText)
+      dom.appendChild(anchor)
+
+      function applyNodeAttributes(nextNode) {
+        currentNode = nextNode
+
+        const href = String(currentNode.attrs?.href || '').trim()
+        const label = String(currentNode.attrs?.label || '').trim() || href
+
+        anchor.href = href
+        title.textContent = label
+        hrefText.textContent = href
+      }
+
+      dom.addEventListener('click', () => {
+        const pos = typeof getPos === 'function' ? getPos() : undefined
+        if (!Number.isFinite(pos)) return
+
+        editor.commands.focus()
+        editor.commands.setNodeSelection(pos)
+      })
+
+      anchor.addEventListener('click', (event) => {
+        event.stopPropagation()
+      })
+
+      applyNodeAttributes(node)
+
+      return {
+        dom,
+        update(updatedNode) {
+          if (updatedNode.type !== currentNode.type) return false
+          applyNodeAttributes(updatedNode)
+          return true
+        },
+        selectNode() {
+          dom.dataset.selected = 'true'
+        },
+        deselectNode() {
+          dom.dataset.selected = 'false'
+        },
+        stopEvent(event) {
+          return anchor.contains(event.target)
+        },
+      }
+    }
+  },
+
+  addCommands() {
+    return {
+      insertClickableLink:
+        (attributes = {}) =>
+        ({ state, dispatch }) => {
+          const href = String(attributes.href || '').trim()
+          if (!href) return false
+
+          const linkNode = state.schema.nodes.clickableLink?.create({
+            href,
+            label: String(attributes.label || '').trim() || href,
+          })
+
+          if (!linkNode) return false
+
+          const insertPos = state.selection.from
+          const transaction = state.tr.replaceSelectionWith(linkNode, false)
+
+          try {
+            transaction.setSelection(TextSelection.near(transaction.doc.resolve(insertPos + linkNode.nodeSize)))
+          } catch {
+            transaction.setSelection(TextSelection.near(transaction.doc.resolve(insertPos)))
+          }
+
+          if (dispatch) {
+            dispatch(transaction.scrollIntoView())
+          }
+
+          return true
+        },
+    }
+  },
+})
+
+const ClickableLinkPasteHandler = Extension.create({
+  name: 'clickableLinkPasteHandler',
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          handlePaste: (_view, event) => {
+            const clipboard = event?.clipboardData
+            if (!clipboard) return false
+
+            const html = String(clipboard.getData('text/html') || '').trim()
+            if (html.includes('<a') || html.includes('<img')) return false
+
+            const plainText = String(clipboard.getData('text/plain') || '').trim()
+            try {
+              const url = new URL(plainText)
+              if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+
+              event.preventDefault()
+
+              const label = url.hostname.replace(/^www\./, '') || plainText
+
+              return this.editor
+                .chain()
+                .focus()
+                .insertClickableLink({
+                  href: plainText,
+                  label,
+                })
+                .run()
+            } catch {
+              return false
+            }
+          },
+        },
+      }),
+    ]
+  },
+})
+
 const TAB_CHARACTER = '\t'
 const TAB_WIDTH = 4
 
@@ -284,6 +726,10 @@ const SelectionTabIndentation = Extension.create({
   addKeyboardShortcuts() {
     return {
       Tab: () => {
+        if (isInTable(this.editor.state)) {
+          return this.editor.commands.goToNextTableCell()
+        }
+
         if (this.editor.isActive('listItem') && this.editor.commands.sinkListItem('listItem')) {
           return true
         }
@@ -291,6 +737,10 @@ const SelectionTabIndentation = Extension.create({
         return indentSelectedText(this.editor)
       },
       'Shift-Tab': () => {
+        if (isInTable(this.editor.state)) {
+          return this.editor.commands.goToPreviousTableCell()
+        }
+
         if (this.editor.isActive('listItem') && this.editor.commands.liftListItem('listItem')) {
           return true
         }
@@ -313,6 +763,13 @@ export function buildEditorExtensions() {
       orderedList: true,
       blockquote: true,
     }),
+    Table,
+    TableRow,
+    TableCell,
+    TableHeader,
+    ImageNode,
+    ClickableLinkNode,
+    ClickableLinkPasteHandler,
     HeadingWithId.configure({ levels: [1, 2, 3] }),
     HeadingIdSync,
     Underline,

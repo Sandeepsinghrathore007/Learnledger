@@ -146,6 +146,35 @@ function extractStructuredText(node) {
     return [title, body].filter(Boolean).join('\n')
   }
 
+  if (node?.type === 'image') {
+    const label = String(node.attrs?.alt || node.attrs?.title || '').trim()
+    return label ? `[Image] ${label}` : ''
+  }
+
+  if (node?.type === 'clickableLink') {
+    const href = String(node.attrs?.href || '').trim()
+    const label = String(node.attrs?.label || '').trim() || href
+    return href ? `${label} (${href})` : label
+  }
+
+  if (node?.type === 'table') {
+    return Array.isArray(node.content)
+      ? node.content.map(extractStructuredText).filter(Boolean).join('\n')
+      : ''
+  }
+
+  if (node?.type === 'tableRow') {
+    return Array.isArray(node.content)
+      ? node.content.map(extractStructuredText).filter(Boolean).join(' | ')
+      : ''
+  }
+
+  if (node?.type === 'tableCell' || node?.type === 'tableHeader') {
+    return Array.isArray(node.content)
+      ? node.content.map(extractStructuredText).filter(Boolean).join(' ')
+      : ''
+  }
+
   if (node.type === 'text') return node.text ?? ''
   if (node.type === 'hardBreak') return '\n'
   if (!Array.isArray(node.content)) return ''
@@ -222,6 +251,18 @@ function tiptapJsonToBlocks(jsonDoc) {
       return
     }
 
+    if (node.type === 'table') {
+      blocks.push({ id: uid(), type: 'p', text })
+      return
+    }
+
+    if (node.type === 'image') {
+      if (text.trim().length > 0) {
+        blocks.push({ id: uid(), type: 'p', text })
+      }
+      return
+    }
+
     if (text.trim().length > 0) {
       blocks.push({ id: uid(), type: 'p', text })
     }
@@ -233,6 +274,15 @@ function tiptapJsonToBlocks(jsonDoc) {
 function normalizeTitle(value) {
   const trimmed = value.trim()
   return trimmed || 'Untitled Note'
+}
+
+function isWebUrl(value) {
+  try {
+    const url = new URL(String(value || '').trim())
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 function getSafeTags(note) {
@@ -465,6 +515,38 @@ export default function Editor({
       editor.chain().focus(insertPos + 2).run()
     })
   }, [editor, slashMenu.range])
+
+  const handleInsertTable = useCallback(
+    (options) => {
+      if (!editor) return
+      editor.chain().focus().insertTable(options).run()
+    },
+    [editor]
+  )
+
+  const handleInsertLinkBlock = useCallback(
+    ({ href, label }) => {
+      if (!editor) return false
+
+      const nextHref = String(href || '').trim()
+      const nextLabel = String(label || '').trim()
+
+      if (!isWebUrl(nextHref)) {
+        window.alert('Please paste a valid URL starting with http or https.')
+        return false
+      }
+
+      return editor
+        .chain()
+        .focus()
+        .insertClickableLink({
+          href: nextHref,
+          label: nextLabel || nextHref,
+        })
+        .run()
+    },
+    [editor]
+  )
 
   const persistNote = useCallback(() => {
     if (!editor) return
@@ -905,7 +987,12 @@ export default function Editor({
               '--note-editor-line-height': currentFontSize.lineHeight,
             }}
           >
-            <EditorToolbar editor={editor} themeStyles={currentTheme} />
+            <EditorToolbar
+              editor={editor}
+              themeStyles={currentTheme}
+              onInsertTable={handleInsertTable}
+              onInsertLink={handleInsertLinkBlock}
+            />
             <FloatingToolbar
               editor={editor}
               themeStyles={currentTheme}
@@ -921,7 +1008,7 @@ export default function Editor({
             />
             <EditorContent
               editor={editor}
-              className="learnledger-tiptap-shell min-h-0 flex-1 overflow-y-auto"
+              className="learnledger-tiptap-shell min-h-0 flex-1 overflow-auto"
             />
           </div>
         </div>

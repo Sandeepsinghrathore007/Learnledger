@@ -105,6 +105,27 @@ const DEFAULT_THEME = {
   toolbarButtonActiveText: '#f7f2ff',
 }
 
+function clampPromptValue(value, fallback, max) {
+  const parsed = Number.parseInt(value, 10)
+
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback
+  return Math.min(parsed, max)
+}
+
+function parseTableDimensions(value = '') {
+  const normalized = String(value || '').trim().toLowerCase()
+  const matched = normalized.match(/(\d+)\s*(?:x|×|,|\s)\s*(\d+)/)
+
+  if (!matched) {
+    return { rows: 3, cols: 3 }
+  }
+
+  return {
+    rows: clampPromptValue(matched[1], 3, 20),
+    cols: clampPromptValue(matched[2], 3, 12),
+  }
+}
+
 function ToolbarButton({ button, editor, themeStyles }) {
   const active = button.isActive(editor)
   const disabled = button.isDisabled(editor)
@@ -138,9 +159,59 @@ function ToolbarButton({ button, editor, themeStyles }) {
   )
 }
 
-export default function EditorToolbar({ editor, themeStyles }) {
+export default function EditorToolbar({
+  editor,
+  themeStyles,
+  onInsertTable = null,
+  onInsertLink = null,
+}) {
   if (!editor) return null
   const palette = themeStyles || DEFAULT_THEME
+  const extraButtons = []
+
+  if (onInsertTable) {
+    extraButtons.push({
+      id: 'table',
+      label: 'Tbl',
+      title: 'Insert Table',
+      isActive: () => editor.isActive('table'),
+      isDisabled: (instance) => !instance.can().chain().focus().insertTable({ rows: 1, cols: 1 }).run(),
+      onClick: () => {
+        const requestedSize = window.prompt('Enter table size as rows x columns', '3x3')
+        if (requestedSize === null) return
+
+        const dimensions = parseTableDimensions(requestedSize)
+        onInsertTable({
+          ...dimensions,
+          withHeaderRow: true,
+        })
+      },
+    })
+  }
+
+  if (onInsertLink) {
+    extraButtons.push({
+      id: 'link',
+      label: 'Link',
+      title: 'Insert Clickable Link Block',
+      isActive: () => false,
+      isDisabled: () => false,
+      onClick: () => {
+        const href = window.prompt('Paste a URL', 'https://example.com')
+        if (href === null) return
+
+        const label = window.prompt('Link label', href)
+        if (label === null) return
+
+        onInsertLink({
+          href,
+          label,
+        })
+      },
+    })
+  }
+
+  const buttons = [...TOOLBAR_BUTTONS, ...extraButtons]
 
   return (
     <div
@@ -154,7 +225,7 @@ export default function EditorToolbar({ editor, themeStyles }) {
         background: palette.toolbarBackground,
       }}
     >
-      {TOOLBAR_BUTTONS.map((button) => (
+      {buttons.map((button) => (
         <ToolbarButton key={button.id} button={button} editor={editor} themeStyles={palette} />
       ))}
     </div>
