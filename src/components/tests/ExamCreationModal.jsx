@@ -426,9 +426,6 @@ export default function ExamCreationModal({
             <div style={{ color: TEXT1, fontSize: '12px', fontWeight: '700', fontFamily: "'DM Sans', sans-serif" }}>
               Question Detection
             </div>
-            <div style={{ color: TEXT3, fontSize: '11px', marginTop: '4px', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
-              Typing se koi AI call nahi hogi. Pehle questions finish karo, phir `Detect Questions` click karo.
-            </div>
             {detection.error ? (
               <div style={{ color: '#fca5a5', fontSize: '11px', marginTop: '8px', fontFamily: "'DM Sans', sans-serif" }}>
                 {detection.error}
