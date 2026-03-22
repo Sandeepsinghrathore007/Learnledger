@@ -6,7 +6,7 @@ import { ACTIVITY_TYPES, logActivity } from '@/services/firebase/analyticsServic
 import {
   createNote,
   deleteNote,
-  subscribeToNotes,
+  subscribeToTopicNotes,
   updateNote as updateNoteDoc,
 } from '@/services/firebase/notesService'
 import {
@@ -18,7 +18,7 @@ import {
 import {
   createTopic,
   deleteTopic,
-  subscribeToTopics,
+  subscribeToSubjectTopics,
   updateTopic as updateTopicDoc,
 } from '@/services/firebase/topicsService'
 
@@ -59,6 +59,10 @@ function sortByMostRecent(items, field = 'updatedAt') {
   return [...items].sort((a, b) => (b[field] || '').localeCompare(a[field] || ''))
 }
 
+function createTopicListenerKey(subjectId, topicId) {
+  return `${subjectId}::${topicId}`
+}
+
 function normalizeNote(note) {
   const now = new Date().toISOString()
 
@@ -68,7 +72,7 @@ function normalizeNote(note) {
     content: note.content || '<p></p>',
     blocks: toSafeArray(note.blocks),
     tags: toSafeArray(note.tags),
-    theme: typeof note.theme === 'string' ? note.theme : 'midnight',
+    theme: typeof note.theme === 'string' ? note.theme : 'glass',
     fontSize: typeof note.fontSize === 'string' ? note.fontSize : 'medium',
     isFavorite: Boolean(note.isFavorite),
     isPinned: Boolean(note.isPinned),
@@ -233,6 +237,21 @@ export function useSubjects(user) {
 
     setLoading(true)
     setError('')
+    const topicsBySubject = new Map()
+    const notesByTopic = new Map()
+    const topicUnsubscribers = new Map()
+    const noteUnsubscribers = new Map()
+    let isMounted = true
+
+    const emitTopics = () => {
+      if (!isMounted) return
+      setTopicDocs(sortByMostRecent(Array.from(topicsBySubject.values()).flat(), 'updatedAt'))
+    }
+
+    const emitNotes = () => {
+      if (!isMounted) return
+      setNoteDocs(sortByMostRecent(Array.from(notesByTopic.values()).flat(), 'updatedAt'))
+    }
 
     const handleSubscriptionError = (subscriptionError) => {
       console.error('Failed to sync Firestore data:', subscriptionError)
@@ -244,31 +263,116 @@ export function useSubjects(user) {
       setLoading(false)
     }
 
+    const removeNoteListener = (subjectId, topicId) => {
+      const key = createTopicListenerKey(subjectId, topicId)
+      const unsubscribe = noteUnsubscribers.get(key)
+      if (unsubscribe) {
+        unsubscribe()
+        noteUnsubscribers.delete(key)
+      }
+
+      if (notesByTopic.delete(key)) {
+        emitNotes()
+      }
+    }
+
+    const removeSubjectListeners = (subjectId) => {
+      const unsubscribeTopics = topicUnsubscribers.get(subjectId)
+      if (unsubscribeTopics) {
+        unsubscribeTopics()
+        topicUnsubscribers.delete(subjectId)
+      }
+
+      if (topicsBySubject.delete(subjectId)) {
+        emitTopics()
+      }
+
+      let notesChanged = false
+      for (const [key, unsubscribeNotes] of noteUnsubscribers.entries()) {
+        if (!key.startsWith(`${subjectId}::`)) continue
+        unsubscribeNotes()
+        noteUnsubscribers.delete(key)
+        notesChanged = notesByTopic.delete(key) || notesChanged
+      }
+
+      if (notesChanged) {
+        emitNotes()
+      }
+    }
+
+    const syncNoteListeners = (subjectId, topics) => {
+      const nextTopicKeys = new Set(
+        topics.map((topic) => createTopicListenerKey(subjectId, topic.id))
+      )
+
+      for (const key of Array.from(noteUnsubscribers.keys())) {
+        if (!key.startsWith(`${subjectId}::`) || nextTopicKeys.has(key)) continue
+        const [, topicId] = key.split('::')
+        removeNoteListener(subjectId, topicId)
+      }
+
+      topics.forEach((topic) => {
+        const key = createTopicListenerKey(subjectId, topic.id)
+        if (noteUnsubscribers.has(key)) return
+
+        const unsubscribeNotes = subscribeToTopicNotes(
+          user.uid,
+          subjectId,
+          topic.id,
+          (items) => {
+            notesByTopic.set(key, items)
+            emitNotes()
+          },
+          handleSubscriptionError
+        )
+
+        noteUnsubscribers.set(key, unsubscribeNotes)
+      })
+    }
+
     const unsubscribeSubjects = subscribeToSubjects(
       user.uid,
       (items) => {
         setSubjectDocs(items)
         setLoading(false)
+        const nextSubjectIds = new Set(items.map((subject) => subject.id))
+
+        for (const subjectId of Array.from(topicUnsubscribers.keys())) {
+          if (!nextSubjectIds.has(subjectId)) {
+            removeSubjectListeners(subjectId)
+          }
+        }
+
+        items.forEach((subject) => {
+          if (topicUnsubscribers.has(subject.id)) return
+
+          const unsubscribeTopics = subscribeToSubjectTopics(
+            user.uid,
+            subject.id,
+            (topicItems) => {
+              topicsBySubject.set(subject.id, topicItems)
+              emitTopics()
+              syncNoteListeners(subject.id, topicItems)
+            },
+            handleSubscriptionError
+          )
+
+          topicUnsubscribers.set(subject.id, unsubscribeTopics)
+        })
       },
       handleSubscriptionError
     )
 
-    const unsubscribeTopics = subscribeToTopics(
-      user.uid,
-      (items) => setTopicDocs(items),
-      handleSubscriptionError
-    )
-
-    const unsubscribeNotes = subscribeToNotes(
-      user.uid,
-      (items) => setNoteDocs(items),
-      handleSubscriptionError
-    )
-
     return () => {
+      isMounted = false
       unsubscribeSubjects()
-      unsubscribeTopics()
-      unsubscribeNotes()
+
+      topicUnsubscribers.forEach((unsubscribe) => unsubscribe())
+      noteUnsubscribers.forEach((unsubscribe) => unsubscribe())
+      topicUnsubscribers.clear()
+      noteUnsubscribers.clear()
+      topicsBySubject.clear()
+      notesByTopic.clear()
     }
   }, [isAuthenticated, user?.uid])
 

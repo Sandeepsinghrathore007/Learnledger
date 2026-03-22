@@ -760,7 +760,22 @@ export default function Editor({
   }, [])
 
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <div
+      className="animate-fade-in"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '14px',
+        position: 'relative',
+        isolation: 'isolate',
+        padding: '16px',
+        borderRadius: '28px',
+        background: currentTheme.workspaceBackground,
+        border: `1px solid ${currentTheme.workspaceBorder}`,
+        boxShadow: currentTheme.workspaceShadow,
+        backdropFilter: 'blur(28px) saturate(160%)',
+      }}
+    >
       <div
         ref={headerBarRef}
         style={{
@@ -775,8 +790,8 @@ export default function Editor({
           position: 'sticky',
           top: `${STICKY_EDITOR_TOP}px`,
           zIndex: 25,
-          boxShadow: '0 18px 36px rgba(5,4,18,0.22)',
-          backdropFilter: 'blur(20px)',
+          boxShadow: currentTheme.panelShadow,
+          backdropFilter: 'blur(24px) saturate(160%)',
         }}
       >
         <button
@@ -818,6 +833,7 @@ export default function Editor({
             borderColor: currentTheme.titleInputBorder,
             fontWeight: '700',
             color: currentTheme.titleInputText,
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
           }}
         />
 
@@ -879,6 +895,7 @@ export default function Editor({
                     fontFamily: "'DM Sans', sans-serif",
                     fontSize: '12px',
                     fontWeight: '700',
+                    boxShadow: active ? currentTheme.actionShadow : 'none',
                   }}
                 >
                   <span
@@ -928,6 +945,7 @@ export default function Editor({
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: '12px',
                 fontWeight: '700',
+                boxShadow: currentTheme.actionShadow,
               }}
             >
               <span style={{ width: '12px', height: '12px' }}>
@@ -982,6 +1000,7 @@ export default function Editor({
               overflow: 'hidden',
               minHeight: '540px',
               boxShadow: currentTheme.editorFrameShadow,
+              backdropFilter: 'blur(26px) saturate(165%)',
               ...currentTheme.cssVars,
               '--note-editor-font-size': currentFontSize.fontSize,
               '--note-editor-line-height': currentFontSize.lineHeight,
@@ -1026,6 +1045,7 @@ export default function Editor({
               selectedText={aiPanel.selectedText}
               onClose={handleCloseAiAssistant}
               onInsert={handleInsertAiResponse}
+              themeStyles={currentTheme}
             />
 
             <div
@@ -1037,6 +1057,7 @@ export default function Editor({
                 items={outlineItems}
                 activeId={activeOutlineId}
                 onSelect={handleSelectOutlineItem}
+                themeStyles={currentTheme}
               />
             </div>
 
@@ -1047,6 +1068,7 @@ export default function Editor({
                 onAddLink={onAddLinkedNote}
                 onRemoveLink={onRemoveLinkedNote}
                 onNavigateToNote={onNavigateToNote || (() => {})}
+                themeStyles={currentTheme}
               />
             )}
           </div>

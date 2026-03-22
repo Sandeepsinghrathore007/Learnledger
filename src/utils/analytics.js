@@ -27,7 +27,7 @@ function toDate(value) {
 function startOfDay(value = new Date()) {
   const date = typeof value === 'string' && DATE_KEY_PATTERN.test(value)
     ? new Date(...value.split('-').map((part, index) => (index === 1 ? Number(part) - 1 : Number(part))))
-    : toDate(value) || new Date()
+    : new Date((toDate(value) || new Date()).getTime())
   date.setHours(0, 0, 0, 0)
   return date
 }
@@ -36,6 +36,10 @@ function addDays(value, days) {
   const date = startOfDay(value)
   date.setDate(date.getDate() + days)
   return date
+}
+
+function getNextDayStart(value = new Date()) {
+  return addDays(value, 1)
 }
 
 export function toDateKey(value = new Date()) {
@@ -280,13 +284,20 @@ export function buildHeatmap(activity = [], options = {}) {
 }
 
 export function computeStudyStreak(activity = [], today = new Date()) {
+  const referenceDate = toDate(today) || new Date()
   const dateKeys = [...new Set(activity.map((entry) => entry?.date).filter(Boolean))].sort()
 
   if (dateKeys.length === 0) {
+    const resetAt = getNextDayStart(referenceDate)
+
     return {
       currentStreak: 0,
       longestStreak: 0,
       lastActiveDate: null,
+      isActiveToday: false,
+      needsTodayActivity: false,
+      resetAt: resetAt.toISOString(),
+      millisecondsUntilReset: Math.max(0, resetAt.getTime() - referenceDate.getTime()),
     }
   }
 
@@ -306,8 +317,8 @@ export function computeStudyStreak(activity = [], today = new Date()) {
   })
 
   const activeDays = new Set(dateKeys)
-  const todayKey = toDateKey(today)
-  const yesterdayKey = toDateKey(addDays(today, -1))
+  const todayKey = toDateKey(referenceDate)
+  const yesterdayKey = toDateKey(addDays(referenceDate, -1))
   let anchorKey = null
 
   if (activeDays.has(todayKey)) {
@@ -322,10 +333,17 @@ export function computeStudyStreak(activity = [], today = new Date()) {
     anchorKey = toDateKey(addDays(parseDateKey(anchorKey), -1))
   }
 
+  const resetAt = getNextDayStart(referenceDate)
+  const isActiveToday = activeDays.has(todayKey)
+
   return {
     currentStreak,
     longestStreak,
     lastActiveDate: dateKeys[dateKeys.length - 1],
+    isActiveToday,
+    needsTodayActivity: !isActiveToday && currentStreak > 0,
+    resetAt: resetAt.toISOString(),
+    millisecondsUntilReset: Math.max(0, resetAt.getTime() - referenceDate.getTime()),
   }
 }
 

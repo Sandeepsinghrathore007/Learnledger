@@ -13,6 +13,47 @@ const QUICK_ACTIONS = [
   { id: 'mcq', label: 'Make MCQ', prompt: 'Create one MCQ from this and mention the correct answer briefly.' },
 ]
 
+const DEFAULT_THEME = {
+  accent: '#a855f7',
+  accentSecondary: '#22d3ee',
+  panelBackground: 'linear-gradient(135deg, rgba(11,20,38,0.74), rgba(23,12,42,0.58))',
+  panelBorder: 'rgba(148,163,184,0.16)',
+  panelShadow: '0 20px 46px rgba(3,10,25,0.3), inset 0 1px 0 rgba(255,255,255,0.08)',
+  titleInputBackground: 'rgba(8,17,35,0.56)',
+  titleInputBorder: 'rgba(148,163,184,0.18)',
+  titleInputText: '#f8fbff',
+  pillBackground: 'rgba(255,255,255,0.04)',
+  pillBorder: 'rgba(148,163,184,0.14)',
+  pillText: '#d3defa',
+  pillActiveBackground: 'linear-gradient(135deg, rgba(34,211,238,0.16), rgba(168,85,247,0.22))',
+  pillActiveBorder: 'rgba(103,232,249,0.28)',
+  pillActiveText: '#ffffff',
+  actionBackground: 'linear-gradient(135deg, rgba(34,211,238,0.34), rgba(168,85,247,0.34) 58%, rgba(52,211,153,0.24))',
+  actionBorder: 'rgba(125,211,252,0.42)',
+  actionText: '#f7fbff',
+  floatingBackground: 'linear-gradient(180deg, rgba(10,16,33,0.96), rgba(9,11,26,0.92))',
+  floatingBorder: 'rgba(148,163,184,0.18)',
+  floatingText: '#dbe7ff',
+  cssVars: {
+    '--note-editor-heading': '#ffffff',
+    '--note-editor-text': '#edf3ff',
+    '--note-editor-muted': '#9fb1d6',
+  },
+}
+
+function getPalette(themeStyles) {
+  const palette = themeStyles || DEFAULT_THEME
+
+  return {
+    ...DEFAULT_THEME,
+    ...palette,
+    cssVars: {
+      ...DEFAULT_THEME.cssVars,
+      ...(palette?.cssVars || {}),
+    },
+  }
+}
+
 function parseAiJsonResponse(rawText) {
   const cleaned = String(rawText || '')
     .replace(/```json/gi, '')
@@ -64,13 +105,14 @@ function LoadingDots() {
   )
 }
 
-export default function AiAssistantPanel({ open, selectedText, onClose, onInsert }) {
+export default function AiAssistantPanel({ open, selectedText, onClose, onInsert, themeStyles = null }) {
   const textareaRef = useRef(null)
   const [showFullQuote, setShowFullQuote] = useState(false)
   const [question, setQuestion] = useState('')
   const [status, setStatus] = useState('idle')
   const [response, setResponse] = useState(null)
   const [error, setError] = useState('')
+  const palette = getPalette(themeStyles)
 
   useEffect(() => {
     if (!open) return
@@ -118,10 +160,13 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
   return (
     <div
       style={{
-        background: '#0d0b1a',
-        border: '1px solid rgba(255,255,255,0.08)',
-        borderRadius: '12px',
-        padding: '12px',
+        background: palette.panelBackground,
+        border: `1px solid ${palette.panelBorder}`,
+        borderRadius: '18px',
+        padding: '14px',
+        boxShadow: palette.panelShadow,
+        backdropFilter: 'blur(22px) saturate(160%)',
+        '--learnledger-ai-dot': palette.accent,
       }}
     >
       <div
@@ -135,10 +180,12 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
       >
         <span
           style={{
-            color: '#a78bfa',
+            color: palette.accentSecondary,
             fontSize: '11px',
-            fontWeight: '500',
+            fontWeight: '700',
             fontFamily: "'DM Sans', sans-serif",
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
           }}
         >
           ✦ AI Assistant
@@ -153,7 +200,7 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
             border: 'none',
             borderRadius: '999px',
             background: 'transparent',
-            color: 'rgba(237,230,255,0.62)',
+            color: palette.cssVars['--note-editor-muted'],
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -169,16 +216,17 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
 
       <div
         style={{
-          background: 'rgba(124,58,237,0.06)',
-          borderLeft: '2px solid #7c3aed',
-          borderRadius: '0 4px 4px 0',
-          padding: '9px 0 9px 8px',
+          background: palette.pillBackground,
+          border: `1px solid ${palette.pillBorder}`,
+          borderLeft: `2px solid ${palette.accentSecondary}`,
+          borderRadius: '0 10px 10px 0',
+          padding: '10px 10px 10px 12px',
           marginBottom: '12px',
         }}
       >
         <div
           style={{
-            color: '#9d8ec4',
+            color: palette.cssVars['--note-editor-muted'],
             fontStyle: 'italic',
             fontSize: '11px',
             lineHeight: 1.6,
@@ -202,7 +250,7 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
               border: 'none',
               background: 'transparent',
               padding: 0,
-              color: '#7c3aed',
+              color: palette.accentSecondary,
               fontSize: '11px',
               fontFamily: "'DM Sans', sans-serif",
               cursor: 'pointer',
@@ -222,15 +270,16 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
           width: '100%',
           minHeight: '74px',
           resize: 'vertical',
-          borderRadius: '8px',
-          background: 'rgba(255,255,255,0.04)',
-          border: '0.5px solid rgba(255,255,255,0.1)',
-          color: '#ede6ff',
+          borderRadius: '12px',
+          background: palette.titleInputBackground,
+          border: `1px solid ${palette.titleInputBorder}`,
+          color: palette.titleInputText,
           fontSize: '12px',
           lineHeight: 1.55,
           fontFamily: "'DM Sans', sans-serif",
           padding: '10px 11px',
           outline: 'none',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
         }}
       />
 
@@ -243,9 +292,9 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
             disabled={status === 'loading'}
             style={{
               borderRadius: '999px',
-              border: '0.5px solid rgba(255,255,255,0.08)',
-              background: 'rgba(255,255,255,0.03)',
-              color: '#b7abdd',
+              border: `1px solid ${palette.pillBorder}`,
+              background: palette.pillBackground,
+              color: palette.pillText,
               fontSize: '10px',
               fontWeight: '600',
               fontFamily: "'DM Sans', sans-serif",
@@ -266,16 +315,17 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
         style={{
           width: '100%',
           marginTop: '10px',
-          borderRadius: '8px',
-          border: 'none',
-          background: '#7c3aed',
-          color: '#ffffff',
+          borderRadius: '12px',
+          border: `1px solid ${palette.actionBorder}`,
+          background: palette.actionBackground,
+          color: palette.actionText,
           fontSize: '12px',
           fontWeight: '700',
           fontFamily: "'DM Sans', sans-serif",
           padding: '10px 12px',
           cursor: status === 'loading' || !question.trim() ? 'default' : 'pointer',
           opacity: status === 'loading' || !question.trim() ? 0.6 : 1,
+          boxShadow: '0 14px 32px rgba(8,18,38,0.28)',
         }}
       >
         Ask AI
@@ -300,15 +350,16 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
         {status === 'success' && response && (
           <div
             style={{
-              borderRadius: '10px',
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(255,255,255,0.06)',
-              padding: '11px',
+              borderRadius: '14px',
+              background: palette.floatingBackground,
+              border: `1px solid ${palette.floatingBorder}`,
+              padding: '12px',
+              boxShadow: '0 16px 32px rgba(3,10,26,0.22)',
             }}
           >
             <div
               style={{
-                color: '#ede6ff',
+                color: palette.cssVars['--note-editor-text'],
                 fontSize: '12px',
                 lineHeight: 1.65,
                 fontFamily: "'DM Sans', sans-serif",
@@ -327,7 +378,7 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
                       display: 'flex',
                       alignItems: 'flex-start',
                       gap: '8px',
-                      color: '#d8cbff',
+                      color: palette.floatingText,
                       fontSize: '11px',
                       lineHeight: 1.55,
                       fontFamily: "'DM Sans', sans-serif",
@@ -339,7 +390,7 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
                         width: '6px',
                         height: '6px',
                         borderRadius: '999px',
-                        background: '#7c3aed',
+                        background: palette.accentSecondary,
                         marginTop: '5px',
                         flexShrink: 0,
                       }}
@@ -355,10 +406,10 @@ export default function AiAssistantPanel({ open, selectedText, onClose, onInsert
               onClick={() => onInsert(response)}
               style={{
                 marginTop: '12px',
-                borderRadius: '7px',
-                border: '0.5px solid rgba(124,58,237,0.3)',
-                background: 'rgba(124,58,237,0.15)',
-                color: '#a78bfa',
+                borderRadius: '10px',
+                border: `1px solid ${palette.pillActiveBorder}`,
+                background: palette.pillActiveBackground,
+                color: palette.pillActiveText,
                 fontSize: '11px',
                 fontWeight: '600',
                 fontFamily: "'DM Sans', sans-serif",

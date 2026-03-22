@@ -24,7 +24,7 @@ export default function TopicAccordion({
   topic, subjectColor,
   onAddNote, onOpenNote, onDeleteNote, onDeleteTopic, onTakeTest = null,
 }) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
 
   return (
     <div style={{

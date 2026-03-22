@@ -152,7 +152,7 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   width: 7px;
   height: 7px;
   border-radius: 999px;
-  background: #7c3aed;
+  background: var(--learnledger-ai-dot, #7c3aed);
   display: inline-block;
   animation: aiPulse 1s ease-in-out infinite;
 }
@@ -168,6 +168,10 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   font-family: var(--note-editor-font-family, 'DM Sans', 'Noto Sans Devanagari', sans-serif);
   white-space: pre-wrap;
   tab-size: 4;
+}
+.learnledger-tiptap-shell .ProseMirror ::selection {
+  background: var(--note-editor-selection-bg, rgba(124,58,237,0.36));
+  color: #fff;
 }
 .learnledger-tiptap-shell .ProseMirror:focus {
   outline: none;
@@ -239,8 +243,8 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   border-collapse: collapse;
   table-layout: fixed;
   margin: 1rem 0;
-  background: rgba(10, 8, 23, 0.54);
-  border: 1px solid rgba(139, 92, 246, 0.18);
+  background: var(--note-editor-table-bg, rgba(10, 8, 23, 0.54));
+  border: 1px solid var(--note-editor-table-border, rgba(139, 92, 246, 0.18));
   border-radius: 14px;
   overflow: hidden;
 }
@@ -248,13 +252,13 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
 .learnledger-tiptap-shell .ProseMirror td {
   position: relative;
   min-width: 110px;
-  border: 1px solid rgba(139, 92, 246, 0.16);
+  border: 1px solid var(--note-editor-table-border, rgba(139, 92, 246, 0.16));
   padding: 10px 12px;
   vertical-align: top;
   text-align: left;
 }
 .learnledger-tiptap-shell .ProseMirror th {
-  background: rgba(139, 92, 246, 0.12);
+  background: var(--note-editor-table-head-bg, rgba(139, 92, 246, 0.12));
   color: var(--note-editor-heading, #f2ebff);
   font-weight: 700;
 }
@@ -270,7 +274,7 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   position: absolute;
   inset: 0;
   content: '';
-  background: rgba(167, 139, 250, 0.2);
+  background: var(--note-editor-selected-cell-bg, rgba(167, 139, 250, 0.2));
   pointer-events: none;
 }
 .learnledger-tiptap-shell .ProseMirror img {
@@ -280,8 +284,8 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   height: auto;
   margin: 1rem auto;
   border-radius: 14px;
-  border: 1px solid rgba(139, 92, 246, 0.18);
-  box-shadow: 0 18px 36px rgba(5, 4, 18, 0.22);
+  border: 1px solid var(--note-editor-image-border, rgba(139, 92, 246, 0.18));
+  box-shadow: var(--note-editor-image-shadow, 0 18px 36px rgba(5, 4, 18, 0.22));
 }
 .learnledger-tiptap-shell .ProseMirror .learnledger-link-block {
   margin: 1rem 0;
@@ -292,10 +296,10 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   gap: 0.2rem;
   padding: 14px 16px;
   border-radius: 14px;
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  background: linear-gradient(180deg, rgba(139, 92, 246, 0.1), rgba(12, 10, 28, 0.88));
+  border: 1px solid var(--note-editor-link-border, rgba(139, 92, 246, 0.2));
+  background: var(--note-editor-link-bg, linear-gradient(180deg, rgba(139, 92, 246, 0.1), rgba(12, 10, 28, 0.88)));
   text-decoration: none;
-  box-shadow: 0 18px 32px rgba(5, 4, 18, 0.18);
+  box-shadow: var(--note-editor-link-shadow, 0 18px 32px rgba(5, 4, 18, 0.18));
 }
 .learnledger-tiptap-shell .ProseMirror .learnledger-link-block[data-selected='true'] .learnledger-link-block__anchor {
   outline: 2px solid rgba(167, 139, 250, 0.65);
@@ -313,7 +317,12 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
 }
 .learnledger-tiptap-shell .ProseMirror blockquote {
   border-left: 3px solid var(--note-editor-quote-border, rgba(139, 92, 246, 0.5));
+  background: var(--note-editor-quote-bg, transparent);
+  border-radius: 0 14px 14px 0;
   padding-left: 0.8rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  padding-right: 0.8rem;
   margin: 0.8rem 0;
   color: var(--note-editor-muted, #b7abdd);
 }

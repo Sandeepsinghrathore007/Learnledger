@@ -199,7 +199,7 @@ export default function MockTestsPage({
             fontWeight: '800',
             margin: '0 0 6px',
           }}>
-            AI Mock Tests
+            AI Tests
           </h1>
           <p style={{
             color: TEXT3,
@@ -217,7 +217,7 @@ export default function MockTestsPage({
           icon={MockTestsIcon}
           style={mockTestCtaTheme}
         >
-          Create Mock Test
+          Create Test
         </PrimaryCtaButton>
       </div>
 

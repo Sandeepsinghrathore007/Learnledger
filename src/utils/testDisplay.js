@@ -74,10 +74,10 @@ export function buildTestTitle(config = {}, metadata = {}) {
       || metadata.examSource?.title
       || metadata.group?.name
       || metadata.examSource?.groupName
-      || 'Custom Exam'
+      || 'Custom Mock Test'
     ).trim()
 
-    return examTitle || 'Custom Exam'
+    return examTitle || 'Custom Mock Test'
   }
 
   const subjectNames = toSafeArray(metadata.subjects)

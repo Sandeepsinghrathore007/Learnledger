@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore'
 import { uid } from '@/utils/id'
 import { db } from './firebaseConfig'
-import { userNoteDocRef, userTopicDocRef } from './firestorePaths'
+import { userNoteDocRef, userNotesCol, userTopicDocRef } from './firestorePaths'
 
 const AI_MASTER_TOPIC_ID = '__ai_master_notes__'
 const AI_MASTER_NOTE_ID = '__ai_master_note__'
@@ -171,7 +171,7 @@ function normalizeNote(snapshot) {
     contentJson: normalizeContentJson(data.contentJson),
     blocks: Array.isArray(data.blocks) ? data.blocks : [],
     tags: Array.isArray(data.tags) ? data.tags : [],
-    theme: typeof data.theme === 'string' ? data.theme : 'midnight',
+    theme: typeof data.theme === 'string' ? data.theme : 'glass',
     fontSize: typeof data.fontSize === 'string' ? data.fontSize : 'medium',
     isFavorite: Boolean(data.isFavorite),
     isPinned: Boolean(data.isPinned),
@@ -191,6 +191,24 @@ export function subscribeToNotes(userId, onNext, onError) {
 
   return onSnapshot(
     notesQuery,
+    (snapshot) => {
+      const items = snapshot.docs
+        .map(normalizeNote)
+        .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+
+      onNext(items)
+    },
+    onError
+  )
+}
+
+export function subscribeToTopicNotes(userId, subjectId, topicId, onNext, onError) {
+  if (!userId || !subjectId || !topicId) {
+    return () => {}
+  }
+
+  return onSnapshot(
+    userNotesCol(userId, subjectId, topicId),
     (snapshot) => {
       const items = snapshot.docs
         .map(normalizeNote)
@@ -223,7 +241,7 @@ export async function createNote(userId, noteInput) {
     content: noteInput.content || '<p></p>',
     blocks: Array.isArray(noteInput.blocks) ? noteInput.blocks : [],
     tags: Array.isArray(noteInput.tags) ? noteInput.tags : [],
-    theme: typeof noteInput.theme === 'string' ? noteInput.theme : 'midnight',
+    theme: typeof noteInput.theme === 'string' ? noteInput.theme : 'glass',
     fontSize: typeof noteInput.fontSize === 'string' ? noteInput.fontSize : 'medium',
     isFavorite: Boolean(noteInput.isFavorite),
     isPinned: Boolean(noteInput.isPinned),
@@ -268,7 +286,7 @@ export async function updateNote(userId, subjectId, topicId, noteId, updates) {
   }
 
   if (Object.prototype.hasOwnProperty.call(payload, 'theme') && typeof payload.theme !== 'string') {
-    payload.theme = 'midnight'
+    payload.theme = 'glass'
   }
 
   if (Object.prototype.hasOwnProperty.call(payload, 'fontSize') && typeof payload.fontSize !== 'string') {
@@ -330,7 +348,7 @@ export async function findOrCreateAIMasterNote(userId, subjectId, subjectName) {
     contentJson: EMPTY_TIPTAP_DOC,
     blocks: [],
     tags: ['ai-generated'],
-    theme: 'midnight',
+    theme: 'glass',
     fontSize: 'medium',
     isFavorite: false,
     isPinned: false,

@@ -201,7 +201,7 @@ export default function ExamsPage({
       })
       progressiveExamIdRef.current = ''
     } catch (generationError) {
-      console.error('Exam generation failed:', generationError)
+      console.error('Mock test generation failed:', generationError)
       progressiveExamIdRef.current = ''
     }
   }
@@ -253,7 +253,7 @@ export default function ExamsPage({
         testAttempt={viewingResults}
         onClose={() => setViewingResults(null)}
         onRetake={() => handleRetakeExam(viewingResults)}
-        closeLabel="Back to Exams"
+        closeLabel="Back to Mock Tests"
         onTakeWeakAreaMockTest={onOpenWeakAreaMockTest}
       />
     )
@@ -270,7 +270,7 @@ export default function ExamsPage({
             fontWeight: '800',
             margin: '0 0 6px',
           }}>
-            Exams
+            Mock Tests
           </h1>
           <p style={{
             color: TEXT3,
@@ -278,7 +278,7 @@ export default function ExamsPage({
             fontSize: '14px',
             margin: 0,
           }}>
-            Paste a question paper or upload a PDF. AI will detect every question and turn it into a scored exam with explanations and weak-area insights.
+            Paste a question paper or upload a PDF. AI will detect every question and turn it into a scored mock test with explanations and weak-area insights.
           </p>
         </div>
 
@@ -288,7 +288,7 @@ export default function ExamsPage({
           icon={MockTestsIcon}
           style={examCtaTheme}
         >
-          Create Exam
+          Create Mock Test
         </PrimaryCtaButton>
       </div>
 
@@ -330,7 +330,7 @@ export default function ExamsPage({
       }}>
         {[
           {
-            label: 'Recent Exams',
+            label: 'Recent Mock Tests',
             value: displayExamHistory.length,
             tone: '#22c55e',
             helper: 'Saved and reviewable attempts',
@@ -339,13 +339,13 @@ export default function ExamsPage({
             label: 'Linked Groups',
             value: examGroups.length,
             tone: '#38bdf8',
-            helper: 'Analytics groups available for direct exam launch',
+            helper: 'Analytics groups available for direct mock test launch',
           },
           {
             label: 'Tracked Questions',
             value: totalTrackedExamQuestions,
             tone: '#a78bfa',
-            helper: 'Total questions across recent exams',
+            helper: 'Total questions across recent mock tests',
           },
         ].map((item) => (
           <div
@@ -378,7 +378,7 @@ export default function ExamsPage({
           fontWeight: '700',
           margin: '0 0 12px',
         }}>
-          Recent Exams
+          Recent Mock Tests
           {displayExamHistory.length > 0 && (
             <span style={{
               color: TEXT3,
@@ -406,14 +406,14 @@ export default function ExamsPage({
               fontSize: '14px',
               margin: '0 0 16px',
             }}>
-              No exams created yet
+              No mock tests created yet
             </p>
             <PrimaryCtaButton
               onClick={handleOpenCreate}
               icon={PlusIcon}
               style={examCtaTheme}
             >
-              Create Your First Exam
+              Create Your First Mock Test
             </PrimaryCtaButton>
           </div>
         ) : (
@@ -432,7 +432,7 @@ export default function ExamsPage({
               page={historyPage}
               totalPages={totalHistoryPages}
               onPageChange={setHistoryPage}
-              label={`Showing ${historyPageStart + 1}-${Math.min(historyPageStart + RECENT_EXAMS_PAGE_SIZE, displayExamHistory.length)} of ${displayExamHistory.length} exams`}
+              label={`Showing ${historyPageStart + 1}-${Math.min(historyPageStart + RECENT_EXAMS_PAGE_SIZE, displayExamHistory.length)} of ${displayExamHistory.length} mock tests`}
             />
           </div>
         )}

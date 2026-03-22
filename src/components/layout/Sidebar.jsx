@@ -45,6 +45,7 @@ export default function Sidebar({
   const transform = isMobile
     ? (mobileOpen ? 'translateX(0)' : 'translateX(-100%)')
     : 'translateX(0)'
+  const userInitial = getUserInitial(user)
 
   return (
     <aside style={{
@@ -86,7 +87,7 @@ export default function Sidebar({
           color: '#fff',
           boxShadow: 'var(--ll-shadow-soft)',
         }}>
-          S
+          {userInitial}
         </div>
         {!isCompact && (
           <div style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
@@ -209,7 +210,7 @@ export default function Sidebar({
             fontSize: '12px',
             fontWeight: '700',
           }}>
-            {getUserInitial(user)}
+            {userInitial}
           </div>
           {!isCompact && (
             <div style={{ minWidth: 0 }}>

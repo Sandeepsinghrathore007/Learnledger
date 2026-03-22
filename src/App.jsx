@@ -328,6 +328,7 @@ export default function App() {
   const [installPending, setInstallPending] = useState(false);
   const [installNotice, setInstallNotice] = useState("");
   const { canInstall, installApp, lastOutcome } = usePWAInstallPrompt();
+  const contentScrollRef = useRef(null);
   const navigationScopeKey = authUser?.uid || "guest";
   const previousNavigationScopeRef = useRef(navigationScopeKey);
 
@@ -396,6 +397,10 @@ export default function App() {
         ? currentPages
         : { ...currentPages, [activePage]: true },
     );
+  }, [activePage]);
+
+  useEffect(() => {
+    contentScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [activePage]);
 
   useEffect(() => {
@@ -723,7 +728,7 @@ export default function App() {
       activePage !== "signup");
 
   return (
-    <div className="flex min-h-screen" style={{ background: BG }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: BG }}>
       <Sidebar
         collapsed={collapsed}
         setCollapsed={setCollapsed}
@@ -752,10 +757,11 @@ export default function App() {
           marginLeft: `${sidebarWidth}px`,
           transition: "margin-left 0.3s cubic-bezier(0.4,0,0.2,1)",
           flex: 1,
-          minHeight: "100vh",
+          height: "100vh",
           minWidth: 0,
           display: "flex",
           flexDirection: "column",
+          overflow: "hidden",
         }}
       >
         <TopBar
@@ -770,7 +776,16 @@ export default function App() {
           isInstallPending={installPending}
         />
 
-        <div className="flex-1 min-w-0 px-4 py-5 sm:px-6 sm:py-6 lg:px-[30px] lg:py-[28px]">
+        <div
+          ref={contentScrollRef}
+          className="flex-1 min-w-0 px-4 py-5 sm:px-6 sm:py-6 lg:px-[30px] lg:py-[28px]"
+          style={{
+            minHeight: 0,
+            overflowY: "auto",
+            overflowX: "hidden",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
           {installNotice && (
             <div
               style={{

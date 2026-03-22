@@ -229,14 +229,14 @@ export default function ExamCreationModal({
     <Modal
       open={open}
       onClose={() => !isGenerating && onClose()}
-      title="Create AI Exam"
+      title="Create AI Mock Test"
       width={720}
     >
       <div className="flex flex-col gap-5">
         <div className="grid gap-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <div>
             <label style={{ display: 'block', color: TEXT1, fontSize: '12px', fontWeight: '700', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
-              Exam Title
+              Mock Test Title
             </label>
             <input
               value={form.examTitle}
@@ -259,7 +259,7 @@ export default function ExamCreationModal({
 
           <div>
             <label style={{ display: 'block', color: TEXT1, fontSize: '12px', fontWeight: '700', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
-              Link Exam Group
+              Link Mock Test Group
             </label>
             <select
               value={form.selectedGroupId}
@@ -291,7 +291,7 @@ export default function ExamCreationModal({
 
         <div>
           <div style={{ color: TEXT1, fontSize: '12px', fontWeight: '700', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
-            Exam Language
+            Mock Test Language
           </div>
           <div className="grid grid-cols-2 gap-2">
             {EXAM_LANGUAGE_OPTIONS.map((option) => {
@@ -407,7 +407,7 @@ export default function ExamCreationModal({
               />
               <div>{form.pdfFile ? form.pdfFile.name : 'Click to choose a PDF file'}</div>
               <div style={{ color: TEXT3, fontSize: '11px' }}>
-                After upload, click Detect Questions. Exam generation will start only when you press Create Exam.
+                After upload, click Detect Questions. Mock test generation will start only when you press Create Mock Test.
               </div>
             </label>
           </div>
@@ -502,7 +502,7 @@ export default function ExamCreationModal({
             })}
           </div>
           <div style={{ color: TEXT3, fontSize: '11px', marginTop: '8px', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
-            Linking subjects helps AI identify weak subjects/topics and suggest a follow-up mock test. If you launch from an exam group, those subjects are preselected.
+            Linking subjects helps AI identify weak subjects/topics and suggest a follow-up test. If you launch from an exam group, those subjects are preselected.
           </div>
         </div>
 
@@ -579,7 +579,7 @@ export default function ExamCreationModal({
                 ...DARK_SELECT_STYLE,
               }}
             >
-              <option value="total" style={DARK_SELECT_OPTION_STYLE}>Whole Exam</option>
+              <option value="total" style={DARK_SELECT_OPTION_STYLE}>Whole Mock Test</option>
               <option value="per-question" style={DARK_SELECT_OPTION_STYLE}>Per Question</option>
             </select>
           </div>
@@ -668,7 +668,7 @@ export default function ExamCreationModal({
                 cursor: canGenerate ? 'pointer' : 'not-allowed',
               }}
             >
-              {isGenerating ? 'Creating Exam...' : 'Create Exam'}
+              {isGenerating ? 'Creating Mock Test...' : 'Create Mock Test'}
             </button>
           </div>
         </div>

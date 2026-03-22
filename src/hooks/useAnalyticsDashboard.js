@@ -10,7 +10,7 @@ import { subscribeToActivity } from '@/services/firebase/analyticsService'
 import { subscribeToTests } from '@/services/firebase/testsService'
 import { buildAnalyticsDashboard } from '@/utils/analytics'
 
-export function useAnalyticsDashboard({ user, subjects }) {
+export function useAnalyticsDashboard({ user, subjects, now = new Date() }) {
   const [tests, setTests] = useState([])
   const [aiChats, setAIChats] = useState([])
   const [activity, setActivity] = useState([])
@@ -97,8 +97,8 @@ export function useAnalyticsDashboard({ user, subjects }) {
   }, [user?.uid])
 
   const analytics = useMemo(
-    () => buildAnalyticsDashboard({ subjects, tests, aiChats, activity, examGroups }),
-    [activity, aiChats, examGroups, subjects, tests]
+    () => buildAnalyticsDashboard({ subjects, tests, aiChats, activity, examGroups, today: now }),
+    [activity, aiChats, examGroups, now, subjects, tests]
   )
 
   const saveExamGroup = async (groupInput) => {

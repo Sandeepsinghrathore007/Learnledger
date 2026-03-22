@@ -94,15 +94,16 @@ const TOOLBAR_BUTTONS = [
 ]
 
 const DEFAULT_THEME = {
-  accent: '#8b5cf6',
-  toolbarBackground: '#161129',
-  toolbarBorder: 'rgba(139,92,246,0.12)',
-  toolbarButtonBackground: 'rgba(255,255,255,0.02)',
-  toolbarButtonBorder: 'rgba(139,92,246,0.14)',
-  toolbarButtonText: '#c9bdf0',
-  toolbarButtonActiveBackground: 'rgba(139,92,246,0.2)',
-  toolbarButtonActiveBorder: 'rgba(167,139,250,0.38)',
-  toolbarButtonActiveText: '#f7f2ff',
+  accent: '#a855f7',
+  toolbarBackground: 'linear-gradient(180deg, rgba(9,16,34,0.8), rgba(7,12,27,0.66))',
+  toolbarBorder: 'rgba(148,163,184,0.12)',
+  toolbarButtonBackground: 'rgba(255,255,255,0.04)',
+  toolbarButtonBorder: 'rgba(148,163,184,0.13)',
+  toolbarButtonText: '#dbe7ff',
+  toolbarButtonActiveBackground: 'linear-gradient(135deg, rgba(34,211,238,0.2), rgba(168,85,247,0.26))',
+  toolbarButtonActiveBorder: 'rgba(103,232,249,0.32)',
+  toolbarButtonActiveText: '#ffffff',
+  actionShadow: '0 18px 36px rgba(8,18,38,0.24)',
 }
 
 function clampPromptValue(value, fallback, max) {
@@ -152,6 +153,8 @@ function ToolbarButton({ button, editor, themeStyles }) {
         fontWeight: active ? '700' : '600',
         fontSize: '12px',
         opacity: disabled ? 0.45 : 1,
+        boxShadow: active ? palette.actionShadow : 'none',
+        transition: 'border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease',
       }}
     >
       {button.label}
@@ -223,6 +226,7 @@ export default function EditorToolbar({
         padding: '10px 12px',
         borderBottom: `1px solid ${palette.toolbarBorder}`,
         background: palette.toolbarBackground,
+        backdropFilter: 'blur(24px) saturate(160%)',
       }}
     >
       {buttons.map((button) => (

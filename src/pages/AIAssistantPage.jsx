@@ -1307,7 +1307,7 @@ export default function AIAssistantPage({
           inlineNoteBlock,
         ],
         tags: ['ai-generated'],
-        theme: existingMasterNote?.theme || 'midnight',
+        theme: existingMasterNote?.theme || 'glass',
         fontSize: existingMasterNote?.fontSize || 'medium',
         isFavorite: Boolean(existingMasterNote?.isFavorite),
         isPinned: Boolean(existingMasterNote?.isPinned),

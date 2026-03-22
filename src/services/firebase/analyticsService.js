@@ -34,6 +34,13 @@ function addDays(date, days) {
   return next
 }
 
+function getNextDayStart(value = new Date()) {
+  const next = new Date((toDate(value) || new Date()).getTime())
+  next.setHours(0, 0, 0, 0)
+  next.setDate(next.getDate() + 1)
+  return next
+}
+
 function parseDateKey(dateKey) {
   const [year, month, day] = String(dateKey).split('-').map(Number)
   return new Date(year, month - 1, day)
@@ -207,21 +214,36 @@ export async function getStudyStreak(userId, options = {}) {
   ].sort()
 
   if (dateKeys.length === 0) {
+    const resetAt = getNextDayStart(referenceDate)
+
     return {
       currentStreak: 0,
       longestStreak: 0,
       lastActiveDate: null,
+      isActiveToday: false,
+      needsTodayActivity: false,
+      resetAt: resetAt.toISOString(),
+      millisecondsUntilReset: Math.max(0, resetAt.getTime() - referenceDate.getTime()),
     }
   }
 
   const activeDates = new Set(dateKeys)
-  let currentStreak = 0
-  let cursor = new Date(referenceDate)
-  cursor.setHours(0, 0, 0, 0)
+  const todayKey = getDateKey(referenceDate)
+  const yesterdayKey = getDateKey(addDays(referenceDate, -1))
+  let anchorDateKey = null
 
-  while (activeDates.has(getDateKey(cursor))) {
+  if (activeDates.has(todayKey)) {
+    anchorDateKey = todayKey
+  } else if (activeDates.has(yesterdayKey)) {
+    anchorDateKey = yesterdayKey
+  }
+
+  let currentStreak = 0
+  let cursor = anchorDateKey
+
+  while (cursor && activeDates.has(cursor)) {
     currentStreak += 1
-    cursor = addDays(cursor, -1)
+    cursor = getDateKey(addDays(parseDateKey(cursor), -1))
   }
 
   let longestStreak = 0
@@ -242,10 +264,17 @@ export async function getStudyStreak(userId, options = {}) {
     previousDateKey = dateKey
   })
 
+  const resetAt = getNextDayStart(referenceDate)
+  const isActiveToday = activeDates.has(todayKey)
+
   return {
     currentStreak,
     longestStreak,
     lastActiveDate: dateKeys[dateKeys.length - 1],
+    isActiveToday,
+    needsTodayActivity: !isActiveToday && currentStreak > 0,
+    resetAt: resetAt.toISOString(),
+    millisecondsUntilReset: Math.max(0, resetAt.getTime() - referenceDate.getTime()),
   }
 }
 

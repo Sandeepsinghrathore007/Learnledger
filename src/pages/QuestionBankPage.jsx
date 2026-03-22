@@ -238,7 +238,7 @@ function QuestionExpansion({ item, onEdit, onDelete }) {
           fontSize: 11,
           fontWeight: 600,
         }}>
-          {item.subject} | {item.source === 'generated' ? 'Generated from Mock Test' : 'Manual Entry'}
+          {item.subject} | {item.source === 'generated' ? 'Generated from Test' : 'Manual Entry'}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button

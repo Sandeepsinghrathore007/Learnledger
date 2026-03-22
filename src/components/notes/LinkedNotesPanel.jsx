@@ -1,25 +1,50 @@
 /**
  * LinkedNotesPanel.jsx — Panel for managing linked notes in the editor.
- *
- * Shows:
- *  - List of notes linked from the current note
- *  - Button to add new linked notes (opens modal with searchable list)
- *  - Click linked note to navigate to it
- *
- * Props:
- *  currentNote     {Object}   — Current note being edited
- *  allNotes        {Array}    — All notes across all subjects
- *  onAddLink       {Function} — (targetNoteId) => void
- *  onRemoveLink    {Function} — (targetNoteId) => void
- *  onNavigateToNote{Function} — (note) => void — Navigate to linked note
  */
 
 import { useState } from 'react'
-import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 
-/**
- * Link icon
- */
+const DEFAULT_THEME = {
+  accent: '#a855f7',
+  accentSecondary: '#22d3ee',
+  panelBackground: 'linear-gradient(135deg, rgba(11,20,38,0.74), rgba(23,12,42,0.58))',
+  panelBorder: 'rgba(148,163,184,0.16)',
+  panelShadow: '0 20px 46px rgba(3,10,25,0.3), inset 0 1px 0 rgba(255,255,255,0.08)',
+  titleInputBackground: 'rgba(8,17,35,0.56)',
+  titleInputBorder: 'rgba(148,163,184,0.18)',
+  titleInputText: '#f8fbff',
+  pillBackground: 'rgba(255,255,255,0.04)',
+  pillBorder: 'rgba(148,163,184,0.14)',
+  pillText: '#d3defa',
+  pillActiveBackground: 'linear-gradient(135deg, rgba(34,211,238,0.16), rgba(168,85,247,0.22))',
+  pillActiveBorder: 'rgba(103,232,249,0.28)',
+  pillActiveText: '#ffffff',
+  editorFrameBackground:
+    'radial-gradient(circle at top left, rgba(34,211,238,0.13), transparent 26%), radial-gradient(circle at top right, rgba(168,85,247,0.16), transparent 24%), linear-gradient(180deg, rgba(6,12,28,0.92), rgba(7,10,23,0.88))',
+  editorFrameBorder: 'rgba(148,163,184,0.14)',
+  floatingBackground: 'linear-gradient(180deg, rgba(10,16,33,0.96), rgba(9,11,26,0.92))',
+  floatingBorder: 'rgba(148,163,184,0.18)',
+  floatingText: '#dbe7ff',
+  cssVars: {
+    '--note-editor-heading': '#ffffff',
+    '--note-editor-text': '#edf3ff',
+    '--note-editor-muted': '#9fb1d6',
+  },
+}
+
+function getPalette(themeStyles) {
+  const palette = themeStyles || DEFAULT_THEME
+
+  return {
+    ...DEFAULT_THEME,
+    ...palette,
+    cssVars: {
+      ...DEFAULT_THEME.cssVars,
+      ...(palette?.cssVars || {}),
+    },
+  }
+}
+
 function LinkIcon() {
   return (
     <svg
@@ -37,9 +62,6 @@ function LinkIcon() {
   )
 }
 
-/**
- * Plus icon
- */
 function PlusIcon() {
   return (
     <svg
@@ -57,9 +79,6 @@ function PlusIcon() {
   )
 }
 
-/**
- * X icon for removing links
- */
 function XIcon() {
   return (
     <svg
@@ -77,35 +96,30 @@ function XIcon() {
   )
 }
 
-export default function LinkedNotesPanel({ 
-  currentNote, 
-  allNotes, 
-  onAddLink, 
+export default function LinkedNotesPanel({
+  currentNote,
+  allNotes,
+  onAddLink,
   onRemoveLink,
   onNavigateToNote,
+  themeStyles = null,
 }) {
+  const palette = getPalette(themeStyles)
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Get linked note objects
   const linkedNoteIds = currentNote.linkedNotes || []
   const linkedNotes = linkedNoteIds
-    .map(id => allNotes.find(n => n.id === id))
-    .filter(Boolean) // Remove any notes that no longer exist
-
-  // Get available notes to link (exclude current note and already linked notes)
-  const availableNotes = allNotes.filter(note => 
-    note.id !== currentNote.id && !linkedNoteIds.includes(note.id)
+    .map((id) => allNotes.find((note) => note.id === id))
+    .filter(Boolean)
+  const availableNotes = allNotes.filter(
+    (note) => note.id !== currentNote.id && !linkedNoteIds.includes(note.id)
   )
-
-  // Filter available notes by search query
   const filteredAvailableNotes = searchQuery.trim()
-    ? availableNotes.filter(note =>
+    ? availableNotes.filter((note) =>
         note.title.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : availableNotes
-
-  // ── EVENT HANDLERS ─────────────────────────────────────────────────────────
 
   const handleAddLink = (targetNoteId) => {
     onAddLink(targetNoteId)
@@ -119,25 +133,25 @@ export default function LinkedNotesPanel({
     }
   }
 
-  // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <div
       style={{
-        background: 'rgba(255,255,255,0.02)',
-        border: `1px solid ${BORDER}`,
-        borderRadius: '12px',
+        background: palette.panelBackground,
+        border: `1px solid ${palette.panelBorder}`,
+        borderRadius: '18px',
         padding: '14px',
+        boxShadow: palette.panelShadow,
+        backdropFilter: 'blur(22px) saturate(160%)',
       }}
     >
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ color: '#a78bfa' }}>
+          <span style={{ color: palette.accentSecondary }}>
             <LinkIcon />
           </span>
           <h4
             style={{
-              color: TEXT1,
+              color: palette.cssVars['--note-editor-heading'],
               fontFamily: "'DM Sans', sans-serif",
               fontSize: '13px',
               fontWeight: '700',
@@ -149,12 +163,13 @@ export default function LinkedNotesPanel({
           {linkedNotes.length > 0 && (
             <span
               style={{
-                background: 'rgba(139,92,246,0.12)',
-                color: '#a78bfa',
-                borderRadius: '6px',
-                padding: '2px 6px',
+                background: palette.pillActiveBackground,
+                color: palette.pillActiveText,
+                border: `1px solid ${palette.pillActiveBorder}`,
+                borderRadius: '999px',
+                padding: '2px 7px',
                 fontSize: '10px',
-                fontWeight: '600',
+                fontWeight: '700',
               }}
             >
               {linkedNotes.length}
@@ -169,84 +184,89 @@ export default function LinkedNotesPanel({
             display: 'flex',
             alignItems: 'center',
             gap: '4px',
-            background: 'rgba(139,92,246,0.12)',
-            border: '1px solid rgba(139,92,246,0.2)',
-            borderRadius: '6px',
-            padding: '5px 10px',
-            color: '#a78bfa',
+            background: palette.pillBackground,
+            border: `1px solid ${palette.pillBorder}`,
+            borderRadius: '999px',
+            padding: '6px 11px',
+            color: palette.pillText,
             fontFamily: "'DM Sans', sans-serif",
             fontSize: '11px',
-            fontWeight: '600',
+            fontWeight: '700',
             cursor: 'pointer',
-            transition: 'background 0.15s',
+            transition: 'background 0.15s ease, border-color 0.15s ease',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(139,92,246,0.18)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(139,92,246,0.12)')}
+          onMouseEnter={(event) => {
+            event.currentTarget.style.background = palette.pillActiveBackground
+            event.currentTarget.style.borderColor = palette.pillActiveBorder
+            event.currentTarget.style.color = palette.pillActiveText
+          }}
+          onMouseLeave={(event) => {
+            event.currentTarget.style.background = palette.pillBackground
+            event.currentTarget.style.borderColor = palette.pillBorder
+            event.currentTarget.style.color = palette.pillText
+          }}
         >
           <PlusIcon />
           Link Note
         </button>
       </div>
 
-      {/* Linked Notes List */}
       {linkedNotes.length === 0 ? (
         <p
           style={{
-            color: TEXT3,
+            color: palette.cssVars['--note-editor-muted'],
             fontFamily: "'DM Sans', sans-serif",
             fontSize: '12px',
             margin: 0,
             textAlign: 'center',
-            padding: '16px 0',
+            padding: '18px 0',
           }}
         >
           No linked notes yet
         </p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {linkedNotes.map(note => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {linkedNotes.map((note) => (
             <div
               key={note.id}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                background: 'rgba(255,255,255,0.02)',
-                border: `1px solid ${BORDER}`,
-                borderRadius: '8px',
-                padding: '8px 10px',
-                transition: 'all 0.15s',
+                gap: '10px',
+                background: palette.pillBackground,
+                border: `1px solid ${palette.pillBorder}`,
+                borderRadius: '14px',
+                padding: '10px 12px',
+                transition: 'all 0.18s ease',
                 cursor: 'pointer',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                e.currentTarget.style.borderColor = note.subjectColor + '40'
+              onMouseEnter={(event) => {
+                event.currentTarget.style.background = palette.floatingBackground
+                event.currentTarget.style.borderColor = `${note.subjectColor}66`
               }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
-                e.currentTarget.style.borderColor = BORDER
+              onMouseLeave={(event) => {
+                event.currentTarget.style.background = palette.pillBackground
+                event.currentTarget.style.borderColor = palette.pillBorder
               }}
               onClick={() => onNavigateToNote(note)}
             >
-              {/* Subject color indicator */}
               <div
                 style={{
-                  width: '3px',
-                  height: '28px',
+                  width: '4px',
+                  height: '32px',
                   background: note.subjectColor,
-                  borderRadius: '2px',
+                  borderRadius: '999px',
                   flexShrink: 0,
                 }}
               />
 
-              {/* Note info */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
-                    color: TEXT1,
+                    color: palette.cssVars['--note-editor-heading'],
                     fontFamily: "'DM Sans', sans-serif",
                     fontSize: '12px',
-                    fontWeight: '600',
+                    fontWeight: '700',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -256,43 +276,43 @@ export default function LinkedNotesPanel({
                 </div>
                 <div
                   style={{
-                    color: TEXT3,
+                    color: palette.cssVars['--note-editor-muted'],
                     fontFamily: "'DM Sans', sans-serif",
                     fontSize: '10px',
+                    marginTop: '3px',
                   }}
                 >
                   {note.subjectName} • {note.topicName}
                 </div>
               </div>
 
-              {/* Remove button */}
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
+                onClick={(event) => {
+                  event.stopPropagation()
                   handleRemoveLink(note.id)
                 }}
                 style={{
-                  width: '20px',
-                  height: '20px',
+                  width: '22px',
+                  height: '22px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   background: 'transparent',
                   border: 'none',
-                  borderRadius: '4px',
-                  color: TEXT3,
+                  borderRadius: '999px',
+                  color: palette.cssVars['--note-editor-muted'],
                   cursor: 'pointer',
                   flexShrink: 0,
-                  transition: 'all 0.15s',
+                  transition: 'all 0.15s ease',
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(239,68,68,0.12)'
-                  e.currentTarget.style.color = '#ef4444'
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = 'rgba(248,113,113,0.12)'
+                  event.currentTarget.style.color = '#fda4af'
                 }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent'
-                  e.currentTarget.style.color = TEXT3
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = 'transparent'
+                  event.currentTarget.style.color = palette.cssVars['--note-editor-muted']
                 }}
               >
                 <XIcon />
@@ -302,10 +322,8 @@ export default function LinkedNotesPanel({
         </div>
       )}
 
-      {/* Add Link Modal */}
       {addModalOpen && (
         <>
-          {/* Backdrop */}
           <div
             onClick={() => {
               setAddModalOpen(false)
@@ -314,12 +332,12 @@ export default function LinkedNotesPanel({
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0,0,0,0.6)',
+              background: 'rgba(2,8,23,0.72)',
+              backdropFilter: 'blur(10px)',
               zIndex: 100,
             }}
           />
 
-          {/* Modal */}
           <div
             style={{
               position: 'fixed',
@@ -327,27 +345,27 @@ export default function LinkedNotesPanel({
               left: '50%',
               transform: 'translate(-50%, -50%)',
               width: '90%',
-              maxWidth: '500px',
-              maxHeight: '600px',
-              background: '#1a1625',
-              border: `1px solid ${BORDER}`,
-              borderRadius: '16px',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+              maxWidth: '520px',
+              maxHeight: '620px',
+              background: palette.editorFrameBackground,
+              border: `1px solid ${palette.editorFrameBorder}`,
+              borderRadius: '20px',
+              boxShadow: '0 32px 72px rgba(2,8,23,0.48)',
               zIndex: 101,
               display: 'flex',
               flexDirection: 'column',
+              backdropFilter: 'blur(26px) saturate(160%)',
             }}
           >
-            {/* Modal Header */}
             <div
               style={{
                 padding: '20px',
-                borderBottom: `1px solid ${BORDER}`,
+                borderBottom: `1px solid ${palette.panelBorder}`,
               }}
             >
               <h3
                 style={{
-                  color: TEXT1,
+                  color: palette.cssVars['--note-editor-heading'],
                   fontFamily: "'DM Sans', sans-serif",
                   fontSize: '16px',
                   fontWeight: '700',
@@ -360,23 +378,23 @@ export default function LinkedNotesPanel({
                 type="text"
                 placeholder="Search notes..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(event) => setSearchQuery(event.target.value)}
                 autoFocus
                 style={{
                   width: '100%',
-                  background: 'rgba(139,92,246,0.08)',
-                  border: `1px solid rgba(139,92,246,0.15)`,
-                  borderRadius: '8px',
+                  background: palette.titleInputBackground,
+                  border: `1px solid ${palette.titleInputBorder}`,
+                  borderRadius: '12px',
                   padding: '10px 12px',
-                  color: TEXT1,
+                  color: palette.titleInputText,
                   fontFamily: "'DM Sans', sans-serif",
                   fontSize: '13px',
                   outline: 'none',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
                 }}
               />
             </div>
 
-            {/* Notes List */}
             <div
               style={{
                 flex: 1,
@@ -387,7 +405,7 @@ export default function LinkedNotesPanel({
               {filteredAvailableNotes.length === 0 ? (
                 <p
                   style={{
-                    color: TEXT3,
+                    color: palette.cssVars['--note-editor-muted'],
                     fontFamily: "'DM Sans', sans-serif",
                     fontSize: '13px',
                     textAlign: 'center',
@@ -397,8 +415,8 @@ export default function LinkedNotesPanel({
                   {searchQuery ? 'No notes found' : 'No more notes to link'}
                 </p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {filteredAvailableNotes.map(note => (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {filteredAvailableNotes.map((note) => (
                     <button
                       key={note.id}
                       type="button"
@@ -406,40 +424,40 @@ export default function LinkedNotesPanel({
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '10px',
-                        background: 'rgba(255,255,255,0.02)',
-                        border: `1px solid ${BORDER}`,
-                        borderRadius: '10px',
-                        padding: '12px',
+                        gap: '12px',
+                        background: palette.pillBackground,
+                        border: `1px solid ${palette.pillBorder}`,
+                        borderRadius: '16px',
+                        padding: '13px',
                         textAlign: 'left',
                         cursor: 'pointer',
-                        transition: 'all 0.15s',
+                        transition: 'all 0.18s ease',
                       }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                        e.currentTarget.style.borderColor = note.subjectColor + '40'
+                      onMouseEnter={(event) => {
+                        event.currentTarget.style.background = palette.floatingBackground
+                        event.currentTarget.style.borderColor = `${note.subjectColor}66`
                       }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
-                        e.currentTarget.style.borderColor = BORDER
+                      onMouseLeave={(event) => {
+                        event.currentTarget.style.background = palette.pillBackground
+                        event.currentTarget.style.borderColor = palette.pillBorder
                       }}
                     >
                       <div
                         style={{
                           width: '4px',
-                          height: '36px',
+                          height: '38px',
                           background: note.subjectColor,
-                          borderRadius: '2px',
+                          borderRadius: '999px',
                           flexShrink: 0,
                         }}
                       />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div
                           style={{
-                            color: TEXT1,
+                            color: palette.cssVars['--note-editor-heading'],
                             fontFamily: "'DM Sans', sans-serif",
                             fontSize: '13px',
-                            fontWeight: '600',
+                            fontWeight: '700',
                             marginBottom: '4px',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
@@ -450,7 +468,7 @@ export default function LinkedNotesPanel({
                         </div>
                         <div
                           style={{
-                            color: TEXT3,
+                            color: palette.cssVars['--note-editor-muted'],
                             fontFamily: "'DM Sans', sans-serif",
                             fontSize: '11px',
                           }}

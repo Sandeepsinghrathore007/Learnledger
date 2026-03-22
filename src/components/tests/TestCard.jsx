@@ -2,7 +2,7 @@
  * TestCard.jsx — Card component for test history display.
  */
 
-import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
+import { BORDER, TEXT1, TEXT3 } from '@/constants/theme'
 import { formatTime } from '@/utils/testScoring'
 
 function formatRelativeDate(dateString) {
@@ -22,6 +22,17 @@ function formatRelativeDate(dateString) {
 export default function TestCard({ test, onView, onRetake, onDelete }) {
   const { title, score, totalQuestions, percentage, passed, timeTaken, completedAt, metadata } = test
   const subjectColor = metadata?.subjects?.[0]?.color || '#8b5cf6'
+  const statusTone = passed
+    ? {
+      background: 'rgba(34,197,94,0.12)',
+      border: 'rgba(34,197,94,0.24)',
+      color: '#4ade80',
+    }
+    : {
+      background: 'rgba(239,68,68,0.12)',
+      border: 'rgba(239,68,68,0.24)',
+      color: '#f87171',
+    }
 
   return (
     <div
@@ -43,78 +54,125 @@ export default function TestCard({ test, onView, onRetake, onDelete }) {
       }}
       onClick={onView}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {/* TOP ROW — Score badge + Title + Delete */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-
-          {/* Score Badge */}
-          <div
-            style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
-              background: `${subjectColor}12`,
-              border: `2px solid ${subjectColor}30`,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <div style={{
-              color: subjectColor,
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '15px',
-              fontWeight: '800',
-              lineHeight: 1,
-            }}>
-              {percentage}%
-            </div>
-            <div style={{
-              color: TEXT3,
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '9px',
-              marginTop: '2px',
-            }}>
-              {score}/{totalQuestions}
-            </div>
+      <div className="flex items-center gap-3 sm:gap-4" style={{ minWidth: 0 }}>
+        <div
+          style={{
+            width: '50px',
+            height: '50px',
+            borderRadius: '14px',
+            background: `${subjectColor}14`,
+            border: `1px solid ${subjectColor}32`,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: `inset 0 1px 0 ${subjectColor}24`,
+          }}
+        >
+          <div style={{
+            color: subjectColor,
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: '15px',
+            fontWeight: '800',
+            lineHeight: 1,
+          }}>
+            {percentage}%
           </div>
-          {/* Title + meta */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h4 style={{
-              color: TEXT1,
+          <div style={{
+            color: TEXT3,
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: '9px',
+            marginTop: '3px',
+          }}>
+            {score}/{totalQuestions}
+          </div>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <h4 style={{
+            color: TEXT1,
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: '13px',
+            fontWeight: '700',
+            margin: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {title}
+          </h4>
+
+          <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-3">
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              borderRadius: '999px',
+              padding: '3px 8px',
+              background: statusTone.background,
+              border: `1px solid ${statusTone.border}`,
+              color: statusTone.color,
               fontFamily: "'DM Sans', sans-serif",
-              fontSize: '13px',
+              fontSize: '10px',
               fontWeight: '700',
-              margin: '0 0 6px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
             }}>
-              {title}
-            </h4>
+              {passed ? 'Passed' : 'Failed'}
+            </span>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                background: passed ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-                border: `1px solid ${passed ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
-                borderRadius: '6px',
-                padding: '2px 7px',
-                color: passed ? '#22c55e' : '#ef4444',
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: '10px',
-                fontWeight: '700',
-              }}>
-                {passed ? '✓ Passed' : '✗ Failed'}
-              </span>
-            </div>
+            <span style={{
+              color: TEXT3,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '11px',
+              whiteSpace: 'nowrap',
+            }}>
+              Time {formatTime(timeTaken)}
+            </span>
+
+            <span style={{
+              color: TEXT3,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '11px',
+              whiteSpace: 'nowrap',
+            }}>
+              {formatRelativeDate(completedAt)}
+            </span>
           </div>
+        </div>
 
-          {/* Delete button — top right */}
+        <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRetake()
+            }}
+            style={{
+              height: '32px',
+              padding: '0 10px',
+              background: 'rgba(139,92,246,0.12)',
+              border: '1px solid rgba(139,92,246,0.26)',
+              borderRadius: '9px',
+              color: '#a78bfa',
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '11px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(139,92,246,0.18)'
+              e.currentTarget.style.borderColor = 'rgba(139,92,246,0.38)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(139,92,246,0.12)'
+              e.currentTarget.style.borderColor = 'rgba(139,92,246,0.26)'
+            }}
+          >
+            Retake
+          </button>
+
           <button
             type="button"
             onClick={(e) => {
@@ -124,17 +182,17 @@ export default function TestCard({ test, onView, onRetake, onDelete }) {
               }
             }}
             style={{
-              width: '26px',
-              height: '26px',
+              width: '30px',
+              height: '30px',
               padding: 0,
               background: 'transparent',
               border: `1px solid ${BORDER}`,
-              borderRadius: '8px',
+              borderRadius: '9px',
               color: TEXT3,
               fontFamily: "'DM Sans', sans-serif",
               fontSize: '12px',
+              fontWeight: '700',
               cursor: 'pointer',
-              flexShrink: 0,
               transition: 'all 0.15s',
             }}
             onMouseEnter={(e) => {
@@ -147,62 +205,9 @@ export default function TestCard({ test, onView, onRetake, onDelete }) {
               e.currentTarget.style.borderColor = BORDER
               e.currentTarget.style.color = TEXT3
             }}
+            aria-label="Delete test"
           >
-            🗑
-          </button>
-        </div>
-
-        {/* BOTTOM ROW — Time + Date + Retake */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'auto auto minmax(0, 1fr)',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          <span style={{
-            color: TEXT3,
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '11px',
-            whiteSpace: 'nowrap',
-          }}>
-            ⏱ {formatTime(timeTaken)}
-          </span>
-
-          <span style={{
-            color: TEXT3,
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '11px',
-            whiteSpace: 'nowrap',
-          }}>
-            📅 {formatRelativeDate(completedAt)}
-          </span>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onRetake()
-            }}
-            style={{
-              width: '100%',
-              height: '32px',
-              padding: '0 12px',
-              background: 'rgba(139,92,246,0.12)',
-              border: '1px solid rgba(139,92,246,0.3)',
-              borderRadius: '8px',
-              color: '#a78bfa',
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '12px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(139,92,246,0.18)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(139,92,246,0.12)')}
-          >
-            🔄 Retake
+            X
           </button>
         </div>
       </div>

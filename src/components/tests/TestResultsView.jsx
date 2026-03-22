@@ -245,7 +245,7 @@ export default function TestResultsView({
                 cursor: 'pointer',
               }}
             >
-              Take Mock Test for Weak Topic: {weakestTopic.topicName}
+              Take Test for Weak Topic: {weakestTopic.topicName}
             </button>
           )}
         </div>

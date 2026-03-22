@@ -17,7 +17,7 @@ export const NAV_ITEMS = [
   },
   {
     id: 'questions',
-    label: 'Mock Tests',
+    label: 'Tests',
     icon: 'tests',
     iconColor: '#fb7185',
     iconBg: 'rgba(251,113,133,0.14)',
@@ -26,7 +26,7 @@ export const NAV_ITEMS = [
   },
   {
     id: 'exams',
-    label: 'Exams',
+    label: 'Mock Tests',
     icon: 'tests',
     iconColor: '#22c55e',
     iconBg: 'rgba(34,197,94,0.14)',

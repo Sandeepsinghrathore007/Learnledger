@@ -2,7 +2,7 @@ import { uid } from '@/utils/id'
 
 const DEFAULT_SOURCE_LABELS = {
   manual: 'Manual Entry',
-  generated: 'AI Mock Test',
+  generated: 'AI Test',
 }
 
 function toSafeString(value) {

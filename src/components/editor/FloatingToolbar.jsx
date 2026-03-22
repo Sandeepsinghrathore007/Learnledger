@@ -88,12 +88,19 @@ const TOOLBAR_MARGIN = 12
 const TOOLBAR_OFFSET = 10
 
 const DEFAULT_THEME = {
-  accent: '#8b5cf6',
-  floatingBackground: '#141126',
-  floatingBorder: 'rgba(139,92,246,0.18)',
-  floatingText: '#b7abdd',
-  floatingActiveBackground: 'rgba(139,92,246,0.24)',
+  accent: '#a855f7',
+  floatingBackground: 'linear-gradient(180deg, rgba(10,16,33,0.96), rgba(9,11,26,0.92))',
+  floatingBorder: 'rgba(148,163,184,0.18)',
+  floatingText: '#dbe7ff',
+  floatingActiveBackground: 'linear-gradient(135deg, rgba(34,211,238,0.22), rgba(168,85,247,0.3))',
   floatingActiveText: '#ffffff',
+  floatingShadow: '0 22px 58px rgba(3,10,26,0.42)',
+  actionBackground: 'linear-gradient(135deg, rgba(34,211,238,0.34), rgba(168,85,247,0.34))',
+  actionBorder: 'rgba(125,211,252,0.42)',
+  actionText: '#f7fbff',
+  pillActiveBackground: 'linear-gradient(135deg, rgba(34,211,238,0.16), rgba(168,85,247,0.22))',
+  pillActiveBorder: 'rgba(103,232,249,0.28)',
+  pillActiveText: '#ffffff',
 }
 
 function clamp(value, min, max) {
@@ -219,7 +226,8 @@ export default function FloatingToolbar({
         border: `1px solid ${palette.floatingBorder}`,
         borderRadius: '10px',
         padding: '4px',
-        boxShadow: '0 14px 32px rgba(0,0,0,0.45)',
+        boxShadow: palette.floatingShadow,
+        backdropFilter: 'blur(22px) saturate(160%)',
         opacity: position.visible ? 1 : 0,
         visibility: position.visible ? 'visible' : 'hidden',
         pointerEvents: position.visible ? 'auto' : 'none',
@@ -251,6 +259,7 @@ export default function FloatingToolbar({
               fontFamily: "'DM Sans', sans-serif",
               fontWeight: '700',
               opacity: disabled ? 0.45 : 1,
+              transition: 'background 0.18s ease, color 0.18s ease, transform 0.18s ease',
             }}
           >
             {button.label}
@@ -281,9 +290,9 @@ export default function FloatingToolbar({
                 onAskAI(payload)
               }}
               style={{
-                border: '0.5px solid rgba(124,58,237,0.3)',
-                background: 'rgba(124,58,237,0.15)',
-                color: '#a78bfa',
+                border: `1px solid ${palette.actionBorder}`,
+                background: palette.actionBackground,
+                color: palette.actionText,
                 borderRadius: '4px',
                 padding: '3px 9px',
                 fontSize: '11px',
@@ -308,9 +317,9 @@ export default function FloatingToolbar({
                 onGenerateTest(payload)
               }}
               style={{
-                border: '0.5px solid rgba(34,197,94,0.32)',
-                background: 'rgba(34,197,94,0.12)',
-                color: '#86efac',
+                border: `1px solid ${palette.pillActiveBorder}`,
+                background: palette.pillActiveBackground,
+                color: palette.pillActiveText,
                 borderRadius: '4px',
                 padding: '3px 9px',
                 fontSize: '11px',

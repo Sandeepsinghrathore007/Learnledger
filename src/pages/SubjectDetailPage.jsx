@@ -277,7 +277,7 @@ export default function SubjectDetailPage({
       content: '<p></p>',
       blocks: [{ id: uid(), type: 'p', text: '' }],
       tags: [],
-      theme: 'midnight',
+      theme: 'glass',
       fontSize: 'medium',
       isFavorite: false,
       isPinned: false,
@@ -301,7 +301,7 @@ export default function SubjectDetailPage({
     const noteWithMeta = {
       ...updatedNote,
       tags: Array.isArray(updatedNote.tags) ? updatedNote.tags : [],
-      theme: typeof updatedNote.theme === 'string' ? updatedNote.theme : 'midnight',
+      theme: typeof updatedNote.theme === 'string' ? updatedNote.theme : 'glass',
       fontSize: typeof updatedNote.fontSize === 'string' ? updatedNote.fontSize : 'medium',
       createdAt: updatedNote.createdAt ?? now,
       updatedAt: now,

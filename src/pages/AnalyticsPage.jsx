@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LineChart, RankBars } from '@/components/analytics/AnalyticsCharts'
 import ExamGroupModal from '@/components/analytics/ExamGroupModal'
 import PdfPanel from '@/components/subjects/PdfPanel'
@@ -30,6 +30,27 @@ function formatPdfSize(sizeBytes) {
   }
 
   return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+function formatResetCountdown(milliseconds) {
+  const totalMinutes = Math.max(0, Math.ceil((Number(milliseconds) || 0) / (1000 * 60)))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  if (hours <= 0) return `${minutes}m left`
+  if (minutes === 0) return `${hours}h left`
+  return `${hours}h ${minutes}m left`
+}
+
+function getStreakHelper(streak) {
+  const countdown = formatResetCountdown(streak?.millisecondsUntilReset)
+
+  if (streak?.currentStreak > 0) {
+    if (streak?.isActiveToday) return `Today secured. Resets in ${countdown}`
+    if (streak?.needsTodayActivity) return `Study today to keep it. Resets in ${countdown}`
+  }
+
+  return `Daily reset in ${countdown}`
 }
 
 function getGroupPdfKnowledgeSubjectId(groupId) {
@@ -455,7 +476,7 @@ function ExamGroupCard({
               padding: '0 14px',
             }}
           >
-            Give Exam
+            Give Mock Test
           </button>
         )}
 
@@ -572,6 +593,7 @@ export default function AnalyticsPage({
   const [groupError, setGroupError] = useState('')
   const [isSavingGroup, setIsSavingGroup] = useState(false)
   const [groupPdfFeedback, setGroupPdfFeedback] = useState({})
+  const [currentTime, setCurrentTime] = useState(() => new Date())
   const {
     analytics,
     loading,
@@ -579,7 +601,15 @@ export default function AnalyticsPage({
     isAuthenticated,
     saveExamGroup,
     removeExamGroup,
-  } = useAnalyticsDashboard({ user, subjects })
+  } = useAnalyticsDashboard({ user, subjects, now: currentTime })
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentTime(new Date())
+    }, 60000)
+
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   const handleOpenCreate = () => {
     setEditingGroup(null)
@@ -921,6 +951,7 @@ export default function AnalyticsPage({
           label="Current Streak"
           value={`${analytics.streak.currentStreak}d`}
           tone="#22c55e"
+          helper={getStreakHelper(analytics.streak)}
         />
         <OverviewTile
           label="Longest Streak"
@@ -1064,7 +1095,7 @@ export default function AnalyticsPage({
                   fontSize: '12px',
                 }}
               >
-                AI practice will appear here after you take mock tests or use the assistant with subject context.
+                AI practice will appear here after you take tests or use the assistant with subject context.
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -1097,7 +1128,7 @@ export default function AnalyticsPage({
 
         <SectionCard
           title="Test Score Trend"
-          subtitle="Recent test percentages across all AI-generated mock tests."
+          subtitle="Recent test percentages across all AI-generated tests."
         >
           <LineChart
             data={analytics.performance.scoreTrend}
@@ -1125,7 +1156,7 @@ export default function AnalyticsPage({
         >
           <RankBars
             data={analytics.aiPractice.questionsPerSubject}
-            emptyLabel="Subject-level AI activity appears once mock tests or AI chats are saved."
+            emptyLabel="Subject-level AI activity appears once tests or AI chats are saved."
           />
         </SectionCard>
       </div>

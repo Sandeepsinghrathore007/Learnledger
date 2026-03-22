@@ -16,6 +16,7 @@ import {
   userNoteDocRef,
   userNotesCol,
   userTopicDocRef,
+  userTopicsCol,
 } from './firestorePaths'
 
 function toDate(value) {
@@ -69,6 +70,24 @@ export function subscribeToTopics(userId, onNext, onError) {
 
   return onSnapshot(
     topicsQuery,
+    (snapshot) => {
+      const items = snapshot.docs
+        .map(normalizeTopic)
+        .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+
+      onNext(items)
+    },
+    onError
+  )
+}
+
+export function subscribeToSubjectTopics(userId, subjectId, onNext, onError) {
+  if (!userId || !subjectId) {
+    return () => {}
+  }
+
+  return onSnapshot(
+    userTopicsCol(userId, subjectId),
     (snapshot) => {
       const items = snapshot.docs
         .map(normalizeTopic)

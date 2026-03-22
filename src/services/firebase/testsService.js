@@ -269,7 +269,7 @@ async function generateMockTest({ config, subjects, userId }) {
   if (lastError) {
     if (isRetryableGenerationError(lastError)) {
       throw new Error(
-        'AI mock test generation is temporarily overloaded. Please try again in a few seconds or use fewer subjects/topics.'
+        'AI test generation is temporarily overloaded. Please try again in a few seconds or use fewer subjects/topics.'
       )
     }
 
@@ -338,7 +338,7 @@ function buildExamMetadata({ config, linkedSubjects, generatedQuestions, questio
     modelUsed,
     provider,
     examSource: {
-      title: String(config?.examTitle || '').trim() || 'Custom Exam',
+      title: String(config?.examTitle || '').trim() || 'Custom Mock Test',
       sourceLabel: String(config?.sourceLabel || 'Pasted Text').trim() || 'Pasted Text',
       language: config?.language === 'hindi' ? 'hindi' : 'english',
       questionCount: questionBlocks.length,
@@ -638,7 +638,7 @@ export function subscribeToTests(userId, onNext, onError) {
 export async function generateTest({ config, subjects, userId = null, onProgress = null }) {
   if (isGitHubPagesHost() && !HAS_FRONTEND_AI_KEY) {
     throw new Error(
-      'AI mock tests are not enabled in this public build yet. Add a direct OpenRouter key to the build first.'
+      'AI tests are not enabled in this public build yet. Add a direct OpenRouter key to the build first.'
     )
   }
   if (isExamGenerationConfig(config)) {
