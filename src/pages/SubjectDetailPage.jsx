@@ -82,6 +82,8 @@ export default function SubjectDetailPage({
   sectionLaunchKey = null,
   user = null,
   onOpenMockTestsForTopic = null,
+  onNoteEditorVisibilityChange = null,
+  editorTopOffset = 58,
 }) {
   // Local subject state — changes are pushed up via onUpdateSubject
   const [subj, setSubj] = useState(subject)
@@ -194,6 +196,24 @@ export default function SubjectDetailPage({
   useEffect(() => {
     setSelectionTestContext(null)
   }, [openNote?.note?.id, openNote?.topicId])
+
+  const isNoteEditorVisible = Boolean(
+    openNote &&
+    !activeSelectionTest &&
+    !selectionTestReview &&
+    !openTestReview
+  )
+
+  useEffect(() => {
+    onNoteEditorVisibilityChange?.(isNoteEditorVisible)
+  }, [isNoteEditorVisible, onNoteEditorVisibilityChange])
+
+  useEffect(
+    () => () => {
+      onNoteEditorVisibilityChange?.(false)
+    },
+    [onNoteEditorVisibilityChange]
+  )
 
   useEffect(() => {
     setTopicsPage(1)
@@ -734,6 +754,7 @@ export default function SubjectDetailPage({
           onAddLinkedNote={handleAddLinkedNote}
           onRemoveLinkedNote={handleRemoveLinkedNote}
           onNavigateToNote={handleNavigateToLinkedNote}
+          appTopOffset={editorTopOffset}
         />
         <TestConfigModal
           open={Boolean(selectionTestContext)}

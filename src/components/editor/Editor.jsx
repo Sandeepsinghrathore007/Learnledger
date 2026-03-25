@@ -45,7 +45,7 @@ const EMPTY_SLASH_MENU = {
   top: 0,
   left: 0,
 }
-const APP_TOPBAR_HEIGHT = 58
+const DEFAULT_APP_TOPBAR_HEIGHT = 58
 const WORKSPACE_TOP_GAP = 16
 const HEADER_TO_CONTENT_GAP = 14
 const EDITOR_VIEWPORT_BOTTOM_GAP = 16
@@ -297,6 +297,7 @@ export default function Editor({
   onSave,
   onCreateNote = null,
   onGenerateSelectionTest = null,
+  appTopOffset = DEFAULT_APP_TOPBAR_HEIGHT,
   // Props for linked notes feature
   allNotes = [],           // All notes across subjects (for linking)
   onAddLinkedNote = null,  // (targetNoteId) => void
@@ -328,10 +329,13 @@ export default function Editor({
   const currentTheme = getNoteTheme(themeId)
   const currentFontSize = getNoteFontSize(fontSizeId)
   const showLinkedNotes = Boolean(onAddLinkedNote && onRemoveLinkedNote && allNotes.length > 0)
-  const workspaceViewportOffset = APP_TOPBAR_HEIGHT + WORKSPACE_TOP_GAP
+  const resolvedAppTopOffset = Number.isFinite(appTopOffset)
+    ? Math.max(0, appTopOffset)
+    : DEFAULT_APP_TOPBAR_HEIGHT
+  const workspaceViewportOffset = resolvedAppTopOffset + WORKSPACE_TOP_GAP
   const sidebarStickyTop = WORKSPACE_TOP_GAP
   const editorBodyHeight = `calc(100dvh - ${workspaceViewportOffset + headerBarHeight + HEADER_TO_CONTENT_GAP + EDITOR_VIEWPORT_BOTTOM_GAP}px)`
-  const sidebarMaxHeight = `calc(100dvh - ${APP_TOPBAR_HEIGHT + sidebarStickyTop + EDITOR_VIEWPORT_BOTTOM_GAP}px)`
+  const sidebarMaxHeight = `calc(100dvh - ${resolvedAppTopOffset + sidebarStickyTop + EDITOR_VIEWPORT_BOTTOM_GAP}px)`
 
   const editor = useEditor(
     {

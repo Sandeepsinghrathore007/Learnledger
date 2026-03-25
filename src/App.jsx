@@ -34,6 +34,7 @@ import { uid } from "@/utils/id";
 
 const MOBILE_BREAKPOINT = 1024;
 const DEFAULT_PAGE = "subjects";
+const APP_TOPBAR_HEIGHT = 58;
 const PAGE_HASHES = {
   subjects: "#/subjects",
   questions: "#/questions",
@@ -322,6 +323,7 @@ export default function App() {
   const [subjectSectionLaunch, setSubjectSectionLaunch] = useState(null);
   const [mockTestLaunch, setMockTestLaunch] = useState(null);
   const [examLaunch, setExamLaunch] = useState(null);
+  const [noteEditorVisible, setNoteEditorVisible] = useState(false);
 
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -467,6 +469,8 @@ export default function App() {
   }, [installNotice]);
 
   const sidebarWidth = isMobile ? 0 : collapsed ? 68 : 228;
+  const isImmersiveNoteEditor = activePage === "subjects" && noteEditorVisible;
+  const showAppTopBar = !isImmersiveNoteEditor;
 
   const authPageTitles = {
     login: "Login",
@@ -697,6 +701,8 @@ export default function App() {
             onUpdateSubject={updateSubject}
             user={authUser}
             onOpenMockTestsForTopic={handleOpenMockTestsForTopic}
+            onNoteEditorVisibilityChange={setNoteEditorVisible}
+            editorTopOffset={isImmersiveNoteEditor ? 0 : APP_TOPBAR_HEIGHT}
           />
         );
       }
@@ -764,21 +770,27 @@ export default function App() {
           overflow: "hidden",
         }}
       >
-        <TopBar
-          pageTitle={pageTitle}
-          showMenuButton={isMobile}
-          onMenuClick={() => setMobileNavOpen((value) => !value)}
-          activeThemeId={themeId}
-          themeOptions={APP_THEME_OPTIONS}
-          onThemeChange={setThemeId}
-          canInstall={canInstall}
-          onInstallClick={handleInstallApp}
-          isInstallPending={installPending}
-        />
+        {showAppTopBar && (
+          <TopBar
+            pageTitle={pageTitle}
+            showMenuButton={isMobile}
+            onMenuClick={() => setMobileNavOpen((value) => !value)}
+            activeThemeId={themeId}
+            themeOptions={APP_THEME_OPTIONS}
+            onThemeChange={setThemeId}
+            canInstall={canInstall}
+            onInstallClick={handleInstallApp}
+            isInstallPending={installPending}
+          />
+        )}
 
         <div
           ref={contentScrollRef}
-          className="flex-1 min-w-0 px-4 py-5 sm:px-6 sm:py-6 lg:px-[30px] lg:py-[28px]"
+          className={
+            showAppTopBar
+              ? "flex-1 min-w-0 px-4 py-5 sm:px-6 sm:py-6 lg:px-[30px] lg:py-[28px]"
+              : "flex-1 min-w-0 px-4 pt-0 pb-5 sm:px-6 sm:pt-0 sm:pb-6 lg:px-[30px] lg:pt-0 lg:pb-[28px]"
+          }
           style={{
             minHeight: 0,
             overflowY: "auto",
