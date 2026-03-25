@@ -57,5 +57,18 @@ export default defineConfig(({ command }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined
+            if (id.includes('pdfjs-dist')) return 'pdfjs'
+            if (id.includes('@tiptap') || id.includes('/prosemirror-')) return 'editor-vendor'
+            if (id.includes('/firebase/')) return 'firebase'
+            return undefined
+          },
+        },
+      },
+    },
   }
 })

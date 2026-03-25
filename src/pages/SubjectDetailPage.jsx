@@ -16,17 +16,12 @@
  *   newTopicName{string}      — Controlled input for new topic name
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import Editor             from '@/components/editor/Editor'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import TopicAccordion     from '@/components/subjects/TopicAccordion'
-import PdfPanel           from '@/components/subjects/PdfPanel'
 import Modal              from '@/components/ui/Modal'
 import FormField          from '@/components/ui/FormField'
 import AiScoreBadge       from '@/components/ui/AiScoreBadge'
 import PaginationControls from '@/components/ui/PaginationControls'
-import TestConfigModal    from '@/components/tests/TestConfigModal'
-import TestTakingView     from '@/components/tests/TestTakingView'
-import TestResultsView    from '@/components/tests/TestResultsView'
 import { BackIcon, MockTestsIcon, PdfIcon, PlusIcon, TopicsIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 import { uid }            from '@/utils/id'
@@ -42,6 +37,12 @@ import { resolveTestDisplay } from '@/utils/testDisplay'
 const TOPICS_PAGE_SIZE = 15
 const SUBJECT_PDFS_PAGE_SIZE = 10
 const COMPLETED_TESTS_PAGE_SIZE = 15
+
+const Editor = lazy(() => import('@/components/editor/Editor'))
+const PdfPanel = lazy(() => import('@/components/subjects/PdfPanel'))
+const TestConfigModal = lazy(() => import('@/components/tests/TestConfigModal'))
+const TestTakingView = lazy(() => import('@/components/tests/TestTakingView'))
+const TestResultsView = lazy(() => import('@/components/tests/TestResultsView'))
 
 function formatTestDateTime(value) {
   const date = new Date(value || '')
@@ -69,6 +70,27 @@ function formatPdfSize(sizeBytes) {
   }
 
   return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+function SurfaceFallback({ label, minHeight = 200 }) {
+  return (
+    <div
+      style={{
+        minHeight,
+        display: 'grid',
+        placeItems: 'center',
+        border: `1px solid ${BORDER}`,
+        borderRadius: '18px',
+        background: 'rgba(255,255,255,0.02)',
+        color: TEXT3,
+        fontFamily: "'DM Sans',sans-serif",
+        fontSize: '13px',
+        padding: '20px',
+      }}
+    >
+      {label}
+    </div>
+  )
 }
 
 export default function SubjectDetailPage({
@@ -166,10 +188,7 @@ export default function SubjectDetailPage({
     return () => unsubscribe()
   }, [allSubjects, user?.uid, subj?.id])
 
-  const subjectTestsForDisplay = useMemo(
-    () => subjectTests.map((test) => resolveTestDisplay(test, allSubjects)),
-    [allSubjects, subjectTests]
-  )
+  const subjectTestsForDisplay = subjectTests
   const topicTotalPages = Math.max(1, Math.ceil(subj.topics.length / TOPICS_PAGE_SIZE))
   const topicPageStart = (topicsPage - 1) * TOPICS_PAGE_SIZE
   const paginatedTopics = useMemo(
@@ -182,6 +201,25 @@ export default function SubjectDetailPage({
     () => subjectTestsForDisplay.slice(testsPageStart, testsPageStart + COMPLETED_TESTS_PAGE_SIZE),
     [subjectTestsForDisplay, testsPageStart]
   )
+  const allNotesForLinking = useMemo(() => {
+    const notes = []
+
+    subj.topics.forEach((topic) => {
+      topic.notes.forEach((note) => {
+        notes.push({
+          ...note,
+          topicId: topic.id,
+          topicName: topic.name,
+          subjectId: subj.id,
+          subjectName: subj.name,
+          subjectColor: subj.color,
+          subjectIcon: subj.icon,
+        })
+      })
+    })
+
+    return notes
+  }, [subj.color, subj.icon, subj.id, subj.name, subj.topics])
 
   useEffect(() => {
     if (!pdfFeedback?.text) return undefined
@@ -450,27 +488,6 @@ export default function SubjectDetailPage({
     }
   }
 
-  /**
-   * Get all notes from all topics (for linked notes search).
-   */
-  const getAllNotes = () => {
-    const notes = []
-    subj.topics.forEach(topic => {
-      topic.notes.forEach(note => {
-        notes.push({
-          ...note,
-          topicId: topic.id,
-          topicName: topic.name,
-          subjectId: subj.id,
-          subjectName: subj.name,
-          subjectColor: subj.color,
-          subjectIcon: subj.icon,
-        })
-      })
-    })
-    return notes
-  }
-
   // ── PDF ACTIONS ───────────────────────────────────────────────────────────
   const handleAddPdf = async (file) => {
     if (!file) return
@@ -686,7 +703,8 @@ export default function SubjectDetailPage({
       }
     }
 
-    const nextTestsForScore = [...subjectTests, testAttempt].sort((a, b) =>
+    const resolvedTestAttempt = resolveTestDisplay(testAttempt, allSubjects)
+    const nextTestsForScore = [...subjectTests, resolvedTestAttempt].sort((a, b) =>
       (a.completedAt || a.createdAt || '').localeCompare(b.completedAt || b.createdAt || '')
     )
     const nextTestsForDisplay = [...nextTestsForScore].sort((a, b) =>
@@ -706,64 +724,74 @@ export default function SubjectDetailPage({
     }
 
     setActiveSelectionTest(null)
-    setSelectionTestReview(testAttempt)
+    setSelectionTestReview(resolvedTestAttempt)
   }
 
   // ── RENDER EDITOR when a note is open ─────────────────────────────────────
   if (activeSelectionTest) {
     return (
-      <TestTakingView
-        test={activeSelectionTest}
-        onUpdateTest={setActiveSelectionTest}
-        onFinish={handleFinishSelectionTest}
-        onExit={() => setActiveSelectionTest(null)}
-      />
+      <Suspense fallback={<SurfaceFallback label="Loading test workspace..." minHeight={520} />}>
+        <TestTakingView
+          test={activeSelectionTest}
+          onUpdateTest={setActiveSelectionTest}
+          onFinish={handleFinishSelectionTest}
+          onExit={() => setActiveSelectionTest(null)}
+        />
+      </Suspense>
     )
   }
 
   if (selectionTestReview) {
     return (
-      <TestResultsView
-        testAttempt={selectionTestReview}
-        onClose={() => setSelectionTestReview(null)}
-        closeLabel="Back to Note"
-      />
+      <Suspense fallback={<SurfaceFallback label="Loading test results..." minHeight={520} />}>
+        <TestResultsView
+          testAttempt={selectionTestReview}
+          onClose={() => setSelectionTestReview(null)}
+          closeLabel="Back to Note"
+        />
+      </Suspense>
     )
   }
 
   if (openTestReview) {
     return (
-      <TestResultsView
-        testAttempt={openTestReview}
-        onClose={() => setOpenTestReview(null)}
-        closeLabel="Back to Subject"
-      />
+      <Suspense fallback={<SurfaceFallback label="Loading test review..." minHeight={520} />}>
+        <TestResultsView
+          testAttempt={openTestReview}
+          onClose={() => setOpenTestReview(null)}
+          closeLabel="Back to Subject"
+        />
+      </Suspense>
     )
   }
 
   if (openNote) {
     return (
       <>
-        <Editor
-          note={openNote.note}
-          onBack={() => setOpenNote(null)}
-          onSave={(updated) => handleSaveNote(openNote.topicId, updated)}
-          onCreateNote={() => handleAddNote(openNote.topicId)}
-          onGenerateSelectionTest={handleOpenSelectionTest}
-          allNotes={getAllNotes()}
-          onAddLinkedNote={handleAddLinkedNote}
-          onRemoveLinkedNote={handleRemoveLinkedNote}
-          onNavigateToNote={handleNavigateToLinkedNote}
-          appTopOffset={editorTopOffset}
-        />
-        <TestConfigModal
-          open={Boolean(selectionTestContext)}
-          onClose={() => setSelectionTestContext(null)}
-          subjects={[subjectRef.current]}
-          onGenerate={handleGenerateSelectionTest}
-          isGenerating={selectionTestGenerating}
-          selectionContext={selectionTestContext}
-        />
+        <Suspense fallback={<SurfaceFallback label="Loading note editor..." minHeight={560} />}>
+          <Editor
+            note={openNote.note}
+            onBack={() => setOpenNote(null)}
+            onSave={(updated) => handleSaveNote(openNote.topicId, updated)}
+            onCreateNote={() => handleAddNote(openNote.topicId)}
+            onGenerateSelectionTest={handleOpenSelectionTest}
+            allNotes={allNotesForLinking}
+            onAddLinkedNote={handleAddLinkedNote}
+            onRemoveLinkedNote={handleRemoveLinkedNote}
+            onNavigateToNote={handleNavigateToLinkedNote}
+            appTopOffset={editorTopOffset}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <TestConfigModal
+            open={Boolean(selectionTestContext)}
+            onClose={() => setSelectionTestContext(null)}
+            subjects={[subjectRef.current]}
+            onGenerate={handleGenerateSelectionTest}
+            isGenerating={selectionTestGenerating}
+            selectionContext={selectionTestContext}
+          />
+        </Suspense>
       </>
     )
   }
@@ -959,16 +987,18 @@ export default function SubjectDetailPage({
 
         </>
       ) : activeSection === 'materials' ? (
-        <PdfPanel
-          pdfs={subj.pdfs ?? []}
-          color={subj.color}
-          onAdd={handleAddPdf}
-          onDelete={handleDeletePdf}
-          feedback={pdfFeedback}
-          binaryContext={{ userId: user?.uid || null, subjectId: subj.id }}
-          showAskAI={false}
-          itemsPerPage={SUBJECT_PDFS_PAGE_SIZE}
-        />
+        <Suspense fallback={<SurfaceFallback label="Loading study materials..." minHeight={280} />}>
+          <PdfPanel
+            pdfs={subj.pdfs ?? []}
+            color={subj.color}
+            onAdd={handleAddPdf}
+            onDelete={handleDeletePdf}
+            feedback={pdfFeedback}
+            binaryContext={{ userId: user?.uid || null, subjectId: subj.id }}
+            showAskAI={false}
+            itemsPerPage={SUBJECT_PDFS_PAGE_SIZE}
+          />
+        </Suspense>
       ) : (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '10px', flexWrap: 'wrap' }}>
@@ -1027,7 +1057,7 @@ export default function SubjectDetailPage({
                   <button
                     key={test.id}
                     type="button"
-                    onClick={() => setOpenTestReview(resolveTestDisplay(test, allSubjects))}
+                    onClick={() => setOpenTestReview(test)}
                     style={{
                       border: `1px solid ${BORDER}`,
                       borderRadius: '12px',

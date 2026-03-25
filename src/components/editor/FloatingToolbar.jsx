@@ -5,7 +5,7 @@
  * We position it manually so the project stays within the requested package set.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { TextSelection } from '@tiptap/pm/state'
 import {
   canInsertObjectiveQuestion,
@@ -131,12 +131,12 @@ function getSelectedTextPayload(editor) {
   }
 }
 
-export default function FloatingToolbar({
+function FloatingToolbar({
   editor,
   themeStyles,
   containerRef,
-  onAskAI = null,
   onGenerateTest = null,
+  reduceEffects = false,
 }) {
   const toolbarRef = useRef(null)
   const [position, setPosition] = useState({ visible: false, top: 0, left: 0 })
@@ -227,7 +227,7 @@ export default function FloatingToolbar({
         borderRadius: '10px',
         padding: '4px',
         boxShadow: palette.floatingShadow,
-        backdropFilter: 'blur(22px) saturate(160%)',
+        backdropFilter: reduceEffects ? 'none' : 'blur(22px) saturate(160%)',
         opacity: position.visible ? 1 : 0,
         visibility: position.visible ? 'visible' : 'hidden',
         pointerEvents: position.visible ? 'auto' : 'none',
@@ -267,7 +267,7 @@ export default function FloatingToolbar({
         )
       })}
 
-      {(onAskAI || onGenerateTest) && (
+      {onGenerateTest && (
         <>
           <span
             aria-hidden="true"
@@ -280,61 +280,34 @@ export default function FloatingToolbar({
             }}
           />
 
-          {onAskAI && (
-            <button
-              type="button"
-              onMouseDown={(event) => {
-                event.preventDefault()
-                const payload = getSelectedTextPayload(editor)
-                if (!payload) return
-                onAskAI(payload)
-              }}
-              style={{
-                border: `1px solid ${palette.actionBorder}`,
-                background: palette.actionBackground,
-                color: palette.actionText,
-                borderRadius: '4px',
-                padding: '3px 9px',
-                fontSize: '11px',
-                fontWeight: '600',
-                fontFamily: "'DM Sans', sans-serif",
-                height: '28px',
-                display: 'inline-flex',
-                alignItems: 'center',
-              }}
-            >
-              ✦ Ask AI
-            </button>
-          )}
-
-          {onGenerateTest && (
-            <button
-              type="button"
-              onMouseDown={(event) => {
-                event.preventDefault()
-                const payload = getSelectedTextPayload(editor)
-                if (!payload) return
-                onGenerateTest(payload)
-              }}
-              style={{
-                border: `1px solid ${palette.pillActiveBorder}`,
-                background: palette.pillActiveBackground,
-                color: palette.pillActiveText,
-                borderRadius: '4px',
-                padding: '3px 9px',
-                fontSize: '11px',
-                fontWeight: '600',
-                fontFamily: "'DM Sans', sans-serif",
-                height: '28px',
-                display: 'inline-flex',
-                alignItems: 'center',
-              }}
-            >
-              ✓ Test
-            </button>
-          )}
+          <button
+            type="button"
+            onMouseDown={(event) => {
+              event.preventDefault()
+              const payload = getSelectedTextPayload(editor)
+              if (!payload) return
+              onGenerateTest(payload)
+            }}
+            style={{
+              border: `1px solid ${palette.pillActiveBorder}`,
+              background: palette.pillActiveBackground,
+              color: palette.pillActiveText,
+              borderRadius: '4px',
+              padding: '3px 9px',
+              fontSize: '11px',
+              fontWeight: '600',
+              fontFamily: "'DM Sans', sans-serif",
+              height: '28px',
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+          >
+            ✓ Test
+          </button>
         </>
       )}
     </div>
   )
 }
+
+export default memo(FloatingToolbar)

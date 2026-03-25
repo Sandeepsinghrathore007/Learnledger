@@ -2,7 +2,7 @@
  * LinkedNotesPanel.jsx — Panel for managing linked notes in the editor.
  */
 
-import { useState } from 'react'
+import { memo, useState } from 'react'
 
 const DEFAULT_THEME = {
   accent: '#a855f7',
@@ -96,13 +96,14 @@ function XIcon() {
   )
 }
 
-export default function LinkedNotesPanel({
+function LinkedNotesPanel({
   currentNote,
   allNotes,
   onAddLink,
   onRemoveLink,
   onNavigateToNote,
   themeStyles = null,
+  reduceEffects = false,
 }) {
   const palette = getPalette(themeStyles)
   const [addModalOpen, setAddModalOpen] = useState(false)
@@ -141,7 +142,7 @@ export default function LinkedNotesPanel({
         borderRadius: '18px',
         padding: '14px',
         boxShadow: palette.panelShadow,
-        backdropFilter: 'blur(22px) saturate(160%)',
+        backdropFilter: reduceEffects ? 'none' : 'blur(22px) saturate(160%)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -487,3 +488,5 @@ export default function LinkedNotesPanel({
     </div>
   )
 }
+
+export default memo(LinkedNotesPanel)

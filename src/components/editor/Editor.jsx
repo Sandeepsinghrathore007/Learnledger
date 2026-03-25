@@ -10,7 +10,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
-import AiAssistantPanel from '@/components/editor/AiAssistantPanel'
 import OutlinePanel from '@/components/editor/OutlinePanel'
 import EditorToolbar from '@/components/editor/EditorToolbar'
 import FloatingToolbar from '@/components/editor/FloatingToolbar'
@@ -33,12 +32,6 @@ import { uid } from '@/utils/id'
 
 const EMPTY_DOC_HTML = '<p></p>'
 const AUTOSAVE_DELAY_MS = 900
-const EMPTY_AI_PANEL = {
-  open: false,
-  selectedText: '',
-  range: null,
-  insertionPos: null,
-}
 const EMPTY_SLASH_MENU = {
   open: false,
   range: null,
@@ -49,6 +42,9 @@ const DEFAULT_APP_TOPBAR_HEIGHT = 58
 const WORKSPACE_TOP_GAP = 16
 const HEADER_TO_CONTENT_GAP = 14
 const EDITOR_VIEWPORT_BOTTOM_GAP = 16
+const EDITOR_EFFECT_BREAKPOINT = 1024
+const EDITOR_MOBILE_BREAKPOINT = 768
+const OUTLINE_SYNC_DELAY_MS = 120
 
 function escapeHtml(text = '') {
   return text
@@ -291,6 +287,51 @@ function getSafeTags(note) {
   return Array.isArray(note?.tags) ? note.tags : []
 }
 
+function areOutlineItemsEqual(previousItems = [], nextItems = []) {
+  if (previousItems === nextItems) return true
+  if (previousItems.length !== nextItems.length) return false
+
+  return previousItems.every((item, index) => {
+    const nextItem = nextItems[index]
+    return (
+      item?.id === nextItem?.id &&
+      item?.level === nextItem?.level &&
+      item?.text === nextItem?.text
+    )
+  })
+}
+
+function areSlashMenusEqual(previousMenu, nextMenu) {
+  const previousRange = previousMenu?.range
+  const nextRange = nextMenu?.range
+
+  return (
+    previousMenu?.open === nextMenu?.open &&
+    previousMenu?.top === nextMenu?.top &&
+    previousMenu?.left === nextMenu?.left &&
+    previousRange?.from === nextRange?.from &&
+    previousRange?.to === nextRange?.to
+  )
+}
+
+function getViewportOptimizedTheme(theme, reduceEffects) {
+  if (!reduceEffects) return theme
+
+  return {
+    ...theme,
+    workspaceShadow: '0 12px 28px rgba(2,8,23,0.22)',
+    panelShadow: '0 10px 22px rgba(3,10,25,0.18)',
+    actionShadow: '0 10px 22px rgba(8,16,38,0.2)',
+    editorFrameShadow: '0 14px 30px rgba(2,8,23,0.24)',
+    floatingShadow: '0 16px 28px rgba(3,10,26,0.24)',
+    cssVars: {
+      ...theme.cssVars,
+      '--note-editor-image-shadow': '0 10px 22px rgba(2,8,23,0.2)',
+      '--note-editor-link-shadow': '0 8px 18px rgba(2,8,23,0.16)',
+    },
+  }
+}
+
 export default function Editor({ 
   note, 
   onBack, 
@@ -311,8 +352,13 @@ export default function Editor({
   const [activeOutlineId, setActiveOutlineId] = useState(null)
   const [headerBarHeight, setHeaderBarHeight] = useState(0)
   const [saveState, setSaveState] = useState('saved')
-  const [aiPanel, setAiPanel] = useState(EMPTY_AI_PANEL)
   const [slashMenu, setSlashMenu] = useState(EMPTY_SLASH_MENU)
+  const [isCompactViewport, setIsCompactViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < EDITOR_EFFECT_BREAKPOINT : false
+  )
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < EDITOR_MOBILE_BREAKPOINT : false
+  )
 
   const noteRef = useRef(note)
   const titleRef = useRef(note.title ?? 'Untitled Note')
@@ -324,9 +370,15 @@ export default function Editor({
   const headerBarRef = useRef(null)
   const editorFrameRef = useRef(null)
   const outlineSectionRef = useRef(null)
+  const outlineItemsRef = useRef([])
+  const outlineSyncTimerRef = useRef(null)
+  const activeOutlineFrameRef = useRef(null)
 
   const extensions = useMemo(() => buildEditorExtensions(), [])
-  const currentTheme = getNoteTheme(themeId)
+  const currentTheme = useMemo(
+    () => getViewportOptimizedTheme(getNoteTheme(themeId), isCompactViewport),
+    [themeId, isCompactViewport]
+  )
   const currentFontSize = getNoteFontSize(fontSizeId)
   const showLinkedNotes = Boolean(onAddLinkedNote && onRemoveLinkedNote && allNotes.length > 0)
   const resolvedAppTopOffset = Number.isFinite(appTopOffset)
@@ -336,6 +388,23 @@ export default function Editor({
   const sidebarStickyTop = WORKSPACE_TOP_GAP
   const editorBodyHeight = `calc(100dvh - ${workspaceViewportOffset + headerBarHeight + HEADER_TO_CONTENT_GAP + EDITOR_VIEWPORT_BOTTOM_GAP}px)`
   const sidebarMaxHeight = `calc(100dvh - ${resolvedAppTopOffset + sidebarStickyTop + EDITOR_VIEWPORT_BOTTOM_GAP}px)`
+  const reduceEffects = isCompactViewport
+  const simplifyMobileEditor = isMobileViewport
+  const showDesktopEditorChrome = !simplifyMobileEditor
+  const workspaceBackdrop = reduceEffects ? 'none' : 'blur(28px) saturate(160%)'
+  const panelBackdrop = reduceEffects ? 'none' : 'blur(24px) saturate(160%)'
+  const editorFrameBackdrop = reduceEffects ? 'none' : 'blur(26px) saturate(165%)'
+  const fabBackdrop = reduceEffects ? 'none' : 'blur(18px)'
+  const workspacePadding = simplifyMobileEditor ? '10px' : '16px'
+  const workspaceRadius = simplifyMobileEditor ? '20px' : '28px'
+  const workspaceGap = simplifyMobileEditor ? '10px' : '14px'
+  const headerPadding = simplifyMobileEditor ? '8px 10px' : '10px 12px'
+  const headerRadius = simplifyMobileEditor ? '12px' : '14px'
+  const headerWrap = simplifyMobileEditor ? 'nowrap' : 'wrap'
+  const headerControlsGap = simplifyMobileEditor ? '8px' : '10px'
+  const editorFrameRadius = simplifyMobileEditor ? '14px' : '16px'
+  const editorFrameMinHeight = simplifyMobileEditor ? '420px' : '540px'
+  const contentLayoutGap = simplifyMobileEditor ? '10px' : '14px'
 
   const editor = useEditor(
     {
@@ -357,23 +426,48 @@ export default function Editor({
     if (!editor) return
 
     const nextItems = extractHeadingsFromJson(editor.getJSON())
-    setOutlineItems(nextItems)
+    const resolvedItems = areOutlineItemsEqual(outlineItemsRef.current, nextItems)
+      ? outlineItemsRef.current
+      : nextItems
+
+    if (resolvedItems !== outlineItemsRef.current) {
+      outlineItemsRef.current = resolvedItems
+      setOutlineItems(resolvedItems)
+    }
+
     setActiveOutlineId((previous) => {
-      if (nextItems.length === 0) return null
-      if (previous && nextItems.some((item) => item.id === previous)) return previous
-      return nextItems[0].id
+      if (resolvedItems.length === 0) return null
+      if (previous && resolvedItems.some((item) => item.id === previous)) return previous
+      return resolvedItems[0].id
     })
   }, [editor])
 
+  const applySlashMenuState = useCallback((nextMenu) => {
+    setSlashMenu((previousMenu) =>
+      areSlashMenusEqual(previousMenu, nextMenu) ? previousMenu : nextMenu
+    )
+  }, [])
+
+  const scheduleOutlineSync = useCallback(() => {
+    if (outlineSyncTimerRef.current) {
+      window.clearTimeout(outlineSyncTimerRef.current)
+    }
+
+    outlineSyncTimerRef.current = window.setTimeout(() => {
+      outlineSyncTimerRef.current = null
+      syncOutlineItems()
+    }, OUTLINE_SYNC_DELAY_MS)
+  }, [syncOutlineItems])
+
   const syncSlashMenu = useCallback(() => {
     if (!editor || !editorFrameRef.current) {
-      setSlashMenu(EMPTY_SLASH_MENU)
+      applySlashMenuState(EMPTY_SLASH_MENU)
       return
     }
 
     const slashState = getInlineNoteSlashCommandState(editor.state)
     if (!slashState.active || !slashState.range) {
-      setSlashMenu(EMPTY_SLASH_MENU)
+      applySlashMenuState(EMPTY_SLASH_MENU)
       return
     }
 
@@ -382,13 +476,13 @@ export default function Editor({
     const maxLeft = Math.max(16, frameRect.width - 236)
     const maxTop = Math.max(16, frameRect.height - 72)
 
-    setSlashMenu({
+    applySlashMenuState({
       open: true,
       range: slashState.range,
       top: clampPosition(coords.bottom - frameRect.top + 10, 16, maxTop),
       left: clampPosition(coords.left - frameRect.left, 16, maxLeft),
     })
-  }, [editor])
+  }, [applySlashMenuState, editor])
 
   const updateActiveOutline = useCallback(() => {
     if (!editorFrameRef.current || outlineItems.length === 0) {
@@ -417,6 +511,15 @@ export default function Editor({
     setActiveOutlineId(nextActiveId)
   }, [outlineItems])
 
+  const scheduleActiveOutlineUpdate = useCallback(() => {
+    if (activeOutlineFrameRef.current) return
+
+    activeOutlineFrameRef.current = requestAnimationFrame(() => {
+      activeOutlineFrameRef.current = null
+      updateActiveOutline()
+    })
+  }, [updateActiveOutline])
+
   const handleSelectOutlineItem = useCallback(
     (headingId) => {
       if (!editor || !editorFrameRef.current) return
@@ -441,19 +544,6 @@ export default function Editor({
     })
   }, [])
 
-  const handleOpenAiAssistant = useCallback(({ text, range, insertionPos }) => {
-    setAiPanel({
-      open: true,
-      selectedText: text,
-      range,
-      insertionPos,
-    })
-  }, [])
-
-  const handleCloseAiAssistant = useCallback(() => {
-    setAiPanel(EMPTY_AI_PANEL)
-  }, [])
-
   const handleGenerateSelectionTest = useCallback(
     ({ text, range, insertionPos }) => {
       if (!onGenerateSelectionTest) return
@@ -469,60 +559,18 @@ export default function Editor({
     [onGenerateSelectionTest]
   )
 
-  const handleInsertAiResponse = useCallback(
-    (response) => {
-      if (!editor || !editorFrameRef.current) return
-
-      const explanation = String(response?.explanation || '').trim()
-      const keyPoints = Array.isArray(response?.keyPoints)
-        ? response.keyPoints.map((item) => String(item || '').trim()).filter(Boolean)
-        : []
-
-      if (!explanation && keyPoints.length === 0) return
-
-      const calloutId = uid()
-      const insertAt = Number.isInteger(aiPanel.insertionPos) ? aiPanel.insertionPos : editor.state.selection.to
-
-      const inserted = editor
-        .chain()
-        .focus()
-        .insertContentAt(insertAt, [
-          {
-            type: 'aiCallout',
-            attrs: {
-              calloutId,
-              explanation,
-              keyPoints,
-            },
-          },
-          { type: 'paragraph' },
-        ])
-        .run()
-
-      if (!inserted) return
-
-      setAiPanel(EMPTY_AI_PANEL)
-
-      requestAnimationFrame(() => {
-        const calloutNode = editorFrameRef.current?.querySelector(`[data-callout-id="${calloutId}"]`)
-        calloutNode?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      })
-    },
-    [aiPanel.insertionPos, editor]
-  )
-
   const handleInsertInlineNote = useCallback(() => {
     if (!editor || !slashMenu.range) return
 
     const insertPos = insertInlineNoteAtRange(editor, slashMenu.range)
-    setSlashMenu(EMPTY_SLASH_MENU)
+    applySlashMenuState(EMPTY_SLASH_MENU)
 
     if (insertPos == null) return
 
     requestAnimationFrame(() => {
       editor.chain().focus(insertPos + 2).run()
     })
-  }, [editor, slashMenu.range])
+  }, [applySlashMenuState, editor, slashMenu.range])
 
   const handleInsertTable = useCallback(
     (options) => {
@@ -642,6 +690,40 @@ export default function Editor({
   }, [note])
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined
+    }
+
+    const compactQuery = window.matchMedia(`(max-width: ${EDITOR_EFFECT_BREAKPOINT - 1}px)`)
+    const mobileQuery = window.matchMedia(`(max-width: ${EDITOR_MOBILE_BREAKPOINT - 1}px)`)
+    const syncViewportMode = () => {
+      setIsCompactViewport(compactQuery.matches)
+      setIsMobileViewport(mobileQuery.matches)
+    }
+
+    syncViewportMode()
+
+    if (
+      typeof compactQuery.addEventListener === 'function' &&
+      typeof mobileQuery.addEventListener === 'function'
+    ) {
+      compactQuery.addEventListener('change', syncViewportMode)
+      mobileQuery.addEventListener('change', syncViewportMode)
+      return () => {
+        compactQuery.removeEventListener('change', syncViewportMode)
+        mobileQuery.removeEventListener('change', syncViewportMode)
+      }
+    }
+
+    compactQuery.addListener(syncViewportMode)
+    mobileQuery.addListener(syncViewportMode)
+    return () => {
+      compactQuery.removeListener(syncViewportMode)
+      mobileQuery.removeListener(syncViewportMode)
+    }
+  }, [])
+
+  useEffect(() => {
     titleRef.current = title
   }, [title])
 
@@ -662,9 +744,12 @@ export default function Editor({
     setFontSizeId(nextFontSizeId)
     fontSizeRef.current = nextFontSizeId
     setSaveState('saved')
-    setAiPanel(EMPTY_AI_PANEL)
-    setSlashMenu(EMPTY_SLASH_MENU)
+    applySlashMenuState(EMPTY_SLASH_MENU)
     clearTimeout(saveTimerRef.current)
+    if (outlineSyncTimerRef.current) {
+      window.clearTimeout(outlineSyncTimerRef.current)
+      outlineSyncTimerRef.current = null
+    }
 
     editor.commands.setContent(getInitialContent(note), {
       emitUpdate: false,
@@ -673,10 +758,10 @@ export default function Editor({
 
     requestAnimationFrame(() => {
       syncOutlineItems()
-      updateActiveOutline()
+      scheduleActiveOutlineUpdate()
       syncSlashMenu()
     })
-  }, [editor, note, syncOutlineItems, syncSlashMenu, updateActiveOutline])
+  }, [applySlashMenuState, editor, note, scheduleActiveOutlineUpdate, syncOutlineItems, syncSlashMenu])
 
   useEffect(() => {
     if (!editor) return
@@ -684,10 +769,10 @@ export default function Editor({
     syncOutlineItems()
 
     const handleUpdate = () => {
-      syncOutlineItems()
+      scheduleOutlineSync()
       syncSlashMenu()
       queueAutosave()
-      requestAnimationFrame(updateActiveOutline)
+      scheduleActiveOutlineUpdate()
     }
 
     const handleSelectionUpdate = () => {
@@ -700,24 +785,24 @@ export default function Editor({
       editor.off('update', handleUpdate)
       editor.off('selectionUpdate', handleSelectionUpdate)
     }
-  }, [editor, queueAutosave, syncOutlineItems, syncSlashMenu, updateActiveOutline])
+  }, [editor, queueAutosave, scheduleActiveOutlineUpdate, scheduleOutlineSync, syncOutlineItems, syncSlashMenu])
 
   useEffect(() => {
     if (outlineItems.length === 0) return undefined
 
     const handleScroll = () => {
-      requestAnimationFrame(updateActiveOutline)
+      scheduleActiveOutlineUpdate()
     }
 
     handleScroll()
-    window.addEventListener('scroll', handleScroll, true)
+    window.addEventListener('scroll', handleScroll, { capture: true, passive: true })
     window.addEventListener('resize', handleScroll)
 
     return () => {
       window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', handleScroll)
     }
-  }, [outlineItems, updateActiveOutline])
+  }, [outlineItems, scheduleActiveOutlineUpdate])
 
   // Cmd/Ctrl + S should save instantly.
   useEffect(() => {
@@ -735,6 +820,10 @@ export default function Editor({
   useEffect(
     () => () => {
       clearTimeout(saveTimerRef.current)
+      clearTimeout(outlineSyncTimerRef.current)
+      if (activeOutlineFrameRef.current) {
+        cancelAnimationFrame(activeOutlineFrameRef.current)
+      }
     },
     []
   )
@@ -768,35 +857,36 @@ export default function Editor({
   }, [])
 
   return (
-    <div
-      className="animate-fade-in"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '14px',
-        position: 'relative',
-        isolation: 'isolate',
-        padding: '16px',
-        borderRadius: '28px',
-        background: currentTheme.workspaceBackground,
-        border: `1px solid ${currentTheme.workspaceBorder}`,
-        boxShadow: currentTheme.workspaceShadow,
-        backdropFilter: 'blur(28px) saturate(160%)',
-      }}
-    >
+    <>
+      <div
+        className="animate-fade-in"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: workspaceGap,
+          position: 'relative',
+          isolation: 'isolate',
+          padding: workspacePadding,
+          borderRadius: workspaceRadius,
+          background: currentTheme.workspaceBackground,
+          border: `1px solid ${currentTheme.workspaceBorder}`,
+          boxShadow: currentTheme.workspaceShadow,
+          backdropFilter: workspaceBackdrop,
+        }}
+      >
       <div
         ref={headerBarRef}
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '10px',
-          flexWrap: 'wrap',
+          gap: headerControlsGap,
+          flexWrap: headerWrap,
           background: currentTheme.panelBackground,
           border: `1px solid ${currentTheme.panelBorder}`,
-          borderRadius: '14px',
-          padding: '10px 12px',
+          borderRadius: headerRadius,
+          padding: headerPadding,
           boxShadow: currentTheme.panelShadow,
-          backdropFilter: 'blur(24px) saturate(160%)',
+          backdropFilter: panelBackdrop,
         }}
       >
         <button
@@ -833,6 +923,7 @@ export default function Editor({
           className="learnledger-input"
           style={{
             flex: 1,
+            minWidth: 0,
             borderRadius: '10px',
             background: currentTheme.titleInputBackground,
             borderColor: currentTheme.titleInputBorder,
@@ -842,152 +933,154 @@ export default function Editor({
           }}
         />
 
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            flexWrap: 'wrap',
-            marginLeft: 'auto',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            {NOTE_FONT_SIZE_OPTIONS.map((option) => {
-              const active = option.id === fontSizeId
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => handleFontSizeChange(option.id)}
-                  title={`Font size ${option.label}`}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minWidth: '38px',
-                    borderRadius: '999px',
-                    border: `1px solid ${active ? currentTheme.pillActiveBorder : currentTheme.pillBorder}`,
-                    background: active ? currentTheme.pillActiveBackground : currentTheme.pillBackground,
-                    color: active ? currentTheme.pillActiveText : currentTheme.pillText,
-                    padding: '7px 10px',
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: option.id === 'large' ? '13px' : '12px',
-                    fontWeight: '800',
-                  }}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            {NOTE_THEME_OPTIONS.map((theme) => {
-              const active = theme.id === themeId
-              return (
-                <button
-                  key={theme.id}
-                  type="button"
-                  onClick={() => handleThemeChange(theme.id)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    borderRadius: '999px',
-                    border: `1px solid ${active ? currentTheme.pillActiveBorder : currentTheme.pillBorder}`,
-                    background: active ? currentTheme.pillActiveBackground : currentTheme.pillBackground,
-                    color: active ? currentTheme.pillActiveText : currentTheme.pillText,
-                    padding: '7px 11px',
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    boxShadow: active ? currentTheme.actionShadow : 'none',
-                  }}
-                >
-                  <span
-                    style={{
-                      width: '14px',
-                      height: '14px',
-                      borderRadius: '999px',
-                      background: theme.preview,
-                      border: '1px solid rgba(255,255,255,0.18)',
-                      boxShadow: '0 0 0 1px rgba(0,0,0,0.08) inset',
-                    }}
-                  />
-                  {theme.label}
-                </button>
-              )
-            })}
-          </div>
-          <span
+        {showDesktopEditorChrome && (
+          <div
             style={{
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              width: '72px',
-              minHeight: '30px',
-              color: saveState === 'saved' ? currentTheme.accent : currentTheme.pillText,
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '11px',
-              fontWeight: '700',
-              textAlign: 'center',
+              gap: '10px',
+              flexWrap: 'wrap',
+              marginLeft: 'auto',
             }}
           >
-            {saveState === 'saved' ? 'Saved' : saveState === 'saving' ? 'Saving...' : 'Unsaved'}
-          </span>
-          {onCreateNote && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {NOTE_FONT_SIZE_OPTIONS.map((option) => {
+                const active = option.id === fontSizeId
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => handleFontSizeChange(option.id)}
+                    title={`Font size ${option.label}`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: '38px',
+                      borderRadius: '999px',
+                      border: `1px solid ${active ? currentTheme.pillActiveBorder : currentTheme.pillBorder}`,
+                      background: active ? currentTheme.pillActiveBackground : currentTheme.pillBackground,
+                      color: active ? currentTheme.pillActiveText : currentTheme.pillText,
+                      padding: '7px 10px',
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: option.id === 'large' ? '13px' : '12px',
+                      fontWeight: '800',
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {NOTE_THEME_OPTIONS.map((theme) => {
+                const active = theme.id === themeId
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={() => handleThemeChange(theme.id)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      borderRadius: '999px',
+                      border: `1px solid ${active ? currentTheme.pillActiveBorder : currentTheme.pillBorder}`,
+                      background: active ? currentTheme.pillActiveBackground : currentTheme.pillBackground,
+                      color: active ? currentTheme.pillActiveText : currentTheme.pillText,
+                      padding: '7px 11px',
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      boxShadow: active ? currentTheme.actionShadow : 'none',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '14px',
+                        height: '14px',
+                        borderRadius: '999px',
+                        background: theme.preview,
+                        border: '1px solid rgba(255,255,255,0.18)',
+                        boxShadow: '0 0 0 1px rgba(0,0,0,0.08) inset',
+                      }}
+                    />
+                    {theme.label}
+                  </button>
+                )
+              })}
+            </div>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '72px',
+                minHeight: '30px',
+                color: saveState === 'saved' ? currentTheme.accent : currentTheme.pillText,
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '11px',
+                fontWeight: '700',
+                textAlign: 'center',
+              }}
+            >
+              {saveState === 'saved' ? 'Saved' : saveState === 'saving' ? 'Saving...' : 'Unsaved'}
+            </span>
+            {onCreateNote && (
+              <button
+                type="button"
+                onClick={handleCreateNote}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  border: `1px solid ${currentTheme.pillBorder}`,
+                  background: currentTheme.pillBackground,
+                  color: currentTheme.pillText,
+                  borderRadius: '9px',
+                  padding: '7px 12px',
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  boxShadow: currentTheme.actionShadow,
+                }}
+              >
+                <span style={{ width: '12px', height: '12px' }}>
+                  <PlusIcon />
+                </span>
+                New Note
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleCreateNote}
+              onClick={handleSaveNow}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                border: `1px solid ${currentTheme.pillBorder}`,
-                background: currentTheme.pillBackground,
-                color: currentTheme.pillText,
+                border: `1px solid ${currentTheme.actionBorder}`,
+                background: currentTheme.actionBackground,
+                color: currentTheme.actionText,
                 borderRadius: '9px',
                 padding: '7px 12px',
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: '12px',
                 fontWeight: '700',
-                boxShadow: currentTheme.actionShadow,
               }}
             >
               <span style={{ width: '12px', height: '12px' }}>
-                <PlusIcon />
+                <SaveIcon />
               </span>
-              New Note
+              Save
             </button>
-          )}
-          <button
-            type="button"
-            onClick={handleSaveNow}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              border: `1px solid ${currentTheme.actionBorder}`,
-              background: currentTheme.actionBackground,
-              color: currentTheme.actionText,
-              borderRadius: '9px',
-              padding: '7px 12px',
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '12px',
-              fontWeight: '700',
-            }}
-          >
-            <span style={{ width: '12px', height: '12px' }}>
-              <SaveIcon />
-            </span>
-            Save
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
-      <div className="flex flex-col gap-3.5 md:flex-row md:items-start">
+      <div className="flex flex-col gap-3.5 md:flex-row md:items-start" style={{ gap: contentLayoutGap }}>
         {/* Main Editor Area */}
         <div
-          className="md:[height:var(--editor-body-height)]"
+          className="[height:var(--editor-body-height)]"
           style={{
             flex: 1,
             minWidth: 0,
@@ -996,40 +1089,47 @@ export default function Editor({
         >
           <div
             ref={editorFrameRef}
-            className="flex flex-col md:h-full"
+            className="flex h-full flex-col"
             style={{
               position: 'relative',
               background: currentTheme.editorFrameBackground,
               border: `1px solid ${currentTheme.editorFrameBorder}`,
-              borderRadius: '16px',
+              borderRadius: editorFrameRadius,
               overflow: 'hidden',
-              minHeight: '540px',
+              minHeight: editorFrameMinHeight,
               boxShadow: currentTheme.editorFrameShadow,
-              backdropFilter: 'blur(26px) saturate(165%)',
+              backdropFilter: editorFrameBackdrop,
               ...currentTheme.cssVars,
               '--note-editor-font-size': currentFontSize.fontSize,
               '--note-editor-line-height': currentFontSize.lineHeight,
             }}
           >
-            <EditorToolbar
-              editor={editor}
-              themeStyles={currentTheme}
-              onInsertTable={handleInsertTable}
-              onInsertLink={handleInsertLinkBlock}
-            />
-            <FloatingToolbar
-              editor={editor}
-              themeStyles={currentTheme}
-              containerRef={editorFrameRef}
-              onAskAI={handleOpenAiAssistant}
-              onGenerateTest={onGenerateSelectionTest ? handleGenerateSelectionTest : null}
-            />
-            <InlineNoteSlashMenu
-              open={slashMenu.open}
-              top={slashMenu.top}
-              left={slashMenu.left}
-              onInsert={handleInsertInlineNote}
-            />
+            {showDesktopEditorChrome && (
+              <EditorToolbar
+                editor={editor}
+                themeStyles={currentTheme}
+                onInsertTable={handleInsertTable}
+                onInsertLink={handleInsertLinkBlock}
+                reduceEffects={reduceEffects}
+              />
+            )}
+            {showDesktopEditorChrome && (
+              <FloatingToolbar
+                editor={editor}
+                themeStyles={currentTheme}
+                containerRef={editorFrameRef}
+                onGenerateTest={onGenerateSelectionTest ? handleGenerateSelectionTest : null}
+                reduceEffects={reduceEffects}
+              />
+            )}
+            {showDesktopEditorChrome && (
+              <InlineNoteSlashMenu
+                open={slashMenu.open}
+                top={slashMenu.top}
+                left={slashMenu.left}
+                onInsert={handleInsertInlineNote}
+              />
+            )}
             <EditorContent
               editor={editor}
               className="learnledger-tiptap-shell min-h-0 flex-1 overflow-auto"
@@ -1046,14 +1146,6 @@ export default function Editor({
               '--editor-sidebar-max-height': sidebarMaxHeight,
             }}
           >
-            <AiAssistantPanel
-              open={aiPanel.open}
-              selectedText={aiPanel.selectedText}
-              onClose={handleCloseAiAssistant}
-              onInsert={handleInsertAiResponse}
-              themeStyles={currentTheme}
-            />
-
             <div
               ref={outlineSectionRef}
               id="note-outline-panel"
@@ -1064,6 +1156,7 @@ export default function Editor({
                 activeId={activeOutlineId}
                 onSelect={handleSelectOutlineItem}
                 themeStyles={currentTheme}
+                reduceEffects={reduceEffects}
               />
             </div>
 
@@ -1075,40 +1168,39 @@ export default function Editor({
                 onRemoveLink={onRemoveLinkedNote}
                 onNavigateToNote={onNavigateToNote || (() => {})}
                 themeStyles={currentTheme}
+                reduceEffects={reduceEffects}
               />
             )}
           </div>
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={handleJumpToOutline}
-        aria-label="Go to outline"
-        title="Go to outline"
-        className="fixed bottom-4 right-4 z-30 inline-flex items-center gap-1.5 rounded-full px-3 py-2 md:hidden"
-        style={{
-          background: currentTheme.actionBackground,
-          border: `1px solid ${currentTheme.actionBorder}`,
-          color: currentTheme.actionText,
-          boxShadow: '0 12px 24px rgba(5,4,18,0.28)',
-          backdropFilter: 'blur(18px)',
-        }}
-      >
-        <span style={{ width: '12px', height: '12px', flexShrink: 0 }}>
-          <TopicsIcon />
-        </span>
-        <span
+      </div>
+
+      {simplifyMobileEditor && (
+        <button
+          type="button"
+          onClick={handleJumpToOutline}
+          aria-label="Scroll to outline"
+          title="Scroll to outline"
+          className="animate-fade-in fixed z-40 inline-flex items-center justify-center rounded-full"
           style={{
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: '11px',
-            fontWeight: '700',
-            lineHeight: 1,
+            right: 'max(12px, env(safe-area-inset-right))',
+            bottom: 'max(12px, env(safe-area-inset-bottom))',
+            width: '46px',
+            height: '46px',
+            background: currentTheme.actionBackground,
+            border: `1px solid ${currentTheme.actionBorder}`,
+            color: currentTheme.actionText,
+            boxShadow: currentTheme.actionShadow,
+            backdropFilter: fabBackdrop,
           }}
         >
-          Outline
-        </span>
-      </button>
-    </div>
+          <span style={{ width: '18px', height: '18px', flexShrink: 0 }}>
+            <TopicsIcon />
+          </span>
+        </button>
+      )}
+    </>
   )
 }

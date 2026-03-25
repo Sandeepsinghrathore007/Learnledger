@@ -157,6 +157,29 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   animation: aiPulse 1s ease-in-out infinite;
 }
 
+@media (max-width: 1023px) {
+  body {
+    transition: none;
+  }
+
+  .animate-fade-up,
+  .animate-fade-in,
+  .animate-scale-in,
+  .animate-slide-right,
+  .animate-pop-in {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .subject-skeleton-shimmer {
+    animation-duration: 2.2s;
+  }
+
+  .learnledger-ai-dot {
+    animation-duration: 1.4s;
+  }
+}
+
 /* ── TIPTAP NOTE EDITOR ─────────────────────────────────────────────────────── */
 .learnledger-tiptap-shell .ProseMirror {
   min-height: 480px;
@@ -168,6 +191,13 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   font-family: var(--note-editor-font-family, 'DM Sans', 'Noto Sans Devanagari', sans-serif);
   white-space: pre-wrap;
   tab-size: 4;
+}
+
+@media (max-width: 767px) {
+  .learnledger-tiptap-shell .ProseMirror {
+    min-height: 360px;
+    padding: 16px 14px 20px;
+  }
 }
 .learnledger-tiptap-shell .ProseMirror ::selection {
   background: var(--note-editor-selection-bg, rgba(124,58,237,0.36));

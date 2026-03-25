@@ -51,7 +51,9 @@ export default function Sidebar({
     <aside style={{
       width,
       flexShrink: 0,
-      transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1), transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+      transition: isMobile
+        ? 'transform 0.22s cubic-bezier(0.4,0,0.2,1)'
+        : 'width 0.3s cubic-bezier(0.4,0,0.2,1), transform 0.3s cubic-bezier(0.4,0,0.2,1)',
       background: BG,
       borderRight: `1px solid ${BORDER}`,
       display: 'flex',
@@ -63,7 +65,7 @@ export default function Sidebar({
       zIndex: 50,
       overflow: 'hidden',
       transform,
-      boxShadow: isMobile ? '6px 0 30px rgba(0,0,0,0.45)' : 'none',
+      boxShadow: isMobile ? '4px 0 18px rgba(0,0,0,0.28)' : 'none',
     }}>
       <div style={{
         padding: '17px 13px',
@@ -167,7 +169,7 @@ export default function Sidebar({
                   : iconBg,
                 border: `1px solid ${iconBorder}`,
                 color: iconColor,
-                boxShadow: isActive ? `0 10px 24px ${iconBg}` : 'none',
+                boxShadow: isMobile || !isActive ? 'none' : `0 10px 24px ${iconBg}`,
               }}>
                 <span style={{ width: '15px', height: '15px', display: 'inline-flex' }}>
                   <Icon />

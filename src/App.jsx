@@ -1,16 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
-import SubjectsPage from "@/pages/SubjectsPage";
-import NotesPage from "@/pages/NotesPage";
-import AnalyticsPage from "@/pages/AnalyticsPage";
-import SubjectDetailPage from "@/pages/SubjectDetailPage";
-import MockTestsPage from "@/pages/MockTestsPage";
-import ExamsPage from "@/pages/ExamsPage";
-import QuestionBankPage from "@/pages/QuestionBankPage";
-import LoginPage from "@/pages/LoginPage";
-import SignupPage from "@/pages/SignupPage";
-import ComingSoonPage from "@/pages/ComingSoonPage";
 import SubjectFormModal from "@/components/subjects/SubjectFormModal";
 import { useSubjects } from "@/hooks/useSubjects";
 import { usePWAInstallPrompt } from "@/hooks/usePWAInstallPrompt";
@@ -46,6 +36,17 @@ const PAGE_HASHES = {
   signup: "#/signup",
 };
 const PAGE_IDS = Object.keys(PAGE_HASHES);
+
+const SubjectsPage = lazy(() => import("@/pages/SubjectsPage"));
+const NotesPage = lazy(() => import("@/pages/NotesPage"));
+const AnalyticsPage = lazy(() => import("@/pages/AnalyticsPage"));
+const SubjectDetailPage = lazy(() => import("@/pages/SubjectDetailPage"));
+const MockTestsPage = lazy(() => import("@/pages/MockTestsPage"));
+const ExamsPage = lazy(() => import("@/pages/ExamsPage"));
+const QuestionBankPage = lazy(() => import("@/pages/QuestionBankPage"));
+const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const SignupPage = lazy(() => import("@/pages/SignupPage"));
+const ComingSoonPage = lazy(() => import("@/pages/ComingSoonPage"));
 
 function normalizePageHash(hashValue = "") {
   const hash = String(hashValue || "").trim().replace(/^#/, "");
@@ -210,6 +211,10 @@ function LoadingView() {
       </div>
     </div>
   );
+}
+
+function RouteFallback() {
+  return <LoadingView />;
 }
 
 
@@ -434,14 +439,24 @@ export default function App() {
   }, [activePage, authUser]);
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    const syncIsMobile = (event) => {
+      setIsMobile(event.matches);
     };
 
-    handleResize();
-    window.addEventListener("resize", handleResize);
+    syncIsMobile(mediaQuery);
 
-    return () => window.removeEventListener("resize", handleResize);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", syncIsMobile);
+      return () => mediaQuery.removeEventListener("change", syncIsMobile);
+    }
+
+    mediaQuery.addListener(syncIsMobile);
+    return () => mediaQuery.removeListener(syncIsMobile);
   }, []);
 
   useEffect(() => {
@@ -844,7 +859,9 @@ export default function App() {
                 active={activePage === pageId}
                 mounted={activePage === pageId || Boolean(mountedPages[pageId])}
               >
-                {renderPageContent(pageId)}
+                <Suspense fallback={<RouteFallback />}>
+                  {renderPageContent(pageId)}
+                </Suspense>
               </PersistentPage>
             ))
           )}

@@ -5,6 +5,8 @@
  * Contains all primary formatting controls.
  */
 
+import { memo } from 'react'
+
 import {
   canInsertObjectiveQuestion,
   insertObjectiveQuestionTemplate,
@@ -170,11 +172,12 @@ function ToolbarButton({ button, editor, themeStyles }) {
   )
 }
 
-export default function EditorToolbar({
+function EditorToolbar({
   editor,
   themeStyles,
   onInsertTable = null,
   onInsertLink = null,
+  reduceEffects = false,
 }) {
   if (!editor) return null
   const palette = themeStyles || DEFAULT_THEME
@@ -234,7 +237,7 @@ export default function EditorToolbar({
         padding: '10px 12px',
         borderBottom: `1px solid ${palette.toolbarBorder}`,
         background: palette.toolbarBackground,
-        backdropFilter: 'blur(24px) saturate(160%)',
+        backdropFilter: reduceEffects ? 'none' : 'blur(24px) saturate(160%)',
       }}
     >
       {buttons.map((button) => (
@@ -243,3 +246,5 @@ export default function EditorToolbar({
     </div>
   )
 }
+
+export default memo(EditorToolbar)

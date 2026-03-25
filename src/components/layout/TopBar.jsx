@@ -82,7 +82,7 @@ function ThemeSwitcher({
             WebkitAppearance: 'none',
             MozAppearance: 'none',
             outline: 'none',
-            backdropFilter: 'blur(16px)',
+            backdropFilter: compact ? 'none' : 'blur(16px)',
           }}
         >
           {themeOptions.map((theme) => (
@@ -172,6 +172,7 @@ export default function TopBar({
     month: 'long',
     day: 'numeric',
   })
+  const reduceEffects = showMenuButton
 
   return (
     <header
@@ -179,7 +180,7 @@ export default function TopBar({
       style={{
         height: '58px',
         background: TOPBAR_BG,
-        backdropFilter: 'blur(20px)',
+        backdropFilter: reduceEffects ? 'none' : 'blur(20px)',
         borderBottom: `1px solid ${BORDER}`,
         display: 'flex',
         alignItems: 'center',
@@ -206,7 +207,7 @@ export default function TopBar({
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              backdropFilter: 'blur(16px)',
+              backdropFilter: reduceEffects ? 'none' : 'blur(16px)',
             }}
             aria-label="Open navigation"
           >

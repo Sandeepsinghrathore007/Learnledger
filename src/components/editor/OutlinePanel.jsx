@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 const DEFAULT_THEME = {
   accent: '#a855f7',
   accentSecondary: '#22d3ee',
@@ -78,7 +80,7 @@ function OutlineIcon() {
   )
 }
 
-export default function OutlinePanel({ items, activeId, onSelect, themeStyles = null }) {
+function OutlinePanel({ items, activeId, onSelect, themeStyles = null, reduceEffects = false }) {
   const palette = getPalette(themeStyles)
   const levelBarColors = {
     1: palette.accent,
@@ -94,7 +96,7 @@ export default function OutlinePanel({ items, activeId, onSelect, themeStyles = 
         borderRadius: '18px',
         padding: '14px 12px',
         boxShadow: palette.panelShadow,
-        backdropFilter: 'blur(22px) saturate(160%)',
+        backdropFilter: reduceEffects ? 'none' : 'blur(22px) saturate(160%)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', padding: '0 2px' }}>
@@ -187,3 +189,5 @@ export default function OutlinePanel({ items, activeId, onSelect, themeStyles = 
     </div>
   )
 }
+
+export default memo(OutlinePanel)
