@@ -471,7 +471,7 @@ function LinkedNotesPanel({
               background: palette.editorFrameBackground,
               border: `1px solid ${palette.editorFrameBorder}`,
               borderRadius: '20px',
-              boxShadow: reduceEffects ? '0 18px 34px rgba(2,8,23,0.28)' : '0 32px 72px rgba(2,8,23,0.48)',
+              boxShadow: reduceEffects ? 'none' : '0 32px 72px rgba(2,8,23,0.48)',
               zIndex: 101,
               display: 'flex',
               flexDirection: 'column',

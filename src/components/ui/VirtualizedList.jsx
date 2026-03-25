@@ -167,6 +167,7 @@ function VirtualizedList({
         style={{
           overflowY: 'auto',
           minHeight: 0,
+          contain: 'layout paint',
           ...style,
         }}
       >
@@ -191,6 +192,7 @@ function VirtualizedList({
       style={{
         overflowY: 'auto',
         minHeight: 0,
+        contain: 'layout paint',
         ...style,
       }}
     >

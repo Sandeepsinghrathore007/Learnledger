@@ -11,6 +11,7 @@ import {
   canInsertObjectiveQuestion,
   insertObjectiveQuestionTemplate,
 } from '@/components/editor/objectiveQuestion'
+import { getMountedEditorView } from '@/components/editor/editorView'
 
 const FLOATING_BUTTONS = [
   {
@@ -150,8 +151,13 @@ function FloatingToolbar({
       return
     }
 
-    const { view, state } = editor
-    const { selection } = state
+    const view = getMountedEditorView(editor)
+    if (!view) {
+      setPosition((prev) => (prev.visible ? { ...prev, visible: false } : prev))
+      return
+    }
+
+    const { selection } = editor.state
 
     if (!(selection instanceof TextSelection) || selection.empty || !view.hasFocus()) {
       setPosition((prev) => (prev.visible ? { ...prev, visible: false } : prev))
@@ -205,6 +211,11 @@ function FloatingToolbar({
     }
 
     const hideToolbar = () => {
+      if (frameRef.current != null) {
+        window.cancelAnimationFrame(frameRef.current)
+        frameRef.current = null
+      }
+
       setPosition((prev) => (prev.visible ? { ...prev, visible: false } : prev))
     }
 
@@ -213,7 +224,7 @@ function FloatingToolbar({
     editor.on('blur', hideToolbar)
     window.addEventListener('resize', handleSelectionChange)
     const scrollRootNode = scrollRootRef?.current
-    scrollRootNode?.addEventListener('scroll', handleSelectionChange, { passive: true })
+    scrollRootNode?.addEventListener('scroll', hideToolbar, { passive: true })
 
     handleSelectionChange()
 
@@ -233,7 +244,7 @@ function FloatingToolbar({
       editor.off('focus', handleSelectionChange)
       editor.off('blur', hideToolbar)
       window.removeEventListener('resize', handleSelectionChange)
-      scrollRootNode?.removeEventListener('scroll', handleSelectionChange)
+      scrollRootNode?.removeEventListener('scroll', hideToolbar)
       observer?.disconnect()
 
       if (frameRef.current != null) {

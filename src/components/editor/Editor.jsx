@@ -26,6 +26,7 @@ import {
 import LinkedNotesPanel from '@/components/notes/LinkedNotesPanel'
 import { buildEditorExtensions } from '@/components/editor/EditorExtensions'
 import { getInlineNoteSlashCommandState } from '@/components/editor/inlineNoteSlashCommand'
+import { getMountedEditorView } from '@/components/editor/editorView'
 import { BackIcon, PlusIcon, SaveIcon, TopicsIcon } from '@/components/ui/Icons'
 import { useRuntimePerformanceMode } from '@/hooks/useRuntimePerformanceMode'
 import { uid } from '@/utils/id'
@@ -325,14 +326,28 @@ function areSlashMenusEqual(previousMenu, nextMenu) {
   )
 }
 
+function getOffsetTopWithinScrollRoot(node, scrollRoot) {
+  if (!(node instanceof HTMLElement)) {
+    return 0
+  }
+
+  let top = 0
+  let current = node
+
+  while (current instanceof HTMLElement && current !== scrollRoot) {
+    top += current.offsetTop || 0
+    current = current.offsetParent
+  }
+
+  return Math.round(top)
+}
+
 function extractOutlineSnapshotFromDom(editorRoot, scrollRoot) {
   if (!editorRoot) {
     return { items: [], metrics: [] }
   }
 
   const headingNodes = Array.from(editorRoot.querySelectorAll('h1[id], h2[id], h3[id]'))
-  const scrollRootRect = scrollRoot?.getBoundingClientRect?.() || null
-  const scrollTop = scrollRoot?.scrollTop || 0
   const items = []
   const metrics = []
 
@@ -350,11 +365,7 @@ function extractOutlineSnapshotFromDom(editorRoot, scrollRoot) {
       level,
     })
 
-    const top = scrollRootRect
-      ? Math.round(node.getBoundingClientRect().top - scrollRootRect.top + scrollTop)
-      : Math.round(node.offsetTop || 0)
-
-    metrics.push({ id, top })
+    metrics.push({ id, top: getOffsetTopWithinScrollRoot(node, scrollRoot) })
   })
 
   return { items, metrics }
@@ -378,8 +389,11 @@ function getActiveOutlineIdFromMetrics(metrics = [], scrollTop = 0) {
   return nextActiveId
 }
 
-function getViewportOptimizedTheme(theme, { reduceEffects = false, ultraLite = false } = {}) {
-  if (!reduceEffects && !ultraLite) return theme
+function getViewportOptimizedTheme(
+  theme,
+  { reduceEffects = false, ultraLite = false, disableHeavyEffects = false } = {}
+) {
+  if (!reduceEffects && !ultraLite && !disableHeavyEffects) return theme
 
   if (ultraLite) {
     return {
@@ -395,12 +409,28 @@ function getViewportOptimizedTheme(theme, { reduceEffects = false, ultraLite = f
       panelShadow: 'none',
       actionShadow: 'none',
       editorFrameShadow: 'none',
-      floatingShadow: '0 10px 20px rgba(2,8,23,0.24)',
+      floatingShadow: 'none',
       cssVars: {
         ...theme.cssVars,
         '--note-editor-content-bg': 'transparent',
         '--note-editor-image-shadow': 'none',
         '--note-editor-link-bg': 'rgba(10, 18, 30, 0.94)',
+        '--note-editor-link-shadow': 'none',
+      },
+    }
+  }
+
+  if (disableHeavyEffects) {
+    return {
+      ...theme,
+      workspaceShadow: 'none',
+      panelShadow: 'none',
+      actionShadow: 'none',
+      editorFrameShadow: 'none',
+      floatingShadow: 'none',
+      cssVars: {
+        ...theme.cssVars,
+        '--note-editor-image-shadow': 'none',
         '--note-editor-link-shadow': 'none',
       },
     }
@@ -473,8 +503,9 @@ function Editor({
       getViewportOptimizedTheme(getNoteTheme(themeId), {
         reduceEffects: isCompactViewport || performanceMode.reduceEffects,
         ultraLite: performanceMode.ultraLite,
+        disableHeavyEffects: isMobileViewport,
       }),
-    [isCompactViewport, performanceMode.reduceEffects, performanceMode.ultraLite, themeId]
+    [isCompactViewport, isMobileViewport, performanceMode.reduceEffects, performanceMode.ultraLite, themeId]
   )
   const currentFontSize = getNoteFontSize(fontSizeId)
   const showLinkedNotes = Boolean(onAddLinkedNote && onRemoveLinkedNote && allNotes.length > 0)
@@ -488,11 +519,12 @@ function Editor({
   const reduceEffects = isCompactViewport || performanceMode.reduceEffects
   const ultraLiteMode = performanceMode.ultraLite
   const simplifyMobileEditor = isMobileViewport
+  const disableHeavyMobileEffects = simplifyMobileEditor
   const showDesktopEditorChrome = !simplifyMobileEditor && !ultraLiteMode
-  const workspaceBackdrop = reduceEffects ? 'none' : 'blur(28px) saturate(160%)'
-  const panelBackdrop = reduceEffects ? 'none' : 'blur(24px) saturate(160%)'
-  const editorFrameBackdrop = reduceEffects ? 'none' : 'blur(26px) saturate(165%)'
-  const fabBackdrop = reduceEffects ? 'none' : 'blur(18px)'
+  const workspaceBackdrop = disableHeavyMobileEffects || reduceEffects ? 'none' : 'blur(28px) saturate(160%)'
+  const panelBackdrop = disableHeavyMobileEffects || reduceEffects ? 'none' : 'blur(24px) saturate(160%)'
+  const editorFrameBackdrop = disableHeavyMobileEffects || reduceEffects ? 'none' : 'blur(26px) saturate(165%)'
+  const fabBackdrop = disableHeavyMobileEffects || reduceEffects ? 'none' : 'blur(18px)'
   const workspacePadding = simplifyMobileEditor || ultraLiteMode ? '10px' : '16px'
   const workspaceRadius = simplifyMobileEditor || ultraLiteMode ? '20px' : '28px'
   const workspaceGap = simplifyMobileEditor || ultraLiteMode ? '10px' : '14px'
@@ -532,8 +564,11 @@ function Editor({
   const syncOutlineSnapshot = useCallback(() => {
     if (!editor) return
 
+    const editorView = getMountedEditorView(editor)
+    if (!editorView) return
+
     const { items: nextItems, metrics: nextMetrics } = extractOutlineSnapshotFromDom(
-      editor.view.dom,
+      editorView.dom,
       editorScrollRef.current
     )
     const resolvedItems = areOutlineItemsEqual(outlineItemsRef.current, nextItems)
@@ -590,8 +625,14 @@ function Editor({
       return
     }
 
+    const editorView = getMountedEditorView(editor)
+    if (!editorView) {
+      applySlashMenuState(EMPTY_SLASH_MENU)
+      return
+    }
+
     const frameRect = editorFrameRef.current.getBoundingClientRect()
-    const coords = editor.view.coordsAtPos(slashState.range.from)
+    const coords = editorView.coordsAtPos(slashState.range.from)
     const maxLeft = Math.max(16, frameRect.width - 236)
     const maxTop = Math.max(16, frameRect.height - 72)
 
@@ -628,7 +669,10 @@ function Editor({
       editor.commands.focus()
 
       window.requestAnimationFrame(() => {
-        const headingNode = editor.view.dom.querySelector(`[id="${headingId}"]`)
+        const editorView = getMountedEditorView(editor)
+        if (!editorView) return
+
+        const headingNode = editorView.dom.querySelector(`[id="${headingId}"]`)
         if (!headingNode) return
 
         headingNode.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -906,8 +950,9 @@ function Editor({
         scheduleActiveOutlineUpdate()
       })
       observer.observe(scrollNode)
-      if (editor?.view?.dom) {
-        observer.observe(editor.view.dom)
+      const editorView = getMountedEditorView(editor)
+      if (editorView) {
+        observer.observe(editorView.dom)
       }
     }
 
@@ -1002,6 +1047,7 @@ function Editor({
           padding: headerPadding,
           boxShadow: currentTheme.panelShadow,
           backdropFilter: panelBackdrop,
+          contain: 'layout paint',
         }}
       >
         <button
@@ -1214,6 +1260,7 @@ function Editor({
               minHeight: editorFrameMinHeight,
               boxShadow: currentTheme.editorFrameShadow,
               backdropFilter: editorFrameBackdrop,
+              contain: 'layout paint',
               ...currentTheme.cssVars,
               '--note-editor-font-size': currentFontSize.fontSize,
               '--note-editor-line-height': currentFontSize.lineHeight,
@@ -1249,7 +1296,11 @@ function Editor({
             <div
               ref={editorScrollRef}
               className="min-h-0 flex-1 overflow-auto"
-              style={{ WebkitOverflowScrolling: 'touch' }}
+              style={{
+                position: 'relative',
+                contain: 'layout paint',
+                WebkitOverflowScrolling: 'touch',
+              }}
             >
               <EditorContent
                 editor={editor}

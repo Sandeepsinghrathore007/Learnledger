@@ -18,6 +18,10 @@ const NAV_ICONS = {
   analytics: AnalyticsIcon,
 }
 
+const DESKTOP_SIDEBAR_WIDTH = 228
+const DESKTOP_COLLAPSED_WIDTH = 68
+const DESKTOP_COLLAPSE_SHIFT = DESKTOP_SIDEBAR_WIDTH - DESKTOP_COLLAPSED_WIDTH
+
 function getUserInitial(user) {
   const source = user?.displayName || user?.email || 'User'
   return source.trim().charAt(0).toUpperCase()
@@ -43,10 +47,10 @@ function Sidebar({
   setMobileOpen = () => {},
 }) {
   const isCompact = isMobile ? false : collapsed
-  const width = isMobile ? '250px' : (isCompact ? '68px' : '228px')
+  const width = isMobile ? '250px' : `${DESKTOP_SIDEBAR_WIDTH}px`
   const transform = isMobile
     ? (mobileOpen ? 'translate3d(0,0,0)' : 'translate3d(calc(-100% - 14px),0,0)')
-    : 'translate3d(0,0,0)'
+    : (isCompact ? `translate3d(-${DESKTOP_COLLAPSE_SHIFT}px,0,0)` : 'translate3d(0,0,0)')
   const userInitial = getUserInitial(user)
   const itemTransition = ultraLite
     ? 'background 0.12s ease, color 0.12s ease'
@@ -56,11 +60,9 @@ function Sidebar({
     <aside style={{
       width,
       flexShrink: 0,
-      transition: isMobile
-        ? 'transform 0.22s cubic-bezier(0.4,0,0.2,1)'
-        : ultraLite
-          ? 'none'
-          : 'width 0.3s cubic-bezier(0.4,0,0.2,1), transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+      transition: ultraLite
+        ? 'none'
+        : 'transform 0.24s cubic-bezier(0.4,0,0.2,1)',
       background: ultraLite ? 'rgba(6,11,20,0.98)' : BG,
       borderRight: `1px solid ${BORDER}`,
       display: 'flex',
@@ -72,8 +74,8 @@ function Sidebar({
       zIndex: 50,
       overflow: 'hidden',
       transform,
-      boxShadow: isMobile ? (ultraLite ? '0 8px 18px rgba(0,0,0,0.22)' : '4px 0 18px rgba(0,0,0,0.28)') : 'none',
-      willChange: isMobile ? 'transform' : 'auto',
+      boxShadow: 'none',
+      willChange: 'transform',
       backfaceVisibility: 'hidden',
       contain: 'layout paint size',
       pointerEvents: isMobile && !mobileOpen ? 'none' : 'auto',

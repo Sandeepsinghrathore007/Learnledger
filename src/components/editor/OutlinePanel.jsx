@@ -151,6 +151,7 @@ function OutlinePanel({ items, activeId, onSelect, themeStyles = null, reduceEff
         padding: '14px 12px',
         boxShadow: palette.panelShadow,
         backdropFilter: reduceEffects ? 'none' : 'blur(22px) saturate(160%)',
+        contain: 'layout paint',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', padding: '0 2px' }}>
