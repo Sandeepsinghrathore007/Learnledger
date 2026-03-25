@@ -45,8 +45,10 @@ const EMPTY_SLASH_MENU = {
   top: 0,
   left: 0,
 }
-const STICKY_EDITOR_TOP = 74
+const APP_TOPBAR_HEIGHT = 58
+const WORKSPACE_TOP_GAP = 16
 const HEADER_TO_CONTENT_GAP = 14
+const EDITOR_VIEWPORT_BOTTOM_GAP = 16
 
 function escapeHtml(text = '') {
   return text
@@ -326,8 +328,10 @@ export default function Editor({
   const currentTheme = getNoteTheme(themeId)
   const currentFontSize = getNoteFontSize(fontSizeId)
   const showLinkedNotes = Boolean(onAddLinkedNote && onRemoveLinkedNote && allNotes.length > 0)
-  const sidebarStickyTop = STICKY_EDITOR_TOP + headerBarHeight + HEADER_TO_CONTENT_GAP
-  const editorBodyHeight = `calc(100dvh - ${sidebarStickyTop}px - 16px)`
+  const workspaceViewportOffset = APP_TOPBAR_HEIGHT + WORKSPACE_TOP_GAP
+  const sidebarStickyTop = WORKSPACE_TOP_GAP
+  const editorBodyHeight = `calc(100dvh - ${workspaceViewportOffset + headerBarHeight + HEADER_TO_CONTENT_GAP + EDITOR_VIEWPORT_BOTTOM_GAP}px)`
+  const sidebarMaxHeight = `calc(100dvh - ${APP_TOPBAR_HEIGHT + sidebarStickyTop + EDITOR_VIEWPORT_BOTTOM_GAP}px)`
 
   const editor = useEditor(
     {
@@ -787,9 +791,6 @@ export default function Editor({
           border: `1px solid ${currentTheme.panelBorder}`,
           borderRadius: '14px',
           padding: '10px 12px',
-          position: 'sticky',
-          top: `${STICKY_EDITOR_TOP}px`,
-          zIndex: 25,
           boxShadow: currentTheme.panelShadow,
           backdropFilter: 'blur(24px) saturate(160%)',
         }}
@@ -1034,10 +1035,11 @@ export default function Editor({
 
         <div className="w-full md:w-[260px] md:flex-shrink-0 lg:w-[280px]">
           <div
-            className="flex flex-col gap-3.5 md:sticky md:overflow-y-auto md:pr-1 md:[top:var(--editor-sidebar-top)] md:[max-height:calc(100vh-var(--editor-sidebar-top)-16px)]"
+            className="flex flex-col gap-3.5 md:sticky md:overflow-y-auto md:pr-1 md:[top:var(--editor-sidebar-top)] md:[max-height:var(--editor-sidebar-max-height)]"
             style={{
               alignSelf: 'flex-start',
               '--editor-sidebar-top': `${sidebarStickyTop}px`,
+              '--editor-sidebar-max-height': sidebarMaxHeight,
             }}
           >
             <AiAssistantPanel

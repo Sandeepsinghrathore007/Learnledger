@@ -60,6 +60,14 @@ const TOOLBAR_BUTTONS = [
     onClick: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run(),
   },
   {
+    id: 'callout',
+    label: 'Callout',
+    title: 'Toggle Callout',
+    isActive: (editor) => editor.isActive('blockquote'),
+    isDisabled: (editor) => !editor.can().chain().focus().toggleBlockquote().run(),
+    onClick: (editor) => editor.chain().focus().toggleBlockquote().run(),
+  },
+  {
     id: 'bullet-list',
     label: '• List',
     title: 'Bullet List',

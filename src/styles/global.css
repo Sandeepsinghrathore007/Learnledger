@@ -319,12 +319,30 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   border-left: 3px solid var(--note-editor-quote-border, rgba(139, 92, 246, 0.5));
   background: var(--note-editor-quote-bg, transparent);
   border-radius: 0 14px 14px 0;
-  padding-left: 0.8rem;
+  padding-left: 0.95rem;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
   padding-right: 0.8rem;
   margin: 0.8rem 0;
-  color: var(--note-editor-muted, #b7abdd);
+  color: #fef3a6;
+}
+.learnledger-tiptap-shell .ProseMirror blockquote p,
+.learnledger-tiptap-shell .ProseMirror blockquote li,
+.learnledger-tiptap-shell .ProseMirror blockquote h1,
+.learnledger-tiptap-shell .ProseMirror blockquote h2,
+.learnledger-tiptap-shell .ProseMirror blockquote h3,
+.learnledger-tiptap-shell .ProseMirror blockquote strong,
+.learnledger-tiptap-shell .ProseMirror blockquote em,
+.learnledger-tiptap-shell .ProseMirror blockquote u,
+.learnledger-tiptap-shell .ProseMirror blockquote s,
+.learnledger-tiptap-shell .ProseMirror blockquote a {
+  color: inherit;
+}
+.learnledger-tiptap-shell .ProseMirror blockquote > *:first-child {
+  margin-top: 0;
+}
+.learnledger-tiptap-shell .ProseMirror blockquote > *:last-child {
+  margin-bottom: 0;
 }
 .learnledger-tiptap-shell .ProseMirror code {
   background: var(--note-editor-inline-code-bg, rgba(139, 92, 246, 0.16));
