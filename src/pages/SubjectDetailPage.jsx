@@ -16,7 +16,7 @@
  *   newTopicName{string}      — Controlled input for new topic name
  */
 
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TopicAccordion     from '@/components/subjects/TopicAccordion'
 import Modal              from '@/components/ui/Modal'
 import FormField          from '@/components/ui/FormField'
@@ -93,7 +93,7 @@ function SurfaceFallback({ label, minHeight = 200 }) {
   )
 }
 
-export default function SubjectDetailPage({
+function SubjectDetailPage({
   subject,
   onBack,
   onUpdateSubject,
@@ -271,20 +271,20 @@ export default function SubjectDetailPage({
   }, [completedTestsTotalPages, testsPage])
 
   /** Push local state up and keep local copy in sync */
-  const save = async (updated) => {
+  const save = useCallback(async (updated) => {
     subjectRef.current = updated
     setSubj(updated)
     await onUpdateSubject(updated)
-  }
+  }, [onUpdateSubject])
 
-  const appendPdfRecord = async (pdf) => {
+  const appendPdfRecord = useCallback(async (pdf) => {
     await save({
       ...subjectRef.current,
       pdfs: [...(subjectRef.current.pdfs ?? []), pdf],
     })
-  }
+  }, [save])
 
-  const updatePdfRecord = async (pdfId, updater) => {
+  const updatePdfRecord = useCallback(async (pdfId, updater) => {
     const updatedSubject = {
       ...subjectRef.current,
       pdfs: (subjectRef.current.pdfs ?? []).map((pdf) =>
@@ -293,7 +293,7 @@ export default function SubjectDetailPage({
     }
 
     await save(updatedSubject)
-  }
+  }, [save])
 
   // ── TOPIC ACTIONS ─────────────────────────────────────────────────────────
   const handleAddTopic = () => {
@@ -326,7 +326,7 @@ export default function SubjectDetailPage({
   }
 
   // ── NOTE ACTIONS ──────────────────────────────────────────────────────────
-  const handleAddNote = (topicId) => {
+  const handleAddNote = useCallback((topicId) => {
     const baseSubject = subjectRef.current
     const now = new Date().toISOString()
     const newNote = {
@@ -352,9 +352,9 @@ export default function SubjectDetailPage({
     }
     save(updated)
     setOpenNote({ note: newNote, topicId })
-  }
+  }, [save])
 
-  const handleSaveNote = (topicId, updatedNote) => {
+  const handleSaveNote = useCallback((topicId, updatedNote) => {
     const now = new Date().toISOString()
     const noteWithMeta = {
       ...updatedNote,
@@ -381,7 +381,7 @@ export default function SubjectDetailPage({
         ? { ...prev, note: noteWithMeta, topicId }
         : prev
     )
-  }
+  }, [save, subj])
 
   const handleDeleteNote = (topicId, noteId) => {
     const topic = subj.topics.find((item) => item.id === topicId)
@@ -402,7 +402,7 @@ export default function SubjectDetailPage({
   /**
    * Add a linked note reference to the currently open note.
    */
-  const handleAddLinkedNote = (targetNoteId) => {
+  const handleAddLinkedNote = useCallback((targetNoteId) => {
     if (!openNote) return
     
     const updatedSubject = {
@@ -431,12 +431,12 @@ export default function SubjectDetailPage({
     if (updatedNote) {
       setOpenNote({ ...openNote, note: updatedNote })
     }
-  }
+  }, [openNote, save, subj])
 
   /**
    * Remove a linked note reference from the currently open note.
    */
-  const handleRemoveLinkedNote = (targetNoteId) => {
+  const handleRemoveLinkedNote = useCallback((targetNoteId) => {
     if (!openNote) return
     
     const updatedSubject = {
@@ -463,13 +463,13 @@ export default function SubjectDetailPage({
     if (updatedNote) {
       setOpenNote({ ...openNote, note: updatedNote })
     }
-  }
+  }, [openNote, save, subj])
 
   /**
    * Navigate to a linked note.
    * Finds the note across all topics and opens it.
    */
-  const handleNavigateToLinkedNote = (linkedNote) => {
+  const handleNavigateToLinkedNote = useCallback((linkedNote) => {
     // Find the topic that contains this note
     let targetTopicId = null
     let targetNote = null
@@ -486,7 +486,7 @@ export default function SubjectDetailPage({
     if (targetTopicId && targetNote) {
       setOpenNote({ note: targetNote, topicId: targetTopicId })
     }
-  }
+  }, [subj.topics])
 
   // ── PDF ACTIONS ───────────────────────────────────────────────────────────
   const handleAddPdf = async (file) => {
@@ -638,7 +638,7 @@ export default function SubjectDetailPage({
     }).catch(() => {})
   }
 
-  const handleOpenSelectionTest = ({ text, noteTitle }) => {
+  const handleOpenSelectionTest = useCallback(({ text, noteTitle }) => {
     const selectedText = String(text || '').trim()
     if (!selectedText || !openNote) return
 
@@ -653,15 +653,15 @@ export default function SubjectDetailPage({
       subjectId: subjectRef.current.id,
       subjectName: subjectRef.current.name,
     })
-  }
+  }, [openNote, subj.topics])
 
-  const handleOpenTopicMockTest = (topic) => {
+  const handleOpenTopicMockTest = useCallback((topic) => {
     if (!topic || !onOpenMockTestsForTopic) return
 
     onOpenMockTestsForTopic(subjectRef.current, topic)
-  }
+  }, [onOpenMockTestsForTopic])
 
-  const handleGenerateSelectionTest = async (config) => {
+  const handleGenerateSelectionTest = useCallback(async (config) => {
     if (!selectionTestContext) return
 
     setSelectionTestGenerating(true)
@@ -692,9 +692,9 @@ export default function SubjectDetailPage({
     } finally {
       setSelectionTestGenerating(false)
     }
-  }
+  }, [allSubjects, save, selectionTestContext, user?.uid])
 
-  const handleFinishSelectionTest = async (testAttempt) => {
+  const handleFinishSelectionTest = useCallback(async (testAttempt) => {
     if (user?.uid) {
       try {
         await saveTestResult(user.uid, testAttempt)
@@ -725,7 +725,21 @@ export default function SubjectDetailPage({
 
     setActiveSelectionTest(null)
     setSelectionTestReview(resolvedTestAttempt)
-  }
+  }, [allSubjects, save, subjectTests, user?.uid])
+
+  const handleCloseOpenNote = useCallback(() => {
+    setOpenNote(null)
+  }, [])
+
+  const handleEditorSave = useCallback((updated) => {
+    if (!openNote?.topicId) return
+    handleSaveNote(openNote.topicId, updated)
+  }, [handleSaveNote, openNote?.topicId])
+
+  const handleEditorCreateNote = useCallback(() => {
+    if (!openNote?.topicId) return
+    handleAddNote(openNote.topicId)
+  }, [handleAddNote, openNote?.topicId])
 
   // ── RENDER EDITOR when a note is open ─────────────────────────────────────
   if (activeSelectionTest) {
@@ -771,9 +785,9 @@ export default function SubjectDetailPage({
         <Suspense fallback={<SurfaceFallback label="Loading note editor..." minHeight={560} />}>
           <Editor
             note={openNote.note}
-            onBack={() => setOpenNote(null)}
-            onSave={(updated) => handleSaveNote(openNote.topicId, updated)}
-            onCreateNote={() => handleAddNote(openNote.topicId)}
+            onBack={handleCloseOpenNote}
+            onSave={handleEditorSave}
+            onCreateNote={handleEditorCreateNote}
             onGenerateSelectionTest={handleOpenSelectionTest}
             allNotes={allNotesForLinking}
             onAddLinkedNote={handleAddLinkedNote}
@@ -1147,6 +1161,8 @@ export default function SubjectDetailPage({
     </div>
   )
 }
+
+export default memo(SubjectDetailPage)
 
 // ── SUBJECT BANNER (subject header card) ────────────────────────────────────
 /**

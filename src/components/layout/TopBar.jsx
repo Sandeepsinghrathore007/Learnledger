@@ -5,6 +5,7 @@
  * and optional install action.
  */
 
+import { memo } from 'react'
 import {
   BORDER,
   BUTTON_GRADIENT,
@@ -156,9 +157,10 @@ function ThemeSwitcher({
   )
 }
 
-export default function TopBar({
+function TopBar({
   pageTitle,
   showMenuButton = false,
+  ultraLite = false,
   onMenuClick = () => {},
   activeThemeId = '',
   themeOptions = [],
@@ -172,7 +174,7 @@ export default function TopBar({
     month: 'long',
     day: 'numeric',
   })
-  const reduceEffects = showMenuButton
+  const reduceEffects = showMenuButton || ultraLite
 
   return (
     <header
@@ -188,6 +190,7 @@ export default function TopBar({
         position: 'sticky',
         top: 0,
         zIndex: 40,
+        contain: 'layout paint',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
@@ -208,6 +211,7 @@ export default function TopBar({
               justifyContent: 'center',
               flexShrink: 0,
               backdropFilter: reduceEffects ? 'none' : 'blur(16px)',
+              willChange: 'transform',
             }}
             aria-label="Open navigation"
           >
@@ -274,3 +278,5 @@ export default function TopBar({
     </header>
   )
 }
+
+export default memo(TopBar)

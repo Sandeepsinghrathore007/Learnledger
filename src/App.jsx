@@ -1,7 +1,8 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import SubjectFormModal from "@/components/subjects/SubjectFormModal";
+import { useRuntimePerformanceMode } from "@/hooks/useRuntimePerformanceMode";
 import { useSubjects } from "@/hooks/useSubjects";
 import { usePWAInstallPrompt } from "@/hooks/usePWAInstallPrompt";
 import { NAV_ITEMS } from "@/constants/navigation";
@@ -335,11 +336,15 @@ export default function App() {
   const [installPending, setInstallPending] = useState(false);
   const [installNotice, setInstallNotice] = useState("");
   const { canInstall, installApp, lastOutcome } = usePWAInstallPrompt();
+  const performanceMode = useRuntimePerformanceMode({
+    mobile: isMobile,
+    applyDocumentAttribute: true,
+  });
   const contentScrollRef = useRef(null);
   const navigationScopeKey = authUser?.uid || "guest";
   const previousNavigationScopeRef = useRef(navigationScopeKey);
 
-  const handlePageChange = (page, options = {}) => {
+  const handlePageChange = useCallback((page, options = {}) => {
     const nextPage = PAGE_HASHES[page] ? page : DEFAULT_PAGE;
 
     setActivePage(nextPage);
@@ -351,7 +356,7 @@ export default function App() {
     if (options.closeMobileNav !== false && isMobile) {
       setMobileNavOpen(false);
     }
-  };
+  }, [isMobile]);
 
   const {
     subjects,
@@ -493,18 +498,21 @@ export default function App() {
     notes: "Notes",
   };
 
-  const pageTitle =
-    NAV_ITEMS.find((item) => item.id === activePage)?.label ??
-    authPageTitles[activePage] ??
-    "Dashboard";
+  const pageTitle = useMemo(
+    () =>
+      NAV_ITEMS.find((item) => item.id === activePage)?.label ??
+      authPageTitles[activePage] ??
+      "Dashboard",
+    [activePage],
+  );
 
-  const handleSelectSubject = (subject) => {
+  const handleSelectSubject = useCallback((subject) => {
     setSubjectSectionLaunch(null);
     setSubjectNoteLaunch(null);
     setSelected(subject);
-  };
+  }, [setSelected]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await logoutUser();
       setSelected(null);
@@ -516,9 +524,9 @@ export default function App() {
     } catch (logoutError) {
       console.error("Failed to logout:", logoutError);
     }
-  };
+  }, [handlePageChange, setSelected]);
 
-  const handleInstallApp = async () => {
+  const handleInstallApp = useCallback(async () => {
     if (installPending) return;
 
     setInstallPending(true);
@@ -539,9 +547,9 @@ export default function App() {
     } finally {
       setInstallPending(false);
     }
-  };
+  }, [installApp, installPending]);
 
-  const handleOpenSubjectFromAnalytics = (subject, options = {}) => {
+  const handleOpenSubjectFromAnalytics = useCallback((subject, options = {}) => {
     if (!subject) return;
 
     setSubjectNoteLaunch(null);
@@ -552,9 +560,9 @@ export default function App() {
     });
     setSelected(subject);
     handlePageChange("subjects");
-  };
+  }, [handlePageChange, setSelected]);
 
-  const handleOpenNoteFromNotes = (note, subjectId, topicId) => {
+  const handleOpenNoteFromNotes = useCallback((note, subjectId, topicId) => {
     const subject = subjects.find((item) => item.id === subjectId);
     if (!subject || !note) return;
 
@@ -567,9 +575,9 @@ export default function App() {
     setSubjectSectionLaunch(null);
     setSelected(subject);
     handlePageChange("subjects");
-  };
+  }, [handlePageChange, setSelected, subjects]);
 
-  const handleOpenMockTestsForTopic = (subjectOrWeakArea, topic) => {
+  const handleOpenMockTestsForTopic = useCallback((subjectOrWeakArea, topic) => {
     const subject = topic ? subjectOrWeakArea : null
     const weakArea = topic ? null : subjectOrWeakArea
     const subjectId = subject?.id || weakArea?.subjectId || null
@@ -586,9 +594,9 @@ export default function App() {
       launchId: uid(),
     });
     handlePageChange("questions");
-  };
+  }, [handlePageChange]);
 
-  const handleOpenExamGroup = (group) => {
+  const handleOpenExamGroup = useCallback((group) => {
     if (!group?.id) return
 
     setExamLaunch({
@@ -598,7 +606,25 @@ export default function App() {
       launchId: uid(),
     })
     handlePageChange("exams")
-  }
+  }, [handlePageChange])
+
+  const handleSubjectDetailBack = useCallback(() => {
+    setSelected(null);
+    setSubjectNoteLaunch(null);
+    setSubjectSectionLaunch(null);
+  }, [setSelected]);
+
+  const handleMenuToggle = useCallback(() => {
+    setMobileNavOpen((value) => !value)
+  }, [])
+
+  const handleOpenLoginPage = useCallback(() => {
+    handlePageChange("login")
+  }, [handlePageChange])
+
+  const handleOpenSignupPage = useCallback(() => {
+    handlePageChange("signup")
+  }, [handlePageChange])
 
   const renderPageContent = (page) => {
     if (page === "login") {
@@ -708,11 +734,7 @@ export default function App() {
                 ? subjectSectionLaunch.launchId
                 : null
             }
-            onBack={() => {
-              setSelected(null);
-              setSubjectNoteLaunch(null);
-              setSubjectSectionLaunch(null);
-            }}
+            onBack={handleSubjectDetailBack}
             onUpdateSubject={updateSubject}
             user={authUser}
             onOpenMockTestsForTopic={handleOpenMockTestsForTopic}
@@ -755,11 +777,12 @@ export default function App() {
         setCollapsed={setCollapsed}
         isMobile={isMobile}
         mobileOpen={mobileNavOpen}
+        ultraLite={performanceMode.ultraLite}
         setMobileOpen={setMobileNavOpen}
         activePage={activePage}
         setActivePage={handlePageChange}
-        onOpenLogin={() => handlePageChange("login")}
-        onOpenSignup={() => handlePageChange("signup")}
+        onOpenLogin={handleOpenLoginPage}
+        onOpenSignup={handleOpenSignupPage}
         onLogout={handleLogout}
         user={authUser}
       />
@@ -776,7 +799,7 @@ export default function App() {
       <main
         style={{
           marginLeft: `${sidebarWidth}px`,
-          transition: "margin-left 0.3s cubic-bezier(0.4,0,0.2,1)",
+          transition: "none",
           flex: 1,
           height: "100vh",
           minWidth: 0,
@@ -789,7 +812,8 @@ export default function App() {
           <TopBar
             pageTitle={pageTitle}
             showMenuButton={isMobile}
-            onMenuClick={() => setMobileNavOpen((value) => !value)}
+            ultraLite={performanceMode.ultraLite}
+            onMenuClick={handleMenuToggle}
             activeThemeId={themeId}
             themeOptions={APP_THEME_OPTIONS}
             onThemeChange={setThemeId}

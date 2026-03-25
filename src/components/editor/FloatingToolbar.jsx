@@ -135,10 +135,12 @@ function FloatingToolbar({
   editor,
   themeStyles,
   containerRef,
+  scrollRootRef = null,
   onGenerateTest = null,
   reduceEffects = false,
 }) {
   const toolbarRef = useRef(null)
+  const frameRef = useRef(null)
   const [position, setPosition] = useState({ visible: false, top: 0, left: 0 })
   const palette = themeStyles || DEFAULT_THEME
 
@@ -177,14 +179,29 @@ function FloatingToolbar({
       maxTop,
     )
 
-    setPosition({ visible: true, top: nextTop, left: nextLeft })
+    setPosition((previous) => (
+      previous.visible === true &&
+      previous.top === nextTop &&
+      previous.left === nextLeft
+        ? previous
+        : { visible: true, top: nextTop, left: nextLeft }
+    ))
   }, [containerRef, editor])
 
   useEffect(() => {
     if (!editor) return
 
+    const schedulePositionUpdate = () => {
+      if (frameRef.current != null) return
+
+      frameRef.current = window.requestAnimationFrame(() => {
+        frameRef.current = null
+        updatePosition()
+      })
+    }
+
     const handleSelectionChange = () => {
-      requestAnimationFrame(updatePosition)
+      schedulePositionUpdate()
     }
 
     const hideToolbar = () => {
@@ -195,18 +212,35 @@ function FloatingToolbar({
     editor.on('focus', handleSelectionChange)
     editor.on('blur', hideToolbar)
     window.addEventListener('resize', handleSelectionChange)
-    window.addEventListener('scroll', handleSelectionChange, true)
+    const scrollRootNode = scrollRootRef?.current
+    scrollRootNode?.addEventListener('scroll', handleSelectionChange, { passive: true })
 
     handleSelectionChange()
+
+    let observer = null
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(handleSelectionChange)
+      if (containerRef?.current) {
+        observer.observe(containerRef.current)
+      }
+      if (toolbarRef.current) {
+        observer.observe(toolbarRef.current)
+      }
+    }
 
     return () => {
       editor.off('selectionUpdate', handleSelectionChange)
       editor.off('focus', handleSelectionChange)
       editor.off('blur', hideToolbar)
       window.removeEventListener('resize', handleSelectionChange)
-      window.removeEventListener('scroll', handleSelectionChange, true)
+      scrollRootNode?.removeEventListener('scroll', handleSelectionChange)
+      observer?.disconnect()
+
+      if (frameRef.current != null) {
+        window.cancelAnimationFrame(frameRef.current)
+      }
     }
-  }, [editor, updatePosition])
+  }, [containerRef, editor, scrollRootRef, updatePosition])
 
   return (
     <div

@@ -8,13 +8,12 @@
  * - Rich-text editing with a fixed toolbar + floating selection toolbar
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import OutlinePanel from '@/components/editor/OutlinePanel'
 import EditorToolbar from '@/components/editor/EditorToolbar'
 import FloatingToolbar from '@/components/editor/FloatingToolbar'
 import InlineNoteSlashMenu from '@/components/editor/InlineNoteSlashMenu'
-import { extractHeadingsFromJson } from '@/components/editor/headingOutline'
 import { insertInlineNoteAtRange } from '@/components/editor/InlineNoteNode'
 import {
   NOTE_FONT_SIZE_OPTIONS,
@@ -28,6 +27,7 @@ import LinkedNotesPanel from '@/components/notes/LinkedNotesPanel'
 import { buildEditorExtensions } from '@/components/editor/EditorExtensions'
 import { getInlineNoteSlashCommandState } from '@/components/editor/inlineNoteSlashCommand'
 import { BackIcon, PlusIcon, SaveIcon, TopicsIcon } from '@/components/ui/Icons'
+import { useRuntimePerformanceMode } from '@/hooks/useRuntimePerformanceMode'
 import { uid } from '@/utils/id'
 
 const EMPTY_DOC_HTML = '<p></p>'
@@ -45,6 +45,7 @@ const EDITOR_VIEWPORT_BOTTOM_GAP = 16
 const EDITOR_EFFECT_BREAKPOINT = 1024
 const EDITOR_MOBILE_BREAKPOINT = 768
 const OUTLINE_SYNC_DELAY_MS = 120
+const OUTLINE_ACTIVE_OFFSET_PX = 140
 
 function escapeHtml(text = '') {
   return text
@@ -301,6 +302,16 @@ function areOutlineItemsEqual(previousItems = [], nextItems = []) {
   })
 }
 
+function areHeadingMetricsEqual(previousMetrics = [], nextMetrics = []) {
+  if (previousMetrics === nextMetrics) return true
+  if (previousMetrics.length !== nextMetrics.length) return false
+
+  return previousMetrics.every((metric, index) => {
+    const nextMetric = nextMetrics[index]
+    return metric?.id === nextMetric?.id && metric?.top === nextMetric?.top
+  })
+}
+
 function areSlashMenusEqual(previousMenu, nextMenu) {
   const previousRange = previousMenu?.range
   const nextRange = nextMenu?.range
@@ -314,8 +325,86 @@ function areSlashMenusEqual(previousMenu, nextMenu) {
   )
 }
 
-function getViewportOptimizedTheme(theme, reduceEffects) {
-  if (!reduceEffects) return theme
+function extractOutlineSnapshotFromDom(editorRoot, scrollRoot) {
+  if (!editorRoot) {
+    return { items: [], metrics: [] }
+  }
+
+  const headingNodes = Array.from(editorRoot.querySelectorAll('h1[id], h2[id], h3[id]'))
+  const scrollRootRect = scrollRoot?.getBoundingClientRect?.() || null
+  const scrollTop = scrollRoot?.scrollTop || 0
+  const items = []
+  const metrics = []
+
+  headingNodes.forEach((node) => {
+    const level = Number.parseInt(node.tagName.replace('H', ''), 10)
+    const id = String(node.id || '').trim()
+
+    if (!id || !Number.isFinite(level) || level < 1 || level > 3) {
+      return
+    }
+
+    items.push({
+      id,
+      text: node.textContent?.trim() || 'Untitled section',
+      level,
+    })
+
+    const top = scrollRootRect
+      ? Math.round(node.getBoundingClientRect().top - scrollRootRect.top + scrollTop)
+      : Math.round(node.offsetTop || 0)
+
+    metrics.push({ id, top })
+  })
+
+  return { items, metrics }
+}
+
+function getActiveOutlineIdFromMetrics(metrics = [], scrollTop = 0) {
+  if (metrics.length === 0) return null
+
+  const targetOffset = scrollTop + OUTLINE_ACTIVE_OFFSET_PX
+  let nextActiveId = metrics[0].id
+
+  for (const metric of metrics) {
+    if (metric.top <= targetOffset) {
+      nextActiveId = metric.id
+      continue
+    }
+
+    break
+  }
+
+  return nextActiveId
+}
+
+function getViewportOptimizedTheme(theme, { reduceEffects = false, ultraLite = false } = {}) {
+  if (!reduceEffects && !ultraLite) return theme
+
+  if (ultraLite) {
+    return {
+      ...theme,
+      workspaceBackground: 'rgba(7, 12, 24, 0.98)',
+      panelBackground: 'rgba(10, 16, 28, 0.96)',
+      editorFrameBackground: 'rgba(6, 11, 22, 0.98)',
+      toolbarBackground: 'rgba(9, 15, 26, 0.96)',
+      floatingBackground: 'rgba(9, 15, 26, 0.98)',
+      pillActiveBackground: 'rgba(56, 189, 248, 0.16)',
+      actionBackground: 'rgba(56, 189, 248, 0.18)',
+      workspaceShadow: 'none',
+      panelShadow: 'none',
+      actionShadow: 'none',
+      editorFrameShadow: 'none',
+      floatingShadow: '0 10px 20px rgba(2,8,23,0.24)',
+      cssVars: {
+        ...theme.cssVars,
+        '--note-editor-content-bg': 'transparent',
+        '--note-editor-image-shadow': 'none',
+        '--note-editor-link-bg': 'rgba(10, 18, 30, 0.94)',
+        '--note-editor-link-shadow': 'none',
+      },
+    }
+  }
 
   return {
     ...theme,
@@ -332,7 +421,7 @@ function getViewportOptimizedTheme(theme, reduceEffects) {
   }
 }
 
-export default function Editor({ 
+function Editor({
   note, 
   onBack, 
   onSave,
@@ -359,6 +448,7 @@ export default function Editor({
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < EDITOR_MOBILE_BREAKPOINT : false
   )
+  const performanceMode = useRuntimePerformanceMode({ mobile: isMobileViewport })
 
   const noteRef = useRef(note)
   const titleRef = useRef(note.title ?? 'Untitled Note')
@@ -369,15 +459,22 @@ export default function Editor({
   const initialContentRef = useRef(getInitialContent(note))
   const headerBarRef = useRef(null)
   const editorFrameRef = useRef(null)
+  const editorScrollRef = useRef(null)
   const outlineSectionRef = useRef(null)
   const outlineItemsRef = useRef([])
+  const headingMetricsRef = useRef([])
   const outlineSyncTimerRef = useRef(null)
   const activeOutlineFrameRef = useRef(null)
+  const activeOutlineIdRef = useRef(null)
 
   const extensions = useMemo(() => buildEditorExtensions(), [])
   const currentTheme = useMemo(
-    () => getViewportOptimizedTheme(getNoteTheme(themeId), isCompactViewport),
-    [themeId, isCompactViewport]
+    () =>
+      getViewportOptimizedTheme(getNoteTheme(themeId), {
+        reduceEffects: isCompactViewport || performanceMode.reduceEffects,
+        ultraLite: performanceMode.ultraLite,
+      }),
+    [isCompactViewport, performanceMode.reduceEffects, performanceMode.ultraLite, themeId]
   )
   const currentFontSize = getNoteFontSize(fontSizeId)
   const showLinkedNotes = Boolean(onAddLinkedNote && onRemoveLinkedNote && allNotes.length > 0)
@@ -388,23 +485,24 @@ export default function Editor({
   const sidebarStickyTop = WORKSPACE_TOP_GAP
   const editorBodyHeight = `calc(100dvh - ${workspaceViewportOffset + headerBarHeight + HEADER_TO_CONTENT_GAP + EDITOR_VIEWPORT_BOTTOM_GAP}px)`
   const sidebarMaxHeight = `calc(100dvh - ${resolvedAppTopOffset + sidebarStickyTop + EDITOR_VIEWPORT_BOTTOM_GAP}px)`
-  const reduceEffects = isCompactViewport
+  const reduceEffects = isCompactViewport || performanceMode.reduceEffects
+  const ultraLiteMode = performanceMode.ultraLite
   const simplifyMobileEditor = isMobileViewport
-  const showDesktopEditorChrome = !simplifyMobileEditor
+  const showDesktopEditorChrome = !simplifyMobileEditor && !ultraLiteMode
   const workspaceBackdrop = reduceEffects ? 'none' : 'blur(28px) saturate(160%)'
   const panelBackdrop = reduceEffects ? 'none' : 'blur(24px) saturate(160%)'
   const editorFrameBackdrop = reduceEffects ? 'none' : 'blur(26px) saturate(165%)'
   const fabBackdrop = reduceEffects ? 'none' : 'blur(18px)'
-  const workspacePadding = simplifyMobileEditor ? '10px' : '16px'
-  const workspaceRadius = simplifyMobileEditor ? '20px' : '28px'
-  const workspaceGap = simplifyMobileEditor ? '10px' : '14px'
-  const headerPadding = simplifyMobileEditor ? '8px 10px' : '10px 12px'
-  const headerRadius = simplifyMobileEditor ? '12px' : '14px'
+  const workspacePadding = simplifyMobileEditor || ultraLiteMode ? '10px' : '16px'
+  const workspaceRadius = simplifyMobileEditor || ultraLiteMode ? '20px' : '28px'
+  const workspaceGap = simplifyMobileEditor || ultraLiteMode ? '10px' : '14px'
+  const headerPadding = simplifyMobileEditor || ultraLiteMode ? '8px 10px' : '10px 12px'
+  const headerRadius = simplifyMobileEditor || ultraLiteMode ? '12px' : '14px'
   const headerWrap = simplifyMobileEditor ? 'nowrap' : 'wrap'
   const headerControlsGap = simplifyMobileEditor ? '8px' : '10px'
-  const editorFrameRadius = simplifyMobileEditor ? '14px' : '16px'
-  const editorFrameMinHeight = simplifyMobileEditor ? '420px' : '540px'
-  const contentLayoutGap = simplifyMobileEditor ? '10px' : '14px'
+  const editorFrameRadius = simplifyMobileEditor || ultraLiteMode ? '14px' : '16px'
+  const editorFrameMinHeight = simplifyMobileEditor || ultraLiteMode ? '420px' : '540px'
+  const contentLayoutGap = simplifyMobileEditor || ultraLiteMode ? '10px' : '14px'
 
   const editor = useEditor(
     {
@@ -422,25 +520,46 @@ export default function Editor({
     []
   )
 
-  const syncOutlineItems = useCallback(() => {
+  const updateActiveOutlineId = useCallback((nextActiveId) => {
+    if (activeOutlineIdRef.current === nextActiveId) {
+      return
+    }
+
+    activeOutlineIdRef.current = nextActiveId
+    setActiveOutlineId(nextActiveId)
+  }, [])
+
+  const syncOutlineSnapshot = useCallback(() => {
     if (!editor) return
 
-    const nextItems = extractHeadingsFromJson(editor.getJSON())
+    const { items: nextItems, metrics: nextMetrics } = extractOutlineSnapshotFromDom(
+      editor.view.dom,
+      editorScrollRef.current
+    )
     const resolvedItems = areOutlineItemsEqual(outlineItemsRef.current, nextItems)
       ? outlineItemsRef.current
       : nextItems
+
+    const resolvedMetrics = areHeadingMetricsEqual(headingMetricsRef.current, nextMetrics)
+      ? headingMetricsRef.current
+      : nextMetrics
 
     if (resolvedItems !== outlineItemsRef.current) {
       outlineItemsRef.current = resolvedItems
       setOutlineItems(resolvedItems)
     }
 
-    setActiveOutlineId((previous) => {
-      if (resolvedItems.length === 0) return null
-      if (previous && resolvedItems.some((item) => item.id === previous)) return previous
-      return resolvedItems[0].id
-    })
-  }, [editor])
+    if (resolvedMetrics !== headingMetricsRef.current) {
+      headingMetricsRef.current = resolvedMetrics
+    }
+
+    updateActiveOutlineId(
+      getActiveOutlineIdFromMetrics(
+        resolvedMetrics,
+        editorScrollRef.current?.scrollTop || 0
+      )
+    )
+  }, [editor, updateActiveOutlineId])
 
   const applySlashMenuState = useCallback((nextMenu) => {
     setSlashMenu((previousMenu) =>
@@ -455,9 +574,9 @@ export default function Editor({
 
     outlineSyncTimerRef.current = window.setTimeout(() => {
       outlineSyncTimerRef.current = null
-      syncOutlineItems()
+      syncOutlineSnapshot()
     }, OUTLINE_SYNC_DELAY_MS)
-  }, [syncOutlineItems])
+  }, [syncOutlineSnapshot])
 
   const syncSlashMenu = useCallback(() => {
     if (!editor || !editorFrameRef.current) {
@@ -484,57 +603,39 @@ export default function Editor({
     })
   }, [applySlashMenuState, editor])
 
-  const updateActiveOutline = useCallback(() => {
-    if (!editorFrameRef.current || outlineItems.length === 0) {
-      setActiveOutlineId(null)
-      return
-    }
-
-    const headingNodes = outlineItems
-      .map((item) => editorFrameRef.current.querySelector(`[id="${item.id}"]`))
-      .filter(Boolean)
-
-    if (headingNodes.length === 0) {
-      setActiveOutlineId(null)
-      return
-    }
-
-    const threshold = 150
-    let nextActiveId = headingNodes[0].id
-
-    headingNodes.forEach((node) => {
-      if (node.getBoundingClientRect().top <= threshold) {
-        nextActiveId = node.id
-      }
-    })
-
-    setActiveOutlineId(nextActiveId)
-  }, [outlineItems])
+  const syncActiveOutline = useCallback(() => {
+    updateActiveOutlineId(
+      getActiveOutlineIdFromMetrics(
+        headingMetricsRef.current,
+        editorScrollRef.current?.scrollTop || 0
+      )
+    )
+  }, [updateActiveOutlineId])
 
   const scheduleActiveOutlineUpdate = useCallback(() => {
     if (activeOutlineFrameRef.current) return
 
-    activeOutlineFrameRef.current = requestAnimationFrame(() => {
+    activeOutlineFrameRef.current = window.requestAnimationFrame(() => {
       activeOutlineFrameRef.current = null
-      updateActiveOutline()
+      syncActiveOutline()
     })
-  }, [updateActiveOutline])
+  }, [syncActiveOutline])
 
   const handleSelectOutlineItem = useCallback(
     (headingId) => {
-      if (!editor || !editorFrameRef.current) return
+      if (!editor) return
 
       editor.commands.focus()
 
-      requestAnimationFrame(() => {
-        const headingNode = editorFrameRef.current.querySelector(`[id="${headingId}"]`)
+      window.requestAnimationFrame(() => {
+        const headingNode = editor.view.dom.querySelector(`[id="${headingId}"]`)
         if (!headingNode) return
 
         headingNode.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        setActiveOutlineId(headingId)
+        updateActiveOutlineId(headingId)
       })
     },
-    [editor]
+    [editor, updateActiveOutlineId]
   )
 
   const handleJumpToOutline = useCallback(() => {
@@ -567,7 +668,7 @@ export default function Editor({
 
     if (insertPos == null) return
 
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       editor.chain().focus(insertPos + 2).run()
     })
   }, [applySlashMenuState, editor, slashMenu.range])
@@ -756,17 +857,16 @@ export default function Editor({
       parseOptions: { preserveWhitespace: 'full' },
     })
 
-    requestAnimationFrame(() => {
-      syncOutlineItems()
-      scheduleActiveOutlineUpdate()
+    window.requestAnimationFrame(() => {
+      syncOutlineSnapshot()
       syncSlashMenu()
     })
-  }, [applySlashMenuState, editor, note, scheduleActiveOutlineUpdate, syncOutlineItems, syncSlashMenu])
+  }, [applySlashMenuState, editor, note, syncOutlineSnapshot, syncSlashMenu])
 
   useEffect(() => {
     if (!editor) return
 
-    syncOutlineItems()
+    syncOutlineSnapshot()
 
     const handleUpdate = () => {
       scheduleOutlineSync()
@@ -785,24 +885,38 @@ export default function Editor({
       editor.off('update', handleUpdate)
       editor.off('selectionUpdate', handleSelectionUpdate)
     }
-  }, [editor, queueAutosave, scheduleActiveOutlineUpdate, scheduleOutlineSync, syncOutlineItems, syncSlashMenu])
+  }, [editor, queueAutosave, scheduleActiveOutlineUpdate, scheduleOutlineSync, syncOutlineSnapshot, syncSlashMenu])
 
   useEffect(() => {
-    if (outlineItems.length === 0) return undefined
+    const scrollNode = editorScrollRef.current
+    if (!scrollNode) return undefined
 
     const handleScroll = () => {
       scheduleActiveOutlineUpdate()
     }
 
     handleScroll()
-    window.addEventListener('scroll', handleScroll, { capture: true, passive: true })
+    scrollNode.addEventListener('scroll', handleScroll, { passive: true })
     window.addEventListener('resize', handleScroll)
 
-    return () => {
-      window.removeEventListener('scroll', handleScroll, true)
-      window.removeEventListener('resize', handleScroll)
+    let observer = null
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => {
+        scheduleOutlineSync()
+        scheduleActiveOutlineUpdate()
+      })
+      observer.observe(scrollNode)
+      if (editor?.view?.dom) {
+        observer.observe(editor.view.dom)
+      }
     }
-  }, [outlineItems, scheduleActiveOutlineUpdate])
+
+    return () => {
+      scrollNode.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
+      observer?.disconnect()
+    }
+  }, [editor, scheduleActiveOutlineUpdate, scheduleOutlineSync])
 
   // Cmd/Ctrl + S should save instantly.
   useEffect(() => {
@@ -822,7 +936,7 @@ export default function Editor({
       clearTimeout(saveTimerRef.current)
       clearTimeout(outlineSyncTimerRef.current)
       if (activeOutlineFrameRef.current) {
-        cancelAnimationFrame(activeOutlineFrameRef.current)
+        window.cancelAnimationFrame(activeOutlineFrameRef.current)
       }
     },
     []
@@ -833,7 +947,8 @@ export default function Editor({
     if (!headerNode) return undefined
 
     const syncHeaderHeight = () => {
-      setHeaderBarHeight(headerNode.getBoundingClientRect().height)
+      const nextHeight = Math.round(headerNode.getBoundingClientRect().height)
+      setHeaderBarHeight((previous) => (previous === nextHeight ? previous : nextHeight))
     }
 
     syncHeaderHeight()
@@ -1118,6 +1233,7 @@ export default function Editor({
                 editor={editor}
                 themeStyles={currentTheme}
                 containerRef={editorFrameRef}
+                scrollRootRef={editorScrollRef}
                 onGenerateTest={onGenerateSelectionTest ? handleGenerateSelectionTest : null}
                 reduceEffects={reduceEffects}
               />
@@ -1130,10 +1246,16 @@ export default function Editor({
                 onInsert={handleInsertInlineNote}
               />
             )}
-            <EditorContent
-              editor={editor}
-              className="learnledger-tiptap-shell min-h-0 flex-1 overflow-auto"
-            />
+            <div
+              ref={editorScrollRef}
+              className="min-h-0 flex-1 overflow-auto"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              <EditorContent
+                editor={editor}
+                className="learnledger-tiptap-shell min-h-0 flex-1"
+              />
+            </div>
           </div>
         </div>
 
@@ -1204,3 +1326,5 @@ export default function Editor({
     </>
   )
 }
+
+export default memo(Editor)

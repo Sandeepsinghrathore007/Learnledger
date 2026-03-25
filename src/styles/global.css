@@ -180,6 +180,19 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   }
 }
 
+html[data-performance-mode='lite'] body {
+  transition: none;
+}
+
+html[data-performance-mode='lite'] .animate-fade-up,
+html[data-performance-mode='lite'] .animate-fade-in,
+html[data-performance-mode='lite'] .animate-scale-in,
+html[data-performance-mode='lite'] .animate-slide-right,
+html[data-performance-mode='lite'] .animate-pop-in {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+}
+
 /* ── TIPTAP NOTE EDITOR ─────────────────────────────────────────────────────── */
 .learnledger-tiptap-shell .ProseMirror {
   min-height: 480px;
@@ -330,6 +343,13 @@ html.learnledger-square-ui ::-webkit-scrollbar-thumb {
   background: var(--note-editor-link-bg, linear-gradient(180deg, rgba(139, 92, 246, 0.1), rgba(12, 10, 28, 0.88)));
   text-decoration: none;
   box-shadow: var(--note-editor-link-shadow, 0 18px 32px rgba(5, 4, 18, 0.18));
+}
+html[data-performance-mode='lite'] .learnledger-tiptap-shell .ProseMirror img,
+html[data-performance-mode='lite'] .learnledger-tiptap-shell .ProseMirror .learnledger-link-block__anchor {
+  box-shadow: none;
+}
+html[data-performance-mode='lite'] .learnledger-tiptap-shell .ProseMirror .learnledger-link-block__anchor {
+  background: rgba(10, 18, 30, 0.94);
 }
 .learnledger-tiptap-shell .ProseMirror .learnledger-link-block[data-selected='true'] .learnledger-link-block__anchor {
   outline: 2px solid rgba(167, 139, 250, 0.65);

@@ -2,7 +2,8 @@
  * LinkedNotesPanel.jsx — Panel for managing linked notes in the editor.
  */
 
-import { memo, useState } from 'react'
+import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react'
+import VirtualizedList from '@/components/ui/VirtualizedList'
 
 const DEFAULT_THEME = {
   accent: '#a855f7',
@@ -96,6 +97,165 @@ function XIcon() {
   )
 }
 
+function LinkedNoteRow({ note, palette, onNavigateToNote, onRemoveLink }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        background: palette.pillBackground,
+        border: `1px solid ${palette.pillBorder}`,
+        borderRadius: '14px',
+        padding: '10px 12px',
+        transition: 'background 0.18s ease, border-color 0.18s ease',
+        cursor: 'pointer',
+      }}
+      onMouseEnter={(event) => {
+        event.currentTarget.style.background = palette.floatingBackground
+        event.currentTarget.style.borderColor = `${note.subjectColor}66`
+      }}
+      onMouseLeave={(event) => {
+        event.currentTarget.style.background = palette.pillBackground
+        event.currentTarget.style.borderColor = palette.pillBorder
+      }}
+      onClick={() => onNavigateToNote(note)}
+    >
+      <div
+        style={{
+          width: '4px',
+          height: '32px',
+          background: note.subjectColor,
+          borderRadius: '999px',
+          flexShrink: 0,
+        }}
+      />
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            color: palette.cssVars['--note-editor-heading'],
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: '12px',
+            fontWeight: '700',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {note.title}
+        </div>
+        <div
+          style={{
+            color: palette.cssVars['--note-editor-muted'],
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: '10px',
+            marginTop: '3px',
+          }}
+        >
+          {note.subjectName} • {note.topicName}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation()
+          onRemoveLink(note.id)
+        }}
+        style={{
+          width: '22px',
+          height: '22px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'transparent',
+          border: 'none',
+          borderRadius: '999px',
+          color: palette.cssVars['--note-editor-muted'],
+          cursor: 'pointer',
+          flexShrink: 0,
+          transition: 'background 0.15s ease, color 0.15s ease',
+        }}
+        onMouseEnter={(event) => {
+          event.currentTarget.style.background = 'rgba(248,113,113,0.12)'
+          event.currentTarget.style.color = '#fda4af'
+        }}
+        onMouseLeave={(event) => {
+          event.currentTarget.style.background = 'transparent'
+          event.currentTarget.style.color = palette.cssVars['--note-editor-muted']
+        }}
+      >
+        <XIcon />
+      </button>
+    </div>
+  )
+}
+
+function AvailableNoteRow({ note, palette, onAddLink }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onAddLink(note.id)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        background: palette.pillBackground,
+        border: `1px solid ${palette.pillBorder}`,
+        borderRadius: '16px',
+        padding: '13px',
+        textAlign: 'left',
+        cursor: 'pointer',
+        transition: 'background 0.18s ease, border-color 0.18s ease',
+      }}
+      onMouseEnter={(event) => {
+        event.currentTarget.style.background = palette.floatingBackground
+        event.currentTarget.style.borderColor = `${note.subjectColor}66`
+      }}
+      onMouseLeave={(event) => {
+        event.currentTarget.style.background = palette.pillBackground
+        event.currentTarget.style.borderColor = palette.pillBorder
+      }}
+    >
+      <div
+        style={{
+          width: '4px',
+          height: '38px',
+          background: note.subjectColor,
+          borderRadius: '999px',
+          flexShrink: 0,
+        }}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            color: palette.cssVars['--note-editor-heading'],
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: '13px',
+            fontWeight: '700',
+            marginBottom: '4px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {note.title}
+        </div>
+        <div
+          style={{
+            color: palette.cssVars['--note-editor-muted'],
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: '11px',
+          }}
+        >
+          {note.subjectName} • {note.topicName}
+        </div>
+      </div>
+    </button>
+  )
+}
+
 function LinkedNotesPanel({
   currentNote,
   allNotes,
@@ -108,31 +268,68 @@ function LinkedNotesPanel({
   const palette = getPalette(themeStyles)
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const deferredSearchQuery = useDeferredValue(searchQuery)
 
   const linkedNoteIds = currentNote.linkedNotes || []
-  const linkedNotes = linkedNoteIds
-    .map((id) => allNotes.find((note) => note.id === id))
-    .filter(Boolean)
-  const availableNotes = allNotes.filter(
-    (note) => note.id !== currentNote.id && !linkedNoteIds.includes(note.id)
+  const linkedNoteIdSet = useMemo(() => new Set(linkedNoteIds), [linkedNoteIds])
+  const notesById = useMemo(
+    () => new Map(allNotes.map((note) => [note.id, note])),
+    [allNotes]
   )
-  const filteredAvailableNotes = searchQuery.trim()
-    ? availableNotes.filter((note) =>
-        note.title.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : availableNotes
+  const linkedNotes = useMemo(
+    () => linkedNoteIds.map((id) => notesById.get(id)).filter(Boolean),
+    [linkedNoteIds, notesById]
+  )
+  const availableNotes = useMemo(
+    () => allNotes.filter((note) => note.id !== currentNote.id && !linkedNoteIdSet.has(note.id)),
+    [allNotes, currentNote.id, linkedNoteIdSet]
+  )
+  const filteredAvailableNotes = useMemo(() => {
+    const normalizedQuery = deferredSearchQuery.trim().toLowerCase()
 
-  const handleAddLink = (targetNoteId) => {
+    if (!normalizedQuery) {
+      return availableNotes
+    }
+
+    return availableNotes.filter((note) =>
+      note.title.toLowerCase().includes(normalizedQuery)
+    )
+  }, [availableNotes, deferredSearchQuery])
+
+  const handleAddLink = useCallback((targetNoteId) => {
     onAddLink(targetNoteId)
     setSearchQuery('')
     setAddModalOpen(false)
-  }
+  }, [onAddLink])
 
-  const handleRemoveLink = (targetNoteId) => {
+  const handleRemoveLink = useCallback((targetNoteId) => {
     if (window.confirm('Remove this link?')) {
       onRemoveLink(targetNoteId)
     }
-  }
+  }, [onRemoveLink])
+
+  const renderLinkedNote = useCallback(
+    (note) => (
+      <LinkedNoteRow
+        note={note}
+        palette={palette}
+        onNavigateToNote={onNavigateToNote}
+        onRemoveLink={handleRemoveLink}
+      />
+    ),
+    [handleRemoveLink, onNavigateToNote, palette]
+  )
+
+  const renderAvailableNote = useCallback(
+    (note) => (
+      <AvailableNoteRow
+        note={note}
+        palette={palette}
+        onAddLink={handleAddLink}
+      />
+    ),
+    [handleAddLink, palette]
+  )
 
   return (
     <div
@@ -226,101 +423,24 @@ function LinkedNotesPanel({
           No linked notes yet
         </p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {linkedNotes.map((note) => (
-            <div
-              key={note.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                background: palette.pillBackground,
-                border: `1px solid ${palette.pillBorder}`,
-                borderRadius: '14px',
-                padding: '10px 12px',
-                transition: 'all 0.18s ease',
-                cursor: 'pointer',
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = palette.floatingBackground
-                event.currentTarget.style.borderColor = `${note.subjectColor}66`
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = palette.pillBackground
-                event.currentTarget.style.borderColor = palette.pillBorder
-              }}
-              onClick={() => onNavigateToNote(note)}
-            >
-              <div
-                style={{
-                  width: '4px',
-                  height: '32px',
-                  background: note.subjectColor,
-                  borderRadius: '999px',
-                  flexShrink: 0,
-                }}
-              />
-
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    color: palette.cssVars['--note-editor-heading'],
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {note.title}
-                </div>
-                <div
-                  style={{
-                    color: palette.cssVars['--note-editor-muted'],
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: '10px',
-                    marginTop: '3px',
-                  }}
-                >
-                  {note.subjectName} • {note.topicName}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  handleRemoveLink(note.id)
-                }}
-                style={{
-                  width: '22px',
-                  height: '22px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'transparent',
-                  border: 'none',
-                  borderRadius: '999px',
-                  color: palette.cssVars['--note-editor-muted'],
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.background = 'rgba(248,113,113,0.12)'
-                  event.currentTarget.style.color = '#fda4af'
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = 'transparent'
-                  event.currentTarget.style.color = palette.cssVars['--note-editor-muted']
-                }}
-              >
-                <XIcon />
-              </button>
-            </div>
-          ))}
-        </div>
+        <VirtualizedList
+          items={linkedNotes}
+          itemSize={54}
+          gap={8}
+          overscan={4}
+          virtualizeAbove={10}
+          estimatedHeight={linkedNotes.length > 5 ? 320 : linkedNotes.length * 62}
+          getItemKey={(note) => note.id}
+          renderItem={renderLinkedNote}
+          style={{
+            maxHeight: linkedNotes.length > 5 ? '320px' : 'none',
+            paddingRight: linkedNotes.length > 5 ? '2px' : 0,
+          }}
+          listStyle={{
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        />
       )}
 
       {addModalOpen && (
@@ -334,7 +454,7 @@ function LinkedNotesPanel({
               position: 'fixed',
               inset: 0,
               background: 'rgba(2,8,23,0.72)',
-              backdropFilter: 'blur(10px)',
+              backdropFilter: reduceEffects ? 'none' : 'blur(10px)',
               zIndex: 100,
             }}
           />
@@ -351,11 +471,11 @@ function LinkedNotesPanel({
               background: palette.editorFrameBackground,
               border: `1px solid ${palette.editorFrameBorder}`,
               borderRadius: '20px',
-              boxShadow: '0 32px 72px rgba(2,8,23,0.48)',
+              boxShadow: reduceEffects ? '0 18px 34px rgba(2,8,23,0.28)' : '0 32px 72px rgba(2,8,23,0.48)',
               zIndex: 101,
               display: 'flex',
               flexDirection: 'column',
-              backdropFilter: 'blur(26px) saturate(160%)',
+              backdropFilter: reduceEffects ? 'none' : 'blur(26px) saturate(160%)',
             }}
           >
             <div
@@ -399,7 +519,7 @@ function LinkedNotesPanel({
             <div
               style={{
                 flex: 1,
-                overflowY: 'auto',
+                minHeight: 0,
                 padding: '12px',
               }}
             >
@@ -416,70 +536,21 @@ function LinkedNotesPanel({
                   {searchQuery ? 'No notes found' : 'No more notes to link'}
                 </p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {filteredAvailableNotes.map((note) => (
-                    <button
-                      key={note.id}
-                      type="button"
-                      onClick={() => handleAddLink(note.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        background: palette.pillBackground,
-                        border: `1px solid ${palette.pillBorder}`,
-                        borderRadius: '16px',
-                        padding: '13px',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        transition: 'all 0.18s ease',
-                      }}
-                      onMouseEnter={(event) => {
-                        event.currentTarget.style.background = palette.floatingBackground
-                        event.currentTarget.style.borderColor = `${note.subjectColor}66`
-                      }}
-                      onMouseLeave={(event) => {
-                        event.currentTarget.style.background = palette.pillBackground
-                        event.currentTarget.style.borderColor = palette.pillBorder
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: '4px',
-                          height: '38px',
-                          background: note.subjectColor,
-                          borderRadius: '999px',
-                          flexShrink: 0,
-                        }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            color: palette.cssVars['--note-editor-heading'],
-                            fontFamily: "'DM Sans', sans-serif",
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            marginBottom: '4px',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {note.title}
-                        </div>
-                        <div
-                          style={{
-                            color: palette.cssVars['--note-editor-muted'],
-                            fontFamily: "'DM Sans', sans-serif",
-                            fontSize: '11px',
-                          }}
-                        >
-                          {note.subjectName} • {note.topicName}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <VirtualizedList
+                  items={filteredAvailableNotes}
+                  itemSize={64}
+                  gap={8}
+                  overscan={5}
+                  virtualizeAbove={14}
+                  estimatedHeight={420}
+                  getItemKey={(note) => note.id}
+                  renderItem={renderAvailableNote}
+                  style={{ height: '100%' }}
+                  listStyle={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                />
               )}
             </div>
           </div>

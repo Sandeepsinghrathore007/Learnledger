@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { NAV_ITEMS } from '@/constants/navigation'
 import { ACCENT, BG, BORDER, BORDER2, BUTTON_GRADIENT, CONTROL_BG, SURF2, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 import {
@@ -27,7 +28,7 @@ function getUserLabel(user) {
   return user.displayName || user.email || 'User'
 }
 
-export default function Sidebar({
+function Sidebar({
   collapsed,
   setCollapsed,
   activePage,
@@ -38,14 +39,18 @@ export default function Sidebar({
   user = null,
   isMobile = false,
   mobileOpen = false,
+  ultraLite = false,
   setMobileOpen = () => {},
 }) {
   const isCompact = isMobile ? false : collapsed
   const width = isMobile ? '250px' : (isCompact ? '68px' : '228px')
   const transform = isMobile
-    ? (mobileOpen ? 'translateX(0)' : 'translateX(-100%)')
-    : 'translateX(0)'
+    ? (mobileOpen ? 'translate3d(0,0,0)' : 'translate3d(calc(-100% - 14px),0,0)')
+    : 'translate3d(0,0,0)'
   const userInitial = getUserInitial(user)
+  const itemTransition = ultraLite
+    ? 'background 0.12s ease, color 0.12s ease'
+    : 'background 0.16s ease, color 0.16s ease'
 
   return (
     <aside style={{
@@ -53,8 +58,10 @@ export default function Sidebar({
       flexShrink: 0,
       transition: isMobile
         ? 'transform 0.22s cubic-bezier(0.4,0,0.2,1)'
-        : 'width 0.3s cubic-bezier(0.4,0,0.2,1), transform 0.3s cubic-bezier(0.4,0,0.2,1)',
-      background: BG,
+        : ultraLite
+          ? 'none'
+          : 'width 0.3s cubic-bezier(0.4,0,0.2,1), transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+      background: ultraLite ? 'rgba(6,11,20,0.98)' : BG,
       borderRight: `1px solid ${BORDER}`,
       display: 'flex',
       flexDirection: 'column',
@@ -65,7 +72,11 @@ export default function Sidebar({
       zIndex: 50,
       overflow: 'hidden',
       transform,
-      boxShadow: isMobile ? '4px 0 18px rgba(0,0,0,0.28)' : 'none',
+      boxShadow: isMobile ? (ultraLite ? '0 8px 18px rgba(0,0,0,0.22)' : '4px 0 18px rgba(0,0,0,0.28)') : 'none',
+      willChange: isMobile ? 'transform' : 'auto',
+      backfaceVisibility: 'hidden',
+      contain: 'layout paint size',
+      pointerEvents: isMobile && !mobileOpen ? 'none' : 'auto',
     }}>
       <div style={{
         padding: '17px 13px',
@@ -129,7 +140,7 @@ export default function Sidebar({
                 color: isActive ? ACCENT : TEXT3,
                 border: 'none',
                 justifyContent: isCompact ? 'center' : 'flex-start',
-                transition: 'all 0.16s',
+                transition: itemTransition,
                 position: 'relative',
               }}
               onMouseEnter={(event) => {
@@ -165,7 +176,9 @@ export default function Sidebar({
                 justifyContent: 'center',
                 borderRadius: '9px',
                 background: isActive
-                  ? `linear-gradient(135deg,${iconBg},rgba(255,255,255,0.03))`
+                  ? ultraLite
+                    ? iconBg
+                    : `linear-gradient(135deg,${iconBg},rgba(255,255,255,0.03))`
                   : iconBg,
                 border: `1px solid ${iconBorder}`,
                 color: iconColor,
@@ -393,7 +406,7 @@ export default function Sidebar({
             justifyContent: 'center',
             color: TEXT2,
             zIndex: 10,
-            transition: 'all 0.2s',
+            transition: 'background 0.2s ease, color 0.2s ease',
           }}
           onMouseEnter={(event) => (event.currentTarget.style.background = CONTROL_BG)}
           onMouseLeave={(event) => (event.currentTarget.style.background = SURF2)}
@@ -412,3 +425,5 @@ export default function Sidebar({
     </aside>
   )
 }
+
+export default memo(Sidebar)

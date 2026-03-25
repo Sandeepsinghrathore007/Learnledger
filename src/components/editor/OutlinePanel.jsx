@@ -1,4 +1,5 @@
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
+import VirtualizedList from '@/components/ui/VirtualizedList'
 
 const DEFAULT_THEME = {
   accent: '#a855f7',
@@ -80,6 +81,47 @@ function OutlineIcon() {
   )
 }
 
+function OutlineItem({ item, active, barColor, palette, onSelect }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(item.id)}
+      style={getItemStyle(item.level, active, palette)}
+    >
+      <span
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          minWidth: 0,
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            color: barColor,
+            fontWeight: '700',
+            fontSize: item.level === 3 ? '12px' : '13px',
+            lineHeight: 1,
+            flexShrink: 0,
+          }}
+        >
+          |
+        </span>
+        <span
+          style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {item.text}
+        </span>
+      </span>
+    </button>
+  )
+}
+
 function OutlinePanel({ items, activeId, onSelect, themeStyles = null, reduceEffects = false }) {
   const palette = getPalette(themeStyles)
   const levelBarColors = {
@@ -87,6 +129,18 @@ function OutlinePanel({ items, activeId, onSelect, themeStyles = null, reduceEff
     2: palette.accentSecondary,
     3: palette.accentTertiary,
   }
+  const renderOutlineItem = useCallback(
+    (item) => (
+      <OutlineItem
+        item={item}
+        active={item.id === activeId}
+        barColor={levelBarColors[item.level] || levelBarColors[1]}
+        palette={palette}
+        onSelect={onSelect}
+      />
+    ),
+    [activeId, levelBarColors, onSelect, palette]
+  )
 
   return (
     <div
@@ -130,61 +184,24 @@ function OutlinePanel({ items, activeId, onSelect, themeStyles = null, reduceEff
           Add H1, H2, H3 headings to see outline
         </p>
       ) : (
-        <div
+        <VirtualizedList
+          items={items}
+          itemSize={40}
+          gap={4}
+          overscan={5}
+          virtualizeAbove={18}
+          estimatedHeight={250}
+          getItemKey={(item) => item.id}
+          renderItem={renderOutlineItem}
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
             maxHeight: '250px',
-            overflowY: 'auto',
             paddingRight: '2px',
           }}
-        >
-          {items.map((item) => {
-            const active = item.id === activeId
-            const barColor = levelBarColors[item.level] || levelBarColors[1]
-
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onSelect(item.id)}
-                style={getItemStyle(item.level, active, palette)}
-              >
-                <span
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    minWidth: 0,
-                  }}
-                >
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      color: barColor,
-                      fontWeight: '700',
-                      fontSize: item.level === 3 ? '12px' : '13px',
-                      lineHeight: 1,
-                      flexShrink: 0,
-                    }}
-                  >
-                    |
-                  </span>
-                  <span
-                    style={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {item.text}
-                  </span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
+          listStyle={{
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        />
       )}
     </div>
   )
