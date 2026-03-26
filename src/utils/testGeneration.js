@@ -1,9 +1,11 @@
+import { normalizeStructuredExplanation } from '@/utils/explanationFormatting'
+
 /**
  * testGeneration.js — Utilities for gathering content to generate AI tests.
  *
  * Functions:
  *  - gatherContentForTest: Collect notes/PDFs based on test scope
- *  - buildAIPrompt: Create prompt for Gemini API
+ *  - buildAIPrompt: Create prompt for AI test generation
  *  - parseAIResponse: Parse and validate AI-generated questions
  */
 
@@ -242,9 +244,25 @@ export function gatherContentForTest(config, subjects) {
  * @param {Object} content - Gathered content from gatherContentForTest
  * @returns {String} - Formatted prompt for AI
  */
-export function buildAIPrompt(config, content, promptOptions = {}) {
+export function buildAIPrompt(config, content, promptOptions = {}, generationOptions = {}) {
   const { questionCount, difficulty } = config
   const { notesContent, pdfContent, metadata } = content
+  const normalizedQuestionLanguage = String(config?.language || 'hindi').trim().toLowerCase() === 'hindi'
+    ? 'hindi'
+    : 'english'
+  const questionLanguageLabel = normalizedQuestionLanguage === 'hindi' ? 'Hindi (Devanagari)' : 'English'
+  const questionLanguageInstruction = normalizedQuestionLanguage === 'hindi'
+    ? 'Write every question and every option in Hindi using Devanagari script. Do not use Romanized Hindi.'
+    : 'Write every question and every option in natural English.'
+  const includeReviewFields = generationOptions?.includeReviewFields !== false
+  const excludedQuestions = Array.isArray(generationOptions?.excludedQuestions)
+    ? generationOptions.excludedQuestions
+        .map((question) => truncateText(question, 180))
+        .filter(Boolean)
+    : []
+  const chunkDescriptor = generationOptions?.chunkDescriptor && typeof generationOptions.chunkDescriptor === 'object'
+    ? generationOptions.chunkDescriptor
+    : null
   const options = {
     ...DEFAULT_PROMPT_OPTIONS,
     ...(promptOptions && typeof promptOptions === 'object' ? promptOptions : {}),
@@ -300,6 +318,62 @@ export function buildAIPrompt(config, content, promptOptions = {}) {
   const selectionConstraint = config.scope === 'selection'
     ? 'IMPORTANT: The note content below is a user-selected excerpt from a larger note. Generate questions using only this selected excerpt and do not infer extra material beyond it.'
     : ''
+  const chunkInstruction = chunkDescriptor
+    ? `CHUNK INSTRUCTION:\nReturn exactly ${questionCount} NEW questions for items ${Number(chunkDescriptor.startIndex || 0) + 1}-${Math.min(Number(chunkDescriptor.totalQuestions || questionCount), Number(chunkDescriptor.startIndex || 0) + questionCount)} of ${Number(chunkDescriptor.totalQuestions || questionCount)}.`
+    : ''
+  const exclusionInstruction = excludedQuestions.length > 0
+    ? `ALREADY GENERATED QUESTIONS (DO NOT REPEAT, REPHRASE, OR ASK THE SAME IDEA AGAIN):\n${excludedQuestions.map((question, index) => `${index + 1}. ${question}`).join('\n')}`
+    : ''
+  const questionOnlyExample = normalizedQuestionLanguage === 'hindi'
+    ? `[
+  {
+    "question": "न्यूटन के प्रथम नियम के अनुसार विराम अवस्था में रखी वस्तु के बारे में क्या सही है?",
+    "options": {
+      "A": "वह तब तक विराम में रहेगी जब तक उस पर कोई नेट बल न लगाया जाए।",
+      "B": "वह अपने आप चलने लगेगी।",
+      "C": "वह हमेशा वृत्तीय पथ में चलेगी।",
+      "D": "वह बिना बल के लगातार त्वरित होगी।"
+    }
+  }
+]`
+    : `[
+  {
+    "question": "What is the derivative of f(x) = x²?",
+    "options": {
+      "A": "2x",
+      "B": "x",
+      "C": "2",
+      "D": "x²"
+    }
+  }
+]`
+  const fullReviewExample = normalizedQuestionLanguage === 'hindi'
+    ? `[
+  {
+    "question": "गति का SI unit क्या है?",
+    "options": {
+      "A": "मीटर प्रति सेकंड",
+      "B": "मीटर",
+      "C": "सेकंड",
+      "D": "न्यूटन"
+    },
+    "correctAnswer": "A",
+    "explanation": "Concept:\\nयह question motion के basic unit concept पर based है।\\nVelocity या speed को distance divided by time से express किया जाता है, इसलिए इसका SI unit length aur time ke base units se बनता है।\\n\\nWhy Correct:\\nमीटर प्रति सेकंड सही है क्योंकि speed ya velocity का SI unit m/s होता है।\\n\\nOptions Breakdown:\\nA. मीटर प्रति सेकंड -> यही speed aur velocity का standard SI unit है\\nB. मीटर -> यह सिर्फ distance का unit है\\nC. सेकंड -> यह सिर्फ time का unit है\\nD. न्यूटन -> यह force का SI unit है\\n\\nExtra Knowledge:\\nAcceleration का SI unit मीटर प्रति सेकंड वर्ग होता है।\\nExam में speed aur velocity ka unit same hota hai, difference direction ka hota hai।"
+  }
+]`
+    : `[
+  {
+    "question": "What is the derivative of f(x) = x²?",
+    "options": {
+      "A": "2x",
+      "B": "x",
+      "C": "2",
+      "D": "x²"
+    },
+    "correctAnswer": "A",
+    "explanation": "Concept:\\nयह question derivative के power rule पर based है।\\nPower rule में x^n का derivative n.x^(n-1) बनता है, यही core concept यहाँ apply होगा।\\n\\nWhy Correct:\\nx^2 पर rule लगाने से 2x मिलता है, इसलिए option A exact correct answer है।\\n\\nOptions Breakdown:\\nA. 2x -> power rule का सही result है\\nB. x -> exponent को properly use नहीं करता\\nC. 2 -> यह final derivative नहीं, सिर्फ coefficient part का confusion है\\nD. x^2 -> यह original function है, derivative नहीं\\n\\nExtra Knowledge:\\nPower rule polynomial differentiation का basic rule है।\\nNegative और fractional exponents पर भी यही logic apply होता है।"
+  }
+]`
 
   // Difficulty description
   let difficultyGuide = ''
@@ -321,6 +395,55 @@ export function buildAIPrompt(config, content, promptOptions = {}) {
       break
   }
 
+  if (!includeReviewFields) {
+    return `You are an expert educator creating a ${difficulty} difficulty test for students.
+
+SUBJECT(S): ${subjectNames}
+TOPIC(S): ${topicNames}
+${selectionConstraint}
+
+${notesContext}
+
+${pdfContext}
+
+${chunkInstruction}
+
+${exclusionInstruction}
+
+TASK:
+Generate exactly ${questionCount} multiple-choice questions based ONLY on the content provided above.
+
+DIFFICULTY LEVEL: ${difficulty}
+${difficultyGuide}
+QUESTION LANGUAGE: ${questionLanguageLabel}
+${questionLanguageInstruction}
+
+STRICT INSTRUCTION:
+Return ONLY valid JSON.
+Do NOT include any extra text, explanation, markdown, or comments outside JSON.
+Do NOT wrap JSON in backticks.
+
+REQUIREMENTS:
+1. Each question MUST have exactly 4 options labeled A, B, C, D.
+2. Questions should test understanding, application, and critical thinking.
+3. Include variety: definitions, calculations, applications, analysis.
+4. Make incorrect options plausible but clearly wrong.
+5. Base ALL questions on the actual content provided - do not add external information.
+6. Write the question text and all option text in ${questionLanguageLabel}.
+7. The output for each question must have:
+   - question: string
+   - options: object with exactly 4 keys "A", "B", "C", "D"
+8. Do NOT include correctAnswer.
+9. Do NOT include explanation.
+
+OUTPUT FORMAT (Strict JSON):
+Return ONLY a valid JSON array with this exact structure:
+
+${questionOnlyExample}
+
+CRITICAL: Return ONLY the JSON array, no additional text, no markdown formatting, no code blocks.`
+  }
+
   return `You are an expert educator creating a ${difficulty} difficulty test for students.
 
 SUBJECT(S): ${subjectNames}
@@ -331,11 +454,23 @@ ${notesContext}
 
 ${pdfContext}
 
+${chunkInstruction}
+
+${exclusionInstruction}
+
 TASK:
 Generate exactly ${questionCount} multiple-choice questions based ONLY on the content provided above.
 
 DIFFICULTY LEVEL: ${difficulty}
 ${difficultyGuide}
+QUESTION LANGUAGE: ${questionLanguageLabel}
+${questionLanguageInstruction}
+
+STRICT INSTRUCTION:
+Return ONLY valid JSON.
+Do NOT include any extra text, explanation, markdown, or comments outside JSON.
+Do NOT wrap JSON in backticks.
+Use escaped \\n inside explanation strings for every line break. Never place raw line breaks inside a JSON string value.
 
 REQUIREMENTS:
 1. Each question MUST have exactly 4 options labeled A, B, C, D.
@@ -343,30 +478,54 @@ REQUIREMENTS:
 3. Questions should test understanding, application, and critical thinking.
 4. Include variety: definitions, calculations, applications, analysis.
 5. Make incorrect options plausible but clearly wrong.
-6. Provide a concise explanation (1-2 short sentences) for why the correct answer is right.
-7. Base ALL questions on the actual content provided - do not add external information.
-8. For mixed difficulty, mark each question's difficulty level.
-9. correctAnswer must be one of: "a", "b", "c", "d" (lowercase).
+6. Generate question, options, correctAnswer, and explanation in ONE API response.
+7. Write the question text and all option text in ${questionLanguageLabel}.
+8. The output for each question must have:
+   - question: string
+   - options: object with exactly 4 keys "A", "B", "C", "D"
+   - correctAnswer: uppercase "A", "B", "C", or "D"
+   - explanation: structured Devanagari Hinglish string
+9. Generate explanation in STRICT structured format using Hinglish style written in Hindi (Devanagari script).
+10. Explanation should build deep understanding, help revision, and improve future question solving.
+11. Explanation length should usually be 5 to 10 readable lines.
+12. Explanation must use these exact headings with explicit \\n line breaks:
+   - Concept:
+   - Why Correct:
+   - Options Breakdown:
+   - Extra Knowledge:
+13. Under Concept, explain the core concept in 2 to 3 lines in simple Devanagari Hinglish.
+14. Under Why Correct, explain clearly why the correct option fits.
+15. Under Options Breakdown, write EACH option on a NEW LINE using A., B., C., D.
+16. Under Options Breakdown, explain each option based on the question context. If topic is river, explain all options as rivers. If topic is king, explain all options as kings. If topic is polity, explain them conceptually within polity context.
+17. For wrong options, include what that option actually represents and the important exam-related fact linked to it.
+18. Under Extra Knowledge, add 1 or 2 useful facts, shortcuts, exceptions, or memory hooks related to the topic.
+19. Do NOT write generic lines. Do NOT merge everything into one paragraph.
+20. Use Hindi script (Devanagari) for the explanation body.
+21. Use a simple conversational teacher tone.
+22. Common English words like option, concept, rule, formula, logic, process, law, method are allowed when they fit naturally.
+23. Avoid pure English sentences. Avoid overly formal Hindi.
+24. Base ALL questions on the actual content provided - do not add external information.
 
 OUTPUT FORMAT (Strict JSON):
 Return ONLY a valid JSON array with this exact structure:
 
-[
-  {
-    "question": "What is the derivative of f(x) = x²?",
-    "options": [
-      {"id": "a", "text": "2x"},
-      {"id": "b", "text": "x"},
-      {"id": "c", "text": "2"},
-      {"id": "d", "text": "x²"}
-    ],
-    "correctAnswer": "a",
-    "explanation": "Using the power rule d/dx[xⁿ] = nxⁿ⁻¹, we get d/dx[x²] = 2x¹ = 2x. The power rule is fundamental in calculus for finding derivatives of polynomial functions.",
-    "difficulty": "easy"
-  }
-]
+${fullReviewExample}
 
 CRITICAL: Return ONLY the JSON array, no additional text, no markdown formatting, no code blocks.`
+}
+
+export function buildAIFullReviewPrompt(config, content, promptOptions = {}, generationOptions = {}) {
+  return buildAIPrompt(config, content, promptOptions, {
+    ...generationOptions,
+    includeReviewFields: true,
+  })
+}
+
+export function buildAIQuestionOnlyPrompt(config, content, promptOptions = {}, generationOptions = {}) {
+  return buildAIPrompt(config, content, promptOptions, {
+    ...generationOptions,
+    includeReviewFields: false,
+  })
 }
 
 function tryParseJson(rawText) {
@@ -375,6 +534,78 @@ function tryParseJson(rawText) {
   } catch {
     return null
   }
+}
+
+function sanitizeAiResponseText(rawText) {
+  return String(rawText || '')
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .replace(/^`+/, '')
+    .replace(/`+$/, '')
+    .trim()
+}
+
+function escapeInvalidJsonStringCharacters(rawText) {
+  const text = String(rawText || '')
+  if (!text) return text
+
+  let result = ''
+  let inString = false
+  let isEscaped = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+
+    if (!inString) {
+      if (char === '"') {
+        inString = true
+      }
+      result += char
+      continue
+    }
+
+    if (isEscaped) {
+      result += char
+      isEscaped = false
+      continue
+    }
+
+    if (char === '\\') {
+      result += char
+      isEscaped = true
+      continue
+    }
+
+    if (char === '"') {
+      inString = false
+      result += char
+      continue
+    }
+
+    if (char === '\r') {
+      if (text[index + 1] === '\n') {
+        index += 1
+      }
+      result += '\\n'
+      continue
+    }
+
+    if (char === '\n') {
+      result += '\\n'
+      continue
+    }
+
+    if (char === '\t') {
+      result += '\\t'
+      continue
+    }
+
+    result += char
+  }
+
+  return result
 }
 
 function repairJsonText(rawText) {
@@ -409,45 +640,102 @@ function repairJsonText(rawText) {
   // Remove trailing commas before } or ]
   repaired = repaired.replace(/,\s*([}\]])/g, '$1')
 
+  repaired = escapeInvalidJsonStringCharacters(repaired)
+
   return repaired
 }
 
 function extractJsonString(rawText) {
-  const trimmed = String(rawText || '').trim()
+  const trimmed = sanitizeAiResponseText(rawText)
   if (!trimmed) return ''
 
-  // Remove common markdown fences.
-  const cleaned = trimmed
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```$/i, '')
-    .trim()
-
-  if (tryParseJson(cleaned) !== null) {
-    return cleaned
+  if (tryParseJson(trimmed) !== null) {
+    return trimmed
   }
 
   // Try extracting JSON array first.
-  const firstArrayStart = cleaned.indexOf('[')
-  const lastArrayEnd = cleaned.lastIndexOf(']')
+  const firstArrayStart = trimmed.indexOf('[')
+  const lastArrayEnd = trimmed.lastIndexOf(']')
   if (firstArrayStart !== -1 && lastArrayEnd > firstArrayStart) {
-    const arrayCandidate = cleaned.slice(firstArrayStart, lastArrayEnd + 1)
-    if (tryParseJson(arrayCandidate) !== null) {
-      return arrayCandidate
-    }
+    return trimmed.slice(firstArrayStart, lastArrayEnd + 1).trim()
   }
 
   // Try extracting JSON object wrapper.
-  const firstObjectStart = cleaned.indexOf('{')
-  const lastObjectEnd = cleaned.lastIndexOf('}')
+  const firstObjectStart = trimmed.indexOf('{')
+  const lastObjectEnd = trimmed.lastIndexOf('}')
   if (firstObjectStart !== -1 && lastObjectEnd > firstObjectStart) {
-    const objectCandidate = cleaned.slice(firstObjectStart, lastObjectEnd + 1)
-    if (tryParseJson(objectCandidate) !== null) {
-      return objectCandidate
+    return trimmed.slice(firstObjectStart, lastObjectEnd + 1).trim()
+  }
+
+  return trimmed
+}
+
+function extractTopLevelObjectStrings(rawText) {
+  const text = sanitizeAiResponseText(rawText)
+  if (!text) return []
+
+  const objects = []
+  let startIndex = -1
+  let depth = 0
+  let inString = false
+  let isEscaped = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+
+    if (inString) {
+      if (isEscaped) {
+        isEscaped = false
+        continue
+      }
+
+      if (char === '\\') {
+        isEscaped = true
+        continue
+      }
+
+      if (char === '"') {
+        inString = false
+      }
+
+      continue
+    }
+
+    if (char === '"') {
+      inString = true
+      continue
+    }
+
+    if (char === '{') {
+      if (depth === 0) {
+        startIndex = index
+      }
+      depth += 1
+      continue
+    }
+
+    if (char === '}') {
+      if (depth === 0) continue
+
+      depth -= 1
+      if (depth === 0 && startIndex !== -1) {
+        objects.push(text.slice(startIndex, index + 1))
+        startIndex = -1
+      }
     }
   }
 
-  return cleaned
+  return objects
+}
+
+function extractRecoveredQuestionsPayload(rawText) {
+  const objectStrings = extractTopLevelObjectStrings(rawText)
+  if (objectStrings.length === 0) {
+    return null
+  }
+
+  const arrayCandidate = `[${objectStrings.join(',')}]`
+  return tryParseJson(arrayCandidate)
 }
 
 function extractQuestionsArray(parsedPayload) {
@@ -597,13 +885,36 @@ function resolveCorrectIndex(correctAnswer, options) {
  * @param {String} responseText - Raw response from Gemini API
  * @returns {Array} - Validated array of questions
  */
-export function parseAIResponse(responseText) {
+export function parseAIResponse(
+  responseText,
+  { fallbackDifficulty = 'medium', expectReviewFields = true } = {}
+) {
   try {
     const jsonText = extractJsonString(responseText)
-    const parsedPayload = tryParseJson(jsonText) ?? tryParseJson(repairJsonText(jsonText))
+    const parseCandidates = [
+      jsonText,
+      escapeInvalidJsonStringCharacters(jsonText),
+      repairJsonText(jsonText),
+      repairJsonText(escapeInvalidJsonStringCharacters(jsonText)),
+    ].filter(Boolean)
+    const uniqueCandidates = Array.from(new Set(parseCandidates))
+    let parsedPayload = null
+
+    for (const candidate of uniqueCandidates) {
+      parsedPayload = tryParseJson(candidate)
+      if (parsedPayload !== null) {
+        break
+      }
+    }
 
     if (parsedPayload === null) {
-      throw new Error('Response is not valid JSON')
+      parsedPayload = extractRecoveredQuestionsPayload(responseText)
+    }
+
+    if (parsedPayload === null) {
+      console.error('AI test raw response (invalid JSON):', responseText)
+      console.error('AI test extracted JSON candidate:', jsonText)
+      throw new Error('AI returned invalid JSON. Please try again.')
     }
 
     const questions = extractQuestionsArray(parsedPayload)
@@ -616,22 +927,11 @@ export function parseAIResponse(responseText) {
       if (!question?.question || typeof question.question !== 'string') {
         throw new Error(`Question ${index + 1} missing or invalid question text`)
       }
-      if (!question?.explanation || typeof question.explanation !== 'string') {
-        throw new Error(`Question ${index + 1} missing explanation`)
-      }
       const normalizedOptions = getNormalizedOptions(question, index)
-
-      const correctIndex = resolveCorrectIndex(question.correctAnswer, normalizedOptions)
-      if (correctIndex === -1) {
-        throw new Error(`Question ${index + 1} has invalid correctAnswer`)
-      }
-
-      return {
+      const baseQuestion = {
         question: question.question.trim(),
         options: normalizedOptions,
-        correctAnswer: OPTION_IDS[correctIndex],
-        explanation: question.explanation.trim(),
-        difficulty: normalizeDifficulty(question.difficulty),
+        difficulty: normalizeDifficulty(question.difficulty || fallbackDifficulty),
         ...(typeof question.subjectName === 'string' && question.subjectName.trim()
           ? { subjectName: question.subjectName.trim() }
           : {}),
@@ -642,11 +942,42 @@ export function parseAIResponse(responseText) {
           ? { sourceQuestion: question.sourceQuestion.trim() }
           : {}),
       }
+
+      if (!expectReviewFields) {
+        return baseQuestion
+      }
+
+      if (!question?.explanation || typeof question.explanation !== 'string') {
+        throw new Error(`Question ${index + 1} missing explanation`)
+      }
+
+      const correctIndex = resolveCorrectIndex(question.correctAnswer, normalizedOptions)
+      if (correctIndex === -1) {
+        throw new Error(`Question ${index + 1} has invalid correctAnswer`)
+      }
+
+      const normalizedExplanation = normalizeStructuredExplanation(question.explanation)
+
+      return {
+        ...baseQuestion,
+        correctAnswer: OPTION_IDS[correctIndex],
+        explanation: normalizedExplanation,
+      }
     })
 
     return validated
   } catch (error) {
     console.error('Failed to parse AI response:', error)
+    if (String(error?.message || '').toLowerCase().includes('invalid json')) {
+      throw error
+    }
     throw new Error(`Failed to parse AI-generated questions: ${error.message}`)
   }
+}
+
+export function parseAIQuestionOnlyResponse(responseText, options = {}) {
+  return parseAIResponse(responseText, {
+    ...options,
+    expectReviewFields: false,
+  })
 }

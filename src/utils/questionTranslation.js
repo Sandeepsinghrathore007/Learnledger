@@ -2,11 +2,19 @@ import { generateTextFromAI } from '@/utils/aiClient'
 
 const DEVANAGARI_REGEX = /[\u0900-\u097F]/g
 const LATIN_REGEX = /[A-Za-z]/g
-const TRANSLATION_OUTPUT_MAX_TOKENS = 3200
+const TRANSLATION_OUTPUT_MAX_TOKENS = 8192
 
 export function normalizeQuestionLanguage(rawLanguage) {
   const normalized = String(rawLanguage || 'english').trim().toLowerCase()
   return normalized === 'hindi' ? 'hindi' : 'english'
+}
+
+function tryParseJson(rawText) {
+  try {
+    return JSON.parse(rawText)
+  } catch {
+    return null
+  }
 }
 
 function countMatches(value, pattern) {
@@ -37,36 +45,153 @@ export function inferQuestionLanguageFromQuestion(question, fallbackLanguage = '
   return fallback
 }
 
-function extractJsonPayload(rawText) {
-  const text = String(rawText || '').trim()
-  if (!text) {
-    throw new Error('AI returned an empty response.')
-  }
-
-  const withoutFences = text
+function sanitizeAiResponseText(rawText) {
+  return String(rawText || '')
+    .trim()
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
     .replace(/\s*```$/i, '')
+    .replace(/^`+/, '')
+    .replace(/`+$/, '')
     .trim()
+}
 
-  try {
-    return JSON.parse(withoutFences)
-  } catch {
-    const firstArray = withoutFences.indexOf('[')
-    const lastArray = withoutFences.lastIndexOf(']')
-    if (firstArray !== -1 && lastArray !== -1 && lastArray > firstArray) {
-      return JSON.parse(withoutFences.slice(firstArray, lastArray + 1))
+function escapeInvalidJsonStringCharacters(rawText) {
+  const text = String(rawText || '')
+  if (!text) return text
+
+  let result = ''
+  let inString = false
+  let isEscaped = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+
+    if (!inString) {
+      if (char === '"') {
+        inString = true
+      }
+      result += char
+      continue
     }
 
-    const firstBrace = withoutFences.indexOf('{')
-    const lastBrace = withoutFences.lastIndexOf('}')
-
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      return JSON.parse(withoutFences.slice(firstBrace, lastBrace + 1))
+    if (isEscaped) {
+      result += char
+      isEscaped = false
+      continue
     }
 
-    throw new Error('AI did not return valid JSON.')
+    if (char === '\\') {
+      result += char
+      isEscaped = true
+      continue
+    }
+
+    if (char === '"') {
+      inString = false
+      result += char
+      continue
+    }
+
+    if (char === '\r') {
+      if (text[index + 1] === '\n') {
+        index += 1
+      }
+      result += '\\n'
+      continue
+    }
+
+    if (char === '\n') {
+      result += '\\n'
+      continue
+    }
+
+    if (char === '\t') {
+      result += '\\t'
+      continue
+    }
+
+    result += char
   }
+
+  return result
+}
+
+function repairJsonText(rawText) {
+  let repaired = String(rawText || '').trim()
+  if (!repaired) return repaired
+
+  repaired = repaired
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\bundefined\b/g, 'null')
+    .replace(/\bNaN\b/g, 'null')
+    .replace(/\bTrue\b/g, 'true')
+    .replace(/\bFalse\b/g, 'false')
+    .replace(/\bNone\b/g, 'null')
+
+  repaired = repaired.replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_\- ]*)(\s*:)/g, (_, start, key, end) => {
+    const safeKey = key.trim().replace(/"/g, '\\"')
+    return `${start}"${safeKey}"${end}`
+  })
+
+  repaired = repaired.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, inner) => {
+    const unescaped = inner.replace(/\\'/g, "'")
+    return JSON.stringify(unescaped)
+  })
+
+  repaired = repaired.replace(/,\s*([}\]])/g, '$1')
+  repaired = escapeInvalidJsonStringCharacters(repaired)
+
+  return repaired
+}
+
+function extractJsonCandidate(rawText) {
+  const text = sanitizeAiResponseText(rawText)
+  if (!text) return ''
+
+  if (tryParseJson(text) !== null) {
+    return text
+  }
+
+  const firstArray = text.indexOf('[')
+  const lastArray = text.lastIndexOf(']')
+  if (firstArray !== -1 && lastArray !== -1 && lastArray > firstArray) {
+    return text.slice(firstArray, lastArray + 1).trim()
+  }
+
+  const firstBrace = text.indexOf('{')
+  const lastBrace = text.lastIndexOf('}')
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return text.slice(firstBrace, lastBrace + 1).trim()
+  }
+
+  return text
+}
+
+function extractJsonPayload(rawText) {
+  const jsonCandidate = extractJsonCandidate(rawText)
+  if (!jsonCandidate) {
+    throw new Error('AI returned an empty response.')
+  }
+
+  const parseCandidates = [
+    jsonCandidate,
+    escapeInvalidJsonStringCharacters(jsonCandidate),
+    repairJsonText(jsonCandidate),
+    repairJsonText(escapeInvalidJsonStringCharacters(jsonCandidate)),
+  ].filter(Boolean)
+
+  for (const candidate of Array.from(new Set(parseCandidates))) {
+    const parsed = tryParseJson(candidate)
+    if (parsed !== null) {
+      return parsed
+    }
+  }
+
+  console.error('Raw translation response (invalid JSON):', rawText)
+  console.error('Extracted translation JSON candidate:', jsonCandidate)
+  throw new Error('AI returned invalid JSON for translation. Please try again.')
 }
 
 function normalizeTranslatedQuestion(rawTranslation, originalQuestion) {
@@ -75,22 +200,20 @@ function normalizeTranslatedQuestion(rawTranslation, originalQuestion) {
   }
 
   const translatedQuestion = String(rawTranslation.question || '').trim()
-  const translatedExplanation = String(rawTranslation.explanation || '').trim()
-  const translatedOptions = Array.isArray(rawTranslation.options) ? rawTranslation.options : []
+  const translatedOptionMap = normalizeInlineOptionMap(rawTranslation.options)
+  const originalOptions = Array.isArray(originalQuestion?.options) ? originalQuestion.options : []
 
-  if (!translatedQuestion || translatedOptions.length !== (originalQuestion?.options || []).length) {
+  if (!translatedQuestion || translatedOptionMap.size !== originalOptions.length) {
     throw new Error('AI returned an incomplete question translation.')
   }
 
-  const translatedOptionMap = new Map(
-    translatedOptions.map((option) => [
-      String(option?.id || '').trim().toLowerCase(),
-      String(option?.text || '').trim(),
-    ])
-  )
-
-  const options = (originalQuestion?.options || []).map((option) => {
-    const translatedText = translatedOptionMap.get(String(option.id || '').trim().toLowerCase())
+  const options = originalOptions.map((option, index) => {
+    const normalizedOptionId = String(option?.id || '').trim().toLowerCase()
+    const fallbackOptionId = String.fromCharCode(97 + index)
+    const translatedText = (
+      translatedOptionMap.get(normalizedOptionId)
+      || translatedOptionMap.get(fallbackOptionId)
+    )
 
     if (!translatedText) {
       throw new Error('AI translation missed one or more answer options.')
@@ -105,7 +228,61 @@ function normalizeTranslatedQuestion(rawTranslation, originalQuestion) {
   return {
     ...originalQuestion,
     question: translatedQuestion,
-    explanation: translatedExplanation || String(originalQuestion?.explanation || '').trim(),
+    explanation: String(originalQuestion?.explanation || '').trim(),
+    options,
+  }
+}
+
+function normalizeInlineOptionMap(rawOptions) {
+  if (!rawOptions || typeof rawOptions !== 'object') {
+    return new Map()
+  }
+
+  if (Array.isArray(rawOptions)) {
+    return new Map(
+      rawOptions.map((option) => [
+        String(option?.id || '').trim().toLowerCase(),
+        String(option?.text || '').trim(),
+      ])
+    )
+  }
+
+  return new Map(
+    Object.entries(rawOptions).map(([optionId, text]) => [
+      String(optionId || '').trim().toLowerCase(),
+      String(text || '').trim(),
+    ])
+  )
+}
+
+export function getInlineQuestionTranslation(question, targetLanguage) {
+  const normalizedTargetLanguage = normalizeQuestionLanguage(targetLanguage)
+  const translation = question?.translations?.[normalizedTargetLanguage]
+  if (!translation || typeof translation !== 'object') {
+    return null
+  }
+
+  const translatedQuestion = String(translation.question || '').trim()
+  if (!translatedQuestion) {
+    return null
+  }
+
+  const translatedOptionMap = normalizeInlineOptionMap(translation.options)
+  const options = Array.isArray(question?.options)
+    ? question.options.map((option) => ({
+        ...option,
+        text: translatedOptionMap.get(String(option?.id || '').trim().toLowerCase()) || String(option?.text || '').trim(),
+      }))
+    : []
+
+  if (options.length === 0) {
+    return null
+  }
+
+  return {
+    ...question,
+    question: translatedQuestion,
+    explanation: String(question?.explanation || '').trim(),
     options,
   }
 }
@@ -116,7 +293,6 @@ function validateTranslatedLanguage(question, targetLanguage) {
   const combinedText = [
     question?.question,
     ...(Array.isArray(question?.options) ? question.options.map((option) => option?.text) : []),
-    question?.explanation,
   ]
     .filter(Boolean)
     .join(' ')
@@ -139,25 +315,32 @@ function normalizeTranslatedQuestionBatch(rawTranslations, originalQuestions) {
 
   return originalQuestions.map((question, index) => {
     const rawTranslation = items[index]
-    const translationId = String(rawTranslation?.id || '').trim()
-
-    if (translationId && translationId !== String(question?.id || '').trim()) {
-      throw new Error('AI returned batch translations out of order.')
-    }
-
     return normalizeTranslatedQuestion(rawTranslation, question)
   })
+}
+
+function buildTranslationPayloadQuestion(question) {
+  const optionEntries = Array.isArray(question?.options)
+    ? question.options.map((option, index) => {
+        const normalizedOptionId = String(option?.id || '').trim().toUpperCase()
+        const optionKey = normalizedOptionId || String.fromCharCode(65 + index)
+        return [optionKey, String(option?.text || '').trim()]
+      })
+    : []
+
+  return {
+    question: String(question?.question || '').trim(),
+    options: Object.fromEntries(optionEntries),
+  }
 }
 
 export async function translateQuestionBatch(questions, targetLanguage) {
   const normalizedTargetLanguage = normalizeQuestionLanguage(targetLanguage)
   const languageLabel = normalizedTargetLanguage === 'hindi' ? 'Hindi' : 'English'
-  const languageInstruction = normalizedTargetLanguage === 'hindi'
-    ? 'Translate every question, option, and explanation into Hindi using Devanagari script only. Never use Romanized Hindi.'
-    : 'Translate every question, option, and explanation into natural English.'
   const normalizedQuestions = Array.isArray(questions)
     ? questions.filter((question) => question && Array.isArray(question.options))
     : []
+  const translationPayload = normalizedQuestions.map((question) => buildTranslationPayloadQuestion(question))
 
   if (normalizedQuestions.length === 0) {
     return []
@@ -169,30 +352,47 @@ export async function translateQuestionBatch(questions, targetLanguage) {
 
   const generated = await generateTextFromAI({
     systemPrompt: [
-      'You translate quiz questions for a study app in batches.',
-      `Target language: ${languageLabel}.`,
-      languageInstruction,
-      'Return only one valid JSON array.',
-      'Each array item must have these exact keys:',
-      '{"id":"","question":"","options":[{"id":"a","text":""}],"explanation":""}',
-      'Keep the same order, same number of questions, same number of options, and same option ids.',
-      'Do not solve the question. Do not add commentary. Do not remove details.',
+      'You translate quiz questions for a study app in one batch.',
+      normalizedTargetLanguage === 'hindi'
+        ? 'Translate ONLY the question and options into Hindi.'
+        : `Translate ONLY the question and options into ${languageLabel}.`,
+      'STRICT RULES:',
+      'Return ONLY valid JSON',
+      'Do NOT add any explanation or extra text',
+      'Do NOT change JSON structure',
+      'Do NOT remove any fields',
+      'Keep keys exactly same',
+      'Do NOT wrap response in markdown',
+      'Translate values only. Preserve the same order and number of items.',
+      normalizedTargetLanguage === 'hindi'
+        ? 'Use Devanagari script for Hindi. Do not use Romanized Hindi.'
+        : 'Use natural, readable English.',
+      'INPUT FORMAT:',
+      '[',
+      '{',
+      '"question": "...",',
+      '"options": {',
+      '"A": "...",',
+      '"B": "...",',
+      '"C": "...",',
+      '"D": "..."',
+      '}',
+      '}',
+      ']',
+      'OUTPUT FORMAT (MUST MATCH EXACTLY):',
+      '[',
+      '{',
+      '"question": "...",',
+      '"options": {',
+      '"A": "...",',
+      '"B": "...",',
+      '"C": "...",',
+      '"D": "..."',
+      '}',
+      '}',
+      ']',
     ].join('\n'),
-    userPrompt: JSON.stringify(
-      normalizedQuestions.map((question) => ({
-        id: String(question?.id || '').trim(),
-        question: String(question?.question || '').trim(),
-        options: Array.isArray(question?.options)
-          ? question.options.map((option) => ({
-              id: option.id,
-              text: String(option?.text || '').trim(),
-            }))
-          : [],
-        explanation: String(question?.explanation || '').trim(),
-      })),
-      null,
-      2
-    ),
+    userPrompt: JSON.stringify(translationPayload, null, 2),
     temperature: 0.1,
     maxTokens,
   })

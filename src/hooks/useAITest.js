@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { determinePerformanceLevel } from '@/utils/testScoring'
 import {
   deleteTest as deleteTestDoc,
   generateTest as generateTestFromService,
+  generateTestReviewData as generateTestReviewDataFromService,
   saveTestResult as saveTestResultDoc,
+  saveTestReviewData as saveTestReviewDataDoc,
   subscribeToTests,
 } from '@/services/firebase/testsService'
 
@@ -17,6 +19,7 @@ export function useAITest(subjects, onUpdateSubject, user, options = {}) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationStatus, setGenerationStatus] = useState('')
   const [error, setError] = useState(null)
+  const reviewTaskMapRef = useRef(new Map())
 
   const isAuthenticated = Boolean(user?.uid)
   const testHistory = useMemo(
@@ -139,6 +142,62 @@ export function useAITest(subjects, onUpdateSubject, user, options = {}) {
     }
   }, [isAuthenticated, user?.uid])
 
+  const saveTestReviewData = useCallback(async (testAttempt) => {
+    if (!testAttempt?.id) return
+
+    if (!isAuthenticated) {
+      setGuestTestHistory((previous) => {
+        const existingIndex = previous.findIndex((item) => item.id === testAttempt.id)
+        if (existingIndex === -1) {
+          return [...previous, testAttempt]
+        }
+
+        const next = previous.slice()
+        next[existingIndex] = testAttempt
+        return next
+      })
+      return
+    }
+
+    try {
+      await saveTestReviewDataDoc(user.uid, testAttempt)
+    } catch (saveError) {
+      console.error('Failed to save test review data:', saveError)
+    }
+  }, [isAuthenticated, user?.uid])
+
+  const startTestReviewGeneration = useCallback((test, { onComplete = null, onError = null } = {}) => {
+    if (!test?.id || !test?.metadata?.reviewGeneration?.isAiProcessing) {
+      return Promise.resolve(null)
+    }
+
+    const existingTask = reviewTaskMapRef.current.get(test.id)
+    if (existingTask) {
+      return existingTask
+    }
+
+    const task = generateTestReviewDataFromService({ test })
+      .then((reviewPatch) => {
+        if (typeof onComplete === 'function') {
+          onComplete(reviewPatch)
+        }
+        return reviewPatch
+      })
+      .catch((reviewError) => {
+        console.error('Failed to prepare test review data:', reviewError)
+        if (typeof onError === 'function') {
+          onError(reviewError)
+        }
+        return null
+      })
+      .finally(() => {
+        reviewTaskMapRef.current.delete(test.id)
+      })
+
+    reviewTaskMapRef.current.set(test.id, task)
+    return task
+  }, [])
+
   const getAIPerformance = useCallback((subjectId) => {
     const subjectTests = testHistory.filter((test) =>
       test.metadata?.subjects?.some((subject) => subject.id === subjectId)
@@ -170,6 +229,8 @@ export function useAITest(subjects, onUpdateSubject, user, options = {}) {
     error,
     generateTest,
     saveTestResult,
+    saveTestReviewData,
+    startTestReviewGeneration,
     getAIPerformance,
     deleteTest,
   }

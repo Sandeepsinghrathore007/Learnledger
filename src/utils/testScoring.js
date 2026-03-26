@@ -12,13 +12,36 @@
  * Calculate the score for a completed test attempt.
  * Returns detailed scoring breakdown.
  */
+const SCORABLE_OPTION_IDS = new Set(['a', 'b', 'c', 'd'])
+
+function hasScorableCorrectAnswer(question) {
+  const correctAnswer = String(question?.correctAnswer || '').trim().toLowerCase()
+  return SCORABLE_OPTION_IDS.has(correctAnswer)
+}
+
 export function calculateScore(questions, answers) {
   let correct = 0
   let incorrect = 0
   let unanswered = 0
+  let scorableQuestions = 0
+  let ungradedQuestions = 0
 
   const results = questions.map(question => {
     const userAnswer = answers[question.id]
+    const isScorable = hasScorableCorrectAnswer(question)
+
+    if (!isScorable) {
+      ungradedQuestions++
+      return {
+        questionId: question.id,
+        correct: null,
+        unanswered: !userAnswer,
+        ungraded: true,
+        userAnswer: userAnswer || null,
+      }
+    }
+
+    scorableQuestions++
     const isCorrect = userAnswer === question.correctAnswer
     
     if (!userAnswer) {
@@ -46,8 +69,10 @@ export function calculateScore(questions, answers) {
   })
 
   const totalQuestions = questions.length
-  const percentage = Math.round((correct / totalQuestions) * 100)
-  const passed = percentage >= 70 // Default pass threshold
+  const percentage = scorableQuestions > 0
+    ? Math.round((correct / scorableQuestions) * 100)
+    : 0
+  const passed = scorableQuestions > 0 && percentage >= 70 // Default pass threshold
 
   return {
     score: correct,
@@ -55,6 +80,8 @@ export function calculateScore(questions, answers) {
     incorrect,
     unanswered,
     totalQuestions,
+    scorableQuestions,
+    ungradedQuestions,
     percentage,
     passed,
     results,
@@ -116,6 +143,8 @@ export function analyzeWeakAreas(questions, answers, subjectData) {
   const subjectPerformance = {}
 
   questions.forEach(question => {
+    if (!hasScorableCorrectAnswer(question)) return
+
     const subjectId = question.sourceSubject || question.subjectName || null
     if (subjectId) {
       if (!subjectPerformance[subjectId]) {
@@ -198,6 +227,8 @@ export function calculateAccuracyByDifficulty(questions, answers) {
   }
 
   questions.forEach(question => {
+    if (!hasScorableCorrectAnswer(question)) return
+
     const difficulty = question.difficulty || 'medium'
     const userAnswer = answers[question.id]
     

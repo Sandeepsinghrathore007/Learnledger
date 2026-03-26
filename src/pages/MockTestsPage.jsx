@@ -12,7 +12,7 @@
  *  onUpdateSubject {Function} — Update subject callback
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAITest } from '@/hooks/useAITest'
 import TestConfigModal from '@/components/tests/TestConfigModal'
 import TestTakingView from '@/components/tests/TestTakingView'
@@ -23,6 +23,7 @@ import PrimaryCtaButton from '@/components/ui/PrimaryCtaButton'
 import { MockTestsIcon, PlusIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 import { buildQuestionBankSubjectUpdates } from '@/utils/questionBank'
+import { applyReviewPatchToTest } from '@/utils/testReviewState'
 import { resolveTestDisplay } from '@/utils/testDisplay'
 import { isMockTest } from '@/utils/testKinds'
 
@@ -49,6 +50,8 @@ export default function MockTestsPage({
   const [viewingResults, setViewingResults] = useState(null) // Viewing results
   const [historyPage, setHistoryPage] = useState(1)
   const [topicPreset, setTopicPreset] = useState(null)
+  const activeTestRef = useRef(null)
+  const viewingResultsRef = useRef(null)
 
   // ── AI TEST HOOK ───────────────────────────────────────────────────────────
   const {
@@ -57,6 +60,8 @@ export default function MockTestsPage({
     error,
     generateTest,
     saveTestResult,
+    saveTestReviewData,
+    startTestReviewGeneration,
     deleteTest,
   } = useAITest(subjects, onUpdateSubject, user, {
     subscribe: isActive,
@@ -88,6 +93,66 @@ export default function MockTestsPage({
   }, [displayTestHistory.length])
 
   useEffect(() => {
+    activeTestRef.current = activeTest
+  }, [activeTest])
+
+  useEffect(() => {
+    viewingResultsRef.current = viewingResults
+  }, [viewingResults])
+
+  const applyReviewPatch = useCallback((testId, reviewPatch) => {
+    const nextActiveTest = activeTestRef.current?.id === testId
+      ? applyReviewPatchToTest(activeTestRef.current, reviewPatch)
+      : null
+    const nextViewingResults = viewingResultsRef.current?.id === testId
+      ? applyReviewPatchToTest(viewingResultsRef.current, reviewPatch)
+      : null
+
+    if (nextActiveTest) {
+      setActiveTest(nextActiveTest)
+    }
+
+    if (nextViewingResults) {
+      setViewingResults(nextViewingResults)
+    }
+
+    if (nextViewingResults?.completedAt || nextViewingResults?.endTime) {
+      saveTestReviewData(nextViewingResults)
+    }
+  }, [saveTestReviewData])
+
+  const beginBackgroundReview = useCallback((test) => {
+    if (!test?.id || !test?.metadata?.reviewGeneration?.isAiProcessing) {
+      return
+    }
+
+    startTestReviewGeneration(test, {
+      onComplete: (reviewPatch) => {
+        if (!reviewPatch) return
+        applyReviewPatch(test.id, reviewPatch)
+      },
+      onError: (reviewError) => {
+        const failedReviewGeneration = {
+          ...(test?.metadata?.reviewGeneration || {}),
+          isAiProcessing: false,
+          isComplete: false,
+          error: reviewError?.message || 'AI analysis is unavailable right now.',
+          statusText: 'AI analysis could not be completed.',
+        }
+
+        applyReviewPatch(test.id, {
+          questionUpdatesById: {},
+          reviewExplanations:
+            test?.reviewExplanations && typeof test.reviewExplanations === 'object'
+              ? test.reviewExplanations
+              : {},
+          reviewGeneration: failedReviewGeneration,
+        })
+      },
+    })
+  }, [applyReviewPatch, startTestReviewGeneration])
+
+  useEffect(() => {
     if (!topicLaunchKey || !initialTopicContext?.topicId || !initialTopicContext?.subjectId) return
 
     setTopicPreset({
@@ -117,14 +182,16 @@ export default function MockTestsPage({
       
       // Start test immediately
       const displayTest = resolveTestDisplay(test, subjects)
-
-      setActiveTest({
+      const liveTest = {
         ...displayTest,
         startTime: new Date().toISOString(),
         answers: {},
         bookmarkedQuestions: [],
         hintsUsed: [],
-      })
+      }
+
+      setActiveTest(liveTest)
+      beginBackgroundReview(liveTest)
     } catch (err) {
       // Error already handled in hook
       console.error('Test generation failed:', err)
@@ -136,20 +203,23 @@ export default function MockTestsPage({
     saveTestResult(testAttempt)
     setActiveTest(null)
     setViewingResults(testAttempt)
+    beginBackgroundReview(testAttempt)
   }
 
   // ── HANDLE RETAKE TEST ─────────────────────────────────────────────────────
   const handleRetakeTest = (test) => {
     const displayTest = resolveTestDisplay(test, subjects)
-
-    setViewingResults(null)
-    setActiveTest({
+    const liveTest = {
       ...displayTest,
       startTime: new Date().toISOString(),
       answers: {},
       bookmarkedQuestions: [],
       hintsUsed: [],
-    })
+    }
+
+    setViewingResults(null)
+    setActiveTest(liveTest)
+    beginBackgroundReview(liveTest)
   }
 
   const handleOpenGeneralConfig = () => {
@@ -289,7 +359,11 @@ export default function MockTestsPage({
                 <TestCard
                   key={test.id}
                   test={test}
-                  onView={() => setViewingResults(resolveTestDisplay(test, subjects))}
+                  onView={() => {
+                    const displayTest = resolveTestDisplay(test, subjects)
+                    setViewingResults(displayTest)
+                    beginBackgroundReview(displayTest)
+                  }}
                   onRetake={() => handleRetakeTest(test)}
                   onDelete={() => deleteTest(test.id)}
                 />

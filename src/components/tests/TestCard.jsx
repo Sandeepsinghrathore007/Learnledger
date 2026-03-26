@@ -20,9 +20,40 @@ function formatRelativeDate(dateString) {
 }
 
 export default function TestCard({ test, onView, onRetake, onDelete }) {
-  const { title, score, totalQuestions, percentage, passed, timeTaken, completedAt, metadata } = test
+  const {
+    title,
+    score,
+    totalQuestions,
+    percentage,
+    passed,
+    timeTaken,
+    completedAt,
+    metadata,
+    scorableQuestions = totalQuestions,
+    removedQuestionIds = [],
+    removedQuestionsCount: rawRemovedQuestionsCount,
+  } = test
+  const removedQuestionsCount = Number.isFinite(rawRemovedQuestionsCount)
+    ? rawRemovedQuestionsCount
+    : Array.isArray(removedQuestionIds)
+      ? removedQuestionIds.length
+      : 0
   const subjectColor = metadata?.subjects?.[0]?.color || '#8b5cf6'
-  const statusTone = passed
+  const isReviewProcessing = Boolean(metadata?.reviewGeneration?.isAiProcessing)
+  const isUngraded = Number(scorableQuestions || 0) === 0
+  const statusTone = isReviewProcessing
+    ? {
+      background: 'rgba(56,189,248,0.12)',
+      border: 'rgba(56,189,248,0.24)',
+      color: '#7dd3fc',
+    }
+    : isUngraded
+    ? {
+      background: 'rgba(245,158,11,0.12)',
+      border: 'rgba(245,158,11,0.24)',
+      color: '#fbbf24',
+    }
+    : passed
     ? {
       background: 'rgba(34,197,94,0.12)',
       border: 'rgba(34,197,94,0.24)',
@@ -33,6 +64,9 @@ export default function TestCard({ test, onView, onRetake, onDelete }) {
       border: 'rgba(239,68,68,0.24)',
       color: '#f87171',
     }
+  const scoreLabel = isReviewProcessing ? 'AI key' : isUngraded ? 'No key' : `${score}/${scorableQuestions}`
+  const percentageLabel = isReviewProcessing ? '...' : isUngraded ? 'NA' : `${percentage}%`
+  const statusLabel = isReviewProcessing ? 'Preparing' : isUngraded ? 'Ungraded' : passed ? 'Passed' : 'Failed'
 
   return (
     <div
@@ -77,7 +111,7 @@ export default function TestCard({ test, onView, onRetake, onDelete }) {
             fontWeight: '800',
             lineHeight: 1,
           }}>
-            {percentage}%
+            {percentageLabel}
           </div>
           <div style={{
             color: TEXT3,
@@ -85,7 +119,7 @@ export default function TestCard({ test, onView, onRetake, onDelete }) {
             fontSize: '9px',
             marginTop: '3px',
           }}>
-            {score}/{totalQuestions}
+            {scoreLabel}
           </div>
         </div>
 
@@ -117,7 +151,7 @@ export default function TestCard({ test, onView, onRetake, onDelete }) {
               fontWeight: '700',
               whiteSpace: 'nowrap',
             }}>
-              {passed ? 'Passed' : 'Failed'}
+              {statusLabel}
             </span>
 
             <span style={{
@@ -137,6 +171,17 @@ export default function TestCard({ test, onView, onRetake, onDelete }) {
             }}>
               {formatRelativeDate(completedAt)}
             </span>
+
+            {removedQuestionsCount > 0 && (
+              <span style={{
+                color: '#fb923c',
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '11px',
+                whiteSpace: 'nowrap',
+              }}>
+                Removed {removedQuestionsCount}
+              </span>
+            )}
           </div>
         </div>
 

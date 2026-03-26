@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 import { extractQuestionBlocksFromText } from '@/utils/examGeneration'
+import { parseQuestionsFromTextWithStats } from '@/utils/manualQuestionParser'
 import { extractPdfKnowledgeFromFile } from '@/utils/pdfKnowledge'
 
 function buildInitialState(initialGroupContext) {
@@ -10,6 +11,7 @@ function buildInitialState(initialGroupContext) {
     sourceType: 'text',
     questionText: '',
     pdfFile: null,
+    parsingMode: 'ai',
     language: 'english',
     selectedSubjectIds: Array.isArray(initialGroupContext?.subjectIds) ? initialGroupContext.subjectIds : [],
     selectedGroupId: initialGroupContext?.id || '',
@@ -24,6 +26,8 @@ function buildInitialDetectionState() {
     loading: false,
     sourceText: '',
     questionCount: 0,
+    blockCount: 0,
+    skippedBlocks: 0,
     error: '',
     detected: false,
   }
@@ -74,7 +78,9 @@ export default function ExamCreationModal({
   }, [examGroups, form.selectedGroupId, initialGroupContext])
 
   const detectedQuestionCount = detection.questionCount
+  const detectedBlockCount = detection.blockCount
   const sourceText = detection.sourceText
+  const isManualMode = form.parsingMode === 'manual'
   const canGenerate = Boolean(
     !isGenerating
     && detection.detected
@@ -85,7 +91,7 @@ export default function ExamCreationModal({
 
   const setField = (field, value) => {
     setForm((previous) => ({ ...previous, [field]: value }))
-    if (field === 'questionText' || field === 'pdfFile' || field === 'sourceType') {
+    if (field === 'questionText' || field === 'pdfFile' || field === 'sourceType' || field === 'parsingMode') {
       detectRunRef.current += 1
       setDetection(buildInitialDetectionState())
     }
@@ -123,6 +129,7 @@ export default function ExamCreationModal({
       sourceLabel: form.sourceType === 'pdf'
         ? form.pdfFile?.name || 'Question PDF'
         : 'Pasted Questions',
+      parsingMode: form.parsingMode === 'manual' ? 'manual' : 'ai',
       language: form.language,
       subjectIds: form.selectedSubjectIds,
       groupId: selectedGroup?.id || null,
@@ -133,6 +140,16 @@ export default function ExamCreationModal({
       timingMode: form.timingMode,
       timePerQuestion: form.timingMode === 'per-question' ? form.timePerQuestion : null,
     })
+  }
+
+  const buildManualDetection = (text) => {
+    const manualParseResult = parseQuestionsFromTextWithStats(text)
+
+    return {
+      questionCount: manualParseResult.parsedQuestions,
+      blockCount: manualParseResult.totalBlocks,
+      skippedBlocks: manualParseResult.skippedBlocks,
+    }
   }
 
   const handleDetectQuestions = async () => {
@@ -146,21 +163,34 @@ export default function ExamCreationModal({
           loading: false,
           sourceText: '',
           questionCount: 0,
+          blockCount: 0,
+          skippedBlocks: 0,
           error: 'Paste your questions first, then click Detect Questions.',
           detected: false,
         })
         return
       }
 
-      const questionBlocks = extractQuestionBlocksFromText(questionText)
+      const manualDetection = isManualMode ? buildManualDetection(questionText) : null
+      const questionCount = isManualMode
+        ? manualDetection.questionCount
+        : extractQuestionBlocksFromText(questionText).length
       setDetection({
         loading: false,
         sourceText: questionText,
-        questionCount: questionBlocks.length,
-        error: questionBlocks.length > 0
+        questionCount,
+        blockCount: isManualMode ? manualDetection.blockCount : questionCount,
+        skippedBlocks: isManualMode ? manualDetection.skippedBlocks : 0,
+        error: questionCount > 0
           ? ''
-          : 'Questions could not be detected. Put each question on a new line or use numbering like 1., 2., Q1.',
-        detected: questionBlocks.length > 0,
+          : isManualMode
+            ? (
+              manualDetection.blockCount > 0
+                ? `${manualDetection.blockCount} question blocks detected, but no valid questions were parsed.`
+                : 'No question blocks were detected. Use numbering like 1., 2., Q1.'
+            )
+            : 'Questions could not be detected. Put each question on a new line or use numbering like 1., 2., Q1.',
+        detected: questionCount > 0,
       })
       return
     }
@@ -170,6 +200,8 @@ export default function ExamCreationModal({
         loading: false,
         sourceText: '',
         questionCount: 0,
+        blockCount: 0,
+        skippedBlocks: 0,
         error: 'Choose a PDF file first, then click Detect Questions.',
         detected: false,
       })
@@ -180,6 +212,8 @@ export default function ExamCreationModal({
       loading: true,
       sourceText: '',
       questionCount: 0,
+      blockCount: 0,
+      skippedBlocks: 0,
       error: '',
       detected: false,
     })
@@ -189,18 +223,29 @@ export default function ExamCreationModal({
       if (detectRunRef.current !== runId) return
 
       const pdfText = String(knowledge?.fullText || knowledge?.text || knowledge?.preview || '').trim()
-      const questionBlocks = extractQuestionBlocksFromText(pdfText)
+      const manualDetection = isManualMode ? buildManualDetection(pdfText) : null
+      const questionCount = isManualMode
+        ? manualDetection.questionCount
+        : extractQuestionBlocksFromText(pdfText).length
 
       setDetection({
         loading: false,
         sourceText: pdfText,
-        questionCount: questionBlocks.length,
+        questionCount,
+        blockCount: isManualMode ? manualDetection.blockCount : questionCount,
+        skippedBlocks: isManualMode ? manualDetection.skippedBlocks : 0,
         error: pdfText
-          ? (questionBlocks.length > 0
+          ? (questionCount > 0
               ? ''
-              : 'PDF text was read, but questions could not be detected clearly.')
+              : isManualMode
+                ? (
+                  manualDetection.blockCount > 0
+                    ? `${manualDetection.blockCount} question blocks detected, but no valid questions were parsed from this PDF.`
+                    : 'PDF text was extracted, but no question blocks were detected clearly.'
+                )
+                : 'PDF text was read, but questions could not be detected clearly.')
           : 'Readable text could not be extracted from this PDF.',
-        detected: questionBlocks.length > 0,
+        detected: questionCount > 0,
       })
     } catch (error) {
       if (detectRunRef.current !== runId) return
@@ -209,6 +254,8 @@ export default function ExamCreationModal({
         loading: false,
         sourceText: '',
         questionCount: 0,
+        blockCount: 0,
+        skippedBlocks: 0,
         error: error?.message || 'Unable to read this PDF right now.',
         detected: false,
       })
@@ -291,38 +338,6 @@ export default function ExamCreationModal({
 
         <div>
           <div style={{ color: TEXT1, fontSize: '12px', fontWeight: '700', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
-            Mock Test Language
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {EXAM_LANGUAGE_OPTIONS.map((option) => {
-              const isSelected = form.language === option.id
-
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setField('language', option.id)}
-                  style={{
-                    height: '40px',
-                    borderRadius: '10px',
-                    border: `1px solid ${isSelected ? 'rgba(14,165,233,0.36)' : BORDER}`,
-                    background: isSelected ? 'rgba(14,165,233,0.12)' : 'rgba(255,255,255,0.03)',
-                    color: isSelected ? '#dbeafe' : TEXT2,
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: '13px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <div>
-          <div style={{ color: TEXT1, fontSize: '12px', fontWeight: '700', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
             Question Source
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -350,6 +365,78 @@ export default function ExamCreationModal({
             ))}
           </div>
         </div>
+
+        <div>
+          <div style={{ color: TEXT1, fontSize: '12px', fontWeight: '700', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
+            Parsing Mode
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { id: 'ai', label: 'AI Mode' },
+              { id: 'manual', label: 'Manual Mode (No AI)' },
+            ].map((option) => {
+              const isSelected = form.parsingMode === option.id
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setField('parsingMode', option.id)}
+                  style={{
+                    height: '40px',
+                    borderRadius: '10px',
+                    border: `1px solid ${isSelected ? 'rgba(14,165,233,0.36)' : BORDER}`,
+                    background: isSelected ? 'rgba(14,165,233,0.12)' : 'rgba(255,255,255,0.03)',
+                    color: isSelected ? '#dbeafe' : TEXT2,
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ color: TEXT3, fontSize: '11px', marginTop: '8px', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
+            Manual = faster, no API | AI = smarter parsing
+          </div>
+        </div>
+
+        {!isManualMode && (
+          <div>
+            <div style={{ color: TEXT1, fontSize: '12px', fontWeight: '700', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
+              Mock Test Language
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {EXAM_LANGUAGE_OPTIONS.map((option) => {
+                const isSelected = form.language === option.id
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setField('language', option.id)}
+                    style={{
+                      height: '40px',
+                      borderRadius: '10px',
+                      border: `1px solid ${isSelected ? 'rgba(14,165,233,0.36)' : BORDER}`,
+                      background: isSelected ? 'rgba(14,165,233,0.12)' : 'rgba(255,255,255,0.03)',
+                      color: isSelected ? '#dbeafe' : TEXT2,
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {form.sourceType === 'text' ? (
           <div>
@@ -431,8 +518,18 @@ export default function ExamCreationModal({
                 {detection.error}
               </div>
             ) : detection.detected ? (
-              <div style={{ color: '#86efac', fontSize: '11px', marginTop: '8px', fontFamily: "'DM Sans', sans-serif" }}>
-                {detectedQuestionCount} question{detectedQuestionCount === 1 ? '' : 's'} detected.
+              <div style={{ color: '#86efac', fontSize: '11px', marginTop: '8px', fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>
+                {isManualMode ? (
+                  <>
+                    <div>{detectedBlockCount} question block{detectedBlockCount === 1 ? '' : 's'} detected</div>
+                    <div>{detectedQuestionCount} valid question{detectedQuestionCount === 1 ? '' : 's'} parsed</div>
+                    {detection.skippedBlocks > 0 && (
+                      <div>{detection.skippedBlocks} block{detection.skippedBlocks === 1 ? '' : 's'} skipped</div>
+                    )}
+                  </>
+                ) : (
+                  <div>{detectedQuestionCount} question{detectedQuestionCount === 1 ? '' : 's'} detected.</div>
+                )}
               </div>
             ) : null}
           </div>
@@ -506,7 +603,7 @@ export default function ExamCreationModal({
         <div className="grid gap-4 md:grid-cols-3">
           <div>
             <label style={{ display: 'block', color: TEXT1, fontSize: '12px', fontWeight: '700', marginBottom: '8px', fontFamily: "'DM Sans', sans-serif" }}>
-              Detected Questions
+              {isManualMode ? 'Valid Questions Parsed' : 'Detected Questions'}
             </label>
             <div style={{
               height: '42px',

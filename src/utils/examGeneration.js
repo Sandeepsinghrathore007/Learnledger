@@ -225,8 +225,11 @@ export function buildExamPrompt({
     .join(', ')
   const allowedTopics = buildAllowedTopicLines(linkedSubjects)
   const languageInstruction = normalizedLanguage === 'hindi'
-    ? 'Write question, options, and explanation in Hindi using Devanagari script. Do not use Romanized Hindi.'
-    : 'Write question, options, and explanation in natural English.'
+    ? 'Write question and options in Hindi using Devanagari script. Do not use Romanized Hindi for the question or options.'
+    : 'Write question and options in natural English.'
+  const explanationLanguageInstruction = normalizedLanguage === 'hindi'
+    ? 'Write explanation in Hinglish style but in Hindi (Devanagari) script. Use simple conversational teacher language. Common English words like option, concept, rule, formula, logic are allowed naturally. Avoid pure English sentences and avoid overly formal Hindi.'
+    : 'Write explanation in Hinglish style but in Hindi (Devanagari) script. Use simple conversational teacher language. Common English words like option, concept, rule, formula, logic are allowed naturally. Avoid pure English sentences and avoid overly formal Hindi.'
   const subjectInstruction = linkedSubjects.length > 0
     ? `Choose subjectName and topicName using only the allowed subjects/topics below when they clearly match. Use the exact same spellings as the allowed list. If unsure, keep subjectName and topicName as empty strings.\n\nALLOWED SUBJECTS AND TOPICS:\n${allowedTopics}`
     : 'Infer subjectName and topicName only if they are obvious from the question. Otherwise keep them as empty strings.'
@@ -240,6 +243,7 @@ TARGET LANGUAGE: ${languageLabel}
 
 ${subjectInstruction}
 ${languageInstruction}
+${explanationLanguageInstruction}
 
 TASK:
 Convert each extracted question below into exactly one MCQ entry.
@@ -259,8 +263,27 @@ REQUIREMENTS:
    - subjectName
    - topicName
 3. correctAnswer must be one of "a", "b", "c", "d".
-4. explanation should be concise but clear.
-5. Keep subjectName/topicName empty when uncertain.
+4. explanation must be a mini-teacher style explanation that improves future question solving.
+5. explanation must be clear, conceptual, exam-oriented, and slightly detailed.
+6. explanation must be in Hinglish style but written in Hindi (Devanagari) script.
+7. explanation length should usually be 5 to 10 readable lines.
+8. explanation must use these exact headings with explicit \n line breaks:
+   - Concept:
+   - Why Correct:
+   - Options Breakdown:
+   - Extra Knowledge:
+9. Under Concept, explain the core concept in 2 to 3 lines in simple Devanagari Hinglish.
+10. Under Why Correct, explain clearly why the correct option fits.
+11. Under Options Breakdown, write EACH option on a NEW LINE using A., B., C., D.
+12. Under Options Breakdown, explain each option based on the question context. If topic is river, explain all options as rivers. If topic is king, explain all options as kings. If topic is polity, explain them conceptually within polity context.
+13. For wrong options, include what that option actually represents and the important exam-related fact linked to it.
+14. Under Extra Knowledge, add 1 or 2 useful facts, exceptions, or recall points that can help in future questions.
+15. Do NOT write generic lines. Do NOT merge everything into one paragraph.
+16. Use Hindi script (Devanagari) for the explanation body.
+17. Use a simple conversational teacher tone.
+18. Common English words like option, concept, rule, formula, logic, process, law, method are allowed when they fit naturally.
+19. Avoid pure English sentences. Avoid overly formal Hindi.
+20. Keep subjectName/topicName empty when uncertain.
 
 QUESTION LIST:
 ${questionBlocks.map((question, index) => `${index + 1}. ${question}`).join('\n')}
@@ -276,7 +299,7 @@ OUTPUT FORMAT:
       {"id": "d", "text": "Option D"}
     ],
     "correctAnswer": "a",
-    "explanation": "Why the answer is correct.",
+    "explanation": "Concept:\nयह question एक core topic fact पर based है जो exam में directly या indirectly पूछा जा सकता है।\nइसमें concept को context के साथ identify करना important है।\n\nWhy Correct:\nOption A given context और actual concept दोनों से match करता है, इसलिए यही best answer है।\n\nOptions Breakdown:\nA. Option A -> asked context से directly match करता है\nB. Option B -> related लग सकता है, लेकिन required condition satisfy नहीं करता\nC. Option C -> topic से linked है but यहाँ specific fact गलत है\nD. Option D -> common confusion point है, इसलिए distractor है but correct नहीं\n\nExtra Knowledge:\nइस topic में similar traps अक्सर factual mix-up से बनते हैं।\nएक quick recall point या exception याद रखना future MCQs में help करेगा।",
     "difficulty": "medium",
     "subjectName": "",
     "topicName": ""

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAITest } from '@/hooks/useAITest'
 import ExamCreationModal from '@/components/tests/ExamCreationModal'
 import TestCard from '@/components/tests/TestCard'
@@ -9,6 +9,7 @@ import PrimaryCtaButton from '@/components/ui/PrimaryCtaButton'
 import { MockTestsIcon, PlusIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 import { subscribeToExamGroups } from '@/services/firebase/examGroupsService'
+import { applyReviewPatchToTest } from '@/utils/testReviewState'
 import { resolveTestDisplay } from '@/utils/testDisplay'
 import { isExamTest } from '@/utils/testKinds'
 
@@ -22,12 +23,18 @@ const examCtaTheme = {
 }
 
 function createLiveExamSession(test) {
+  const removedQuestionIds = Array.isArray(test?.removedQuestionIds) ? test.removedQuestionIds : []
+
   return {
     ...test,
     startTime: new Date().toISOString(),
     answers: {},
     bookmarkedQuestions: [],
     hintsUsed: [],
+    removedQuestionIds,
+    removedQuestionsCount: Number.isFinite(test?.removedQuestionsCount)
+      ? test.removedQuestionsCount
+      : removedQuestionIds.length,
   }
 }
 
@@ -36,7 +43,15 @@ function mergeLiveExamSession(previous, nextTest) {
     return createLiveExamSession(nextTest)
   }
 
-  const validQuestionIds = new Set((nextTest.questions || []).map((question) => question.id))
+  const removedQuestionIds = [
+    ...new Set([
+      ...(Array.isArray(previous?.removedQuestionIds) ? previous.removedQuestionIds : []),
+      ...(Array.isArray(nextTest?.removedQuestionIds) ? nextTest.removedQuestionIds : []),
+    ]),
+  ]
+  const removedQuestionIdSet = new Set(removedQuestionIds)
+  const mergedQuestions = (nextTest.questions || []).filter((question) => !removedQuestionIdSet.has(question.id))
+  const validQuestionIds = new Set(mergedQuestions.map((question) => question.id))
   const filteredAnswers = Object.fromEntries(
     Object.entries(previous.answers || {}).filter(([questionId]) => validQuestionIds.has(questionId))
   )
@@ -46,10 +61,13 @@ function mergeLiveExamSession(previous, nextTest) {
   return {
     ...previous,
     ...nextTest,
+    questions: mergedQuestions,
     startTime: previous.startTime || new Date().toISOString(),
     answers: filteredAnswers,
     bookmarkedQuestions: filteredBookmarks,
     hintsUsed: filteredHints,
+    removedQuestionIds,
+    removedQuestionsCount: removedQuestionIds.length,
   }
 }
 
@@ -70,6 +88,8 @@ export default function ExamsPage({
   const [groupError, setGroupError] = useState('')
   const [launchGroup, setLaunchGroup] = useState(initialGroupContext)
   const progressiveExamIdRef = useRef('')
+  const activeExamRef = useRef(null)
+  const viewingResultsRef = useRef(null)
 
   const {
     testHistory,
@@ -78,6 +98,8 @@ export default function ExamsPage({
     error,
     generateTest,
     saveTestResult,
+    saveTestReviewData,
+    startTestReviewGeneration,
     deleteTest,
   } = useAITest(subjects, onUpdateSubject, user, {
     subscribe: isActive,
@@ -145,6 +167,70 @@ export default function ExamsPage({
     }
   }, [historyPage, totalHistoryPages])
 
+  useEffect(() => {
+    activeExamRef.current = activeExam
+  }, [activeExam])
+
+  useEffect(() => {
+    viewingResultsRef.current = viewingResults
+  }, [viewingResults])
+
+  const applyReviewPatch = useCallback((testId, reviewPatch) => {
+    const nextActiveExam = activeExamRef.current?.id === testId
+      ? applyReviewPatchToTest(activeExamRef.current, reviewPatch)
+      : null
+    const nextViewingResults = viewingResultsRef.current?.id === testId
+      ? applyReviewPatchToTest(viewingResultsRef.current, reviewPatch)
+      : null
+
+    if (nextActiveExam) {
+      setActiveExam(nextActiveExam)
+    }
+
+    if (nextViewingResults) {
+      setViewingResults(nextViewingResults)
+    }
+
+    if (nextViewingResults?.completedAt || nextViewingResults?.endTime) {
+      saveTestReviewData(nextViewingResults)
+    }
+  }, [saveTestReviewData])
+
+  const beginBackgroundReview = useCallback((test) => {
+    if (!test?.id || !test?.metadata?.reviewGeneration?.isAiProcessing) {
+      return
+    }
+
+    if (test?.metadata?.examGeneration?.isComplete === false) {
+      return
+    }
+
+    startTestReviewGeneration(test, {
+      onComplete: (reviewPatch) => {
+        if (!reviewPatch) return
+        applyReviewPatch(test.id, reviewPatch)
+      },
+      onError: (reviewError) => {
+        const failedReviewGeneration = {
+          ...(test?.metadata?.reviewGeneration || {}),
+          isAiProcessing: false,
+          isComplete: false,
+          error: reviewError?.message || 'AI analysis is unavailable right now.',
+          statusText: 'AI analysis could not be completed.',
+        }
+
+        applyReviewPatch(test.id, {
+          questionUpdatesById: {},
+          reviewExplanations:
+            test?.reviewExplanations && typeof test.reviewExplanations === 'object'
+              ? test.reviewExplanations
+              : {},
+          reviewGeneration: failedReviewGeneration,
+        })
+      },
+    })
+  }, [applyReviewPatch, startTestReviewGeneration])
+
   const handleGenerateExam = async (config) => {
     try {
       const test = await generateTest(config, {
@@ -199,6 +285,7 @@ export default function ExamsPage({
 
         return createLiveExamSession(displayTest)
       })
+      beginBackgroundReview(displayTest)
       progressiveExamIdRef.current = ''
     } catch (generationError) {
       console.error('Mock test generation failed:', generationError)
@@ -210,19 +297,15 @@ export default function ExamsPage({
     saveTestResult(testAttempt)
     setActiveExam(null)
     setViewingResults(testAttempt)
+    beginBackgroundReview(testAttempt)
   }
 
   const handleRetakeExam = (test) => {
     const displayTest = resolveTestDisplay(test, subjects)
 
     setViewingResults(null)
-    setActiveExam({
-      ...displayTest,
-      startTime: new Date().toISOString(),
-      answers: {},
-      bookmarkedQuestions: [],
-      hintsUsed: [],
-    })
+    setActiveExam(createLiveExamSession(displayTest))
+    beginBackgroundReview(displayTest)
   }
 
   const handleOpenCreate = () => {
@@ -422,7 +505,11 @@ export default function ExamsPage({
               <TestCard
                 key={test.id}
                 test={test}
-                onView={() => setViewingResults(resolveTestDisplay(test, subjects))}
+                onView={() => {
+                  const displayTest = resolveTestDisplay(test, subjects)
+                  setViewingResults(displayTest)
+                  beginBackgroundReview(displayTest)
+                }}
                 onRetake={() => handleRetakeExam(test)}
                 onDelete={() => deleteTest(test.id)}
               />

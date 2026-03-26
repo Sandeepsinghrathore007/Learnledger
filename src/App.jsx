@@ -23,7 +23,7 @@ import {
 import { logoutUser, observeAuthState } from "@/services/firebase/authService";
 import { uid } from "@/utils/id";
 
-const MOBILE_BREAKPOINT = 1024;
+const MOBILE_MEDIA_QUERY = "(max-width: 768px)";
 const DEFAULT_PAGE = "subjects";
 const APP_TOPBAR_HEIGHT = 58;
 const PAGE_HASHES = {
@@ -320,8 +320,8 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined"
-      ? window.innerWidth < MOBILE_BREAKPOINT
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia(MOBILE_MEDIA_QUERY).matches
       : false,
   );
   const [themeId, setThemeId] = useState(() => readStoredAppThemeId());
@@ -448,7 +448,7 @@ export default function App() {
       return undefined;
     }
 
-    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    const mediaQuery = window.matchMedia(MOBILE_MEDIA_QUERY);
     const syncIsMobile = (event) => {
       setIsMobile(event.matches);
     };
@@ -799,7 +799,7 @@ export default function App() {
       <main
         style={{
           marginLeft: `${sidebarWidth}px`,
-          transition: "none",
+          transition: isMobile ? "none" : "margin-left 0.24s cubic-bezier(0.4,0,0.2,1)",
           flex: 1,
           height: "100vh",
           minWidth: 0,

@@ -29,9 +29,10 @@ import { deletePdfKnowledge, savePdfKnowledge } from '@/services/firebase/pdfKno
 import { extractPdfKnowledgeFromFile } from '@/utils/pdfKnowledge'
 import { deletePdfBinary, MAX_PDF_FILE_BYTES, storePdfBinary } from '@/utils/pdfBinaryStore'
 import { uploadPdfToCloudinary, deletePdfFromCloudinary } from '@/services/cloudinaryService'
-import { generateTest, saveTestResult, subscribeToTests } from '@/services/firebase/testsService'
+import { generateTest, generateTestReviewData, saveTestResult, saveTestReviewData, subscribeToTests } from '@/services/firebase/testsService'
 import { buildQuestionBankSubjectUpdates } from '@/utils/questionBank'
 import { determinePerformanceLevel } from '@/utils/testScoring'
+import { applyReviewPatchToTest } from '@/utils/testReviewState'
 import { resolveTestDisplay } from '@/utils/testDisplay'
 
 const TOPICS_PAGE_SIZE = 15
@@ -131,11 +132,32 @@ function SubjectDetailPage({
         ? 'tests'
         : 'topics'
   )
+  const reviewTaskMapRef = useRef(new Map())
+  const activeSelectionTestRef = useRef(null)
+  const selectionTestReviewRef = useRef(null)
+  const openTestReviewRef = useRef(null)
+  const subjectTestsRef = useRef([])
 
   useEffect(() => {
     subjectRef.current = subject
     setSubj(subject)
   }, [subject])
+
+  useEffect(() => {
+    activeSelectionTestRef.current = activeSelectionTest
+  }, [activeSelectionTest])
+
+  useEffect(() => {
+    selectionTestReviewRef.current = selectionTestReview
+  }, [selectionTestReview])
+
+  useEffect(() => {
+    openTestReviewRef.current = openTestReview
+  }, [openTestReview])
+
+  useEffect(() => {
+    subjectTestsRef.current = subjectTests
+  }, [subjectTests])
 
   useEffect(() => {
     if (initialOpenNote) {
@@ -661,6 +683,86 @@ function SubjectDetailPage({
     onOpenMockTestsForTopic(subjectRef.current, topic)
   }, [onOpenMockTestsForTopic])
 
+  const applySelectionReviewPatch = useCallback(async (testId, reviewPatch) => {
+    const nextActiveSelectionTest = activeSelectionTestRef.current?.id === testId
+      ? applyReviewPatchToTest(activeSelectionTestRef.current, reviewPatch)
+      : null
+    const nextSelectionTestReview = selectionTestReviewRef.current?.id === testId
+      ? applyReviewPatchToTest(selectionTestReviewRef.current, reviewPatch)
+      : null
+    const nextOpenTestReview = openTestReviewRef.current?.id === testId
+      ? applyReviewPatchToTest(openTestReviewRef.current, reviewPatch)
+      : null
+    const nextSubjectTests = subjectTestsRef.current.map((test) => (
+      test.id === testId
+        ? applyReviewPatchToTest(test, reviewPatch)
+        : test
+    ))
+    const completedAttemptToPersist = nextSelectionTestReview || nextOpenTestReview || null
+
+    if (nextActiveSelectionTest) {
+      setActiveSelectionTest(nextActiveSelectionTest)
+    }
+
+    if (nextSelectionTestReview) {
+      setSelectionTestReview(nextSelectionTestReview)
+    }
+
+    if (nextOpenTestReview) {
+      setOpenTestReview(nextOpenTestReview)
+    }
+
+    setSubjectTests(nextSubjectTests)
+
+    if ((completedAttemptToPersist?.completedAt || completedAttemptToPersist?.endTime) && user?.uid) {
+      try {
+        await saveTestReviewData(user.uid, completedAttemptToPersist)
+      } catch (error) {
+        console.error('Failed to save selection test review data:', error)
+      }
+    }
+  }, [user?.uid])
+
+  const beginSelectionTestReview = useCallback((test) => {
+    if (!test?.id || !test?.metadata?.reviewGeneration?.isAiProcessing) {
+      return
+    }
+
+    const existingTask = reviewTaskMapRef.current.get(test.id)
+    if (existingTask) {
+      return
+    }
+
+    const task = generateTestReviewData({ test })
+      .then((reviewPatch) => {
+        if (!reviewPatch) return
+        applySelectionReviewPatch(test.id, reviewPatch)
+      })
+      .catch((reviewError) => {
+        console.error('Failed to prepare selection test review data:', reviewError)
+
+        applySelectionReviewPatch(test.id, {
+          questionUpdatesById: {},
+          reviewExplanations:
+            test?.reviewExplanations && typeof test.reviewExplanations === 'object'
+              ? test.reviewExplanations
+              : {},
+          reviewGeneration: {
+            ...(test?.metadata?.reviewGeneration || {}),
+            isAiProcessing: false,
+            isComplete: false,
+            error: reviewError?.message || 'AI analysis is unavailable right now.',
+            statusText: 'AI analysis could not be completed.',
+          },
+        })
+      })
+      .finally(() => {
+        reviewTaskMapRef.current.delete(test.id)
+      })
+
+    reviewTaskMapRef.current.set(test.id, task)
+  }, [applySelectionReviewPatch])
+
   const handleGenerateSelectionTest = useCallback(async (config) => {
     if (!selectionTestContext) return
 
@@ -679,20 +781,23 @@ function SubjectDetailPage({
       }
 
       setSelectionTestContext(null)
-      setActiveSelectionTest({
+      const liveSelectionTest = {
         ...resolveTestDisplay(generatedTest, allSubjects),
         startTime: new Date().toISOString(),
         answers: {},
         bookmarkedQuestions: [],
         hintsUsed: [],
-      })
+      }
+
+      setActiveSelectionTest(liveSelectionTest)
+      beginSelectionTestReview(liveSelectionTest)
     } catch (error) {
       console.error('Failed to generate test from selected note text:', error)
       window.alert(error?.message || 'Unable to generate a test from the selected text right now.')
     } finally {
       setSelectionTestGenerating(false)
     }
-  }, [allSubjects, save, selectionTestContext, user?.uid])
+  }, [allSubjects, beginSelectionTestReview, save, selectionTestContext, user?.uid])
 
   const handleFinishSelectionTest = useCallback(async (testAttempt) => {
     if (user?.uid) {
@@ -725,7 +830,8 @@ function SubjectDetailPage({
 
     setActiveSelectionTest(null)
     setSelectionTestReview(resolvedTestAttempt)
-  }, [allSubjects, save, subjectTests, user?.uid])
+    beginSelectionTestReview(resolvedTestAttempt)
+  }, [allSubjects, beginSelectionTestReview, save, subjectTests, user?.uid])
 
   const handleCloseOpenNote = useCallback(() => {
     setOpenNote(null)
@@ -1071,7 +1177,10 @@ function SubjectDetailPage({
                   <button
                     key={test.id}
                     type="button"
-                    onClick={() => setOpenTestReview(test)}
+                    onClick={() => {
+                      setOpenTestReview(test)
+                      beginSelectionTestReview(test)
+                    }}
                     style={{
                       border: `1px solid ${BORDER}`,
                       borderRadius: '12px',

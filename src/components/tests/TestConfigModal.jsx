@@ -58,10 +58,12 @@ export default function TestConfigModal({
   const [timeLimit, setTimeLimit] = useState(15) // minutes, null for unlimited
   const [timingMode, setTimingMode] = useState('total') // 'total' | 'per-question'
   const [timePerQuestion, setTimePerQuestion] = useState(60) // seconds
+  const [manualInputText, setManualInputText] = useState('')
   const isSelectionMode = Boolean(String(selectionContext?.selectedText || '').trim())
   const isPresetTopicMode = Boolean(presetTopicContext?.subjectId && presetTopicContext?.topicId)
   const selectionSubjectId = selectionContext?.subjectId || null
   const selectionTopicId = selectionContext?.topicId || null
+  const isManualInputMode = !isSelectionMode && !isPresetTopicMode && scope === 'manual-input'
 
   // ── Get available topics based on selected subjects ───────────────────────
   const availableTopics = selectedSubjects.length > 0
@@ -80,6 +82,7 @@ export default function TestConfigModal({
     setTimeLimit(15)
     setTimingMode('total')
     setTimePerQuestion(60)
+    setManualInputText('')
   }
 
   useEffect(() => {
@@ -135,7 +138,7 @@ export default function TestConfigModal({
         ? [selectionTopicId]
         : null
 
-    if (effectiveSubjectIds.length === 0) {
+    if (effectiveScope !== 'manual-input' && effectiveSubjectIds.length === 0) {
       alert('Please select at least one subject')
       return
     }
@@ -147,6 +150,11 @@ export default function TestConfigModal({
 
     if (effectiveScope === 'selection' && !isSelectionMode) {
       alert('Please select some note text first')
+      return
+    }
+
+    if (effectiveScope === 'manual-input' && !String(manualInputText || '').trim()) {
+      alert('Paste at least one question before starting Manual Input Mode.')
       return
     }
 
@@ -172,6 +180,13 @@ export default function TestConfigModal({
             },
           }
         : {}),
+      ...(effectiveScope === 'manual-input'
+        ? {
+            manualInputText,
+          }
+        : {
+            language: 'hindi',
+          }),
     }
 
     onGenerate(config)
@@ -205,6 +220,8 @@ export default function TestConfigModal({
   // ── VALIDATION ─────────────────────────────────────────────────────────────
   const canGenerate = isSelectionMode
     ? Boolean(selectionSubjectId && String(selectionContext?.selectedText || '').trim())
+    : isManualInputMode
+      ? Boolean(String(manualInputText || '').trim())
     : isPresetTopicMode
       ? true
       : selectedSubjects.length > 0 && (scope !== 'topic' || selectedTopics.length > 0)
@@ -305,6 +322,7 @@ export default function TestConfigModal({
                   { id: 'subject', label: 'Whole Subject' },
                   { id: 'multi-subject', label: 'Multiple Subjects' },
                   ...(allowTopicScope ? [{ id: 'topic', label: 'Specific Topics' }] : []),
+                  { id: 'manual-input', label: 'Manual Input' },
                 ].map(option => (
                   <button
                     key={option.id}
@@ -342,7 +360,11 @@ export default function TestConfigModal({
                 fontWeight: '600',
                 marginBottom: '10px',
               }}>
-                {scope === 'multi-subject' ? 'Select Subjects (Multiple)' : 'Select Subject'}
+                {scope === 'multi-subject'
+                  ? 'Select Subjects (Multiple)'
+                  : isManualInputMode
+                    ? 'Select Subject (Optional)'
+                    : 'Select Subject'}
               </label>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {subjects.map(subject => {
@@ -446,10 +468,55 @@ export default function TestConfigModal({
                 </div>
               </div>
             )}
+
+            {isManualInputMode && (
+              <div>
+                <label style={{
+                  display: 'block',
+                  color: TEXT1,
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  marginBottom: '10px',
+                }}>
+                  Manual Questions
+                </label>
+                <textarea
+                  value={manualInputText}
+                  onChange={(event) => setManualInputText(event.target.value)}
+                  placeholder={`1. Question text\nA. Option A\nB. Option B\nC. Option C\nD. Option D\n\n2. Next question\nA. Option A\nB. Option B\nC. Option C\nD. Option D`}
+                  rows={12}
+                  style={{
+                    width: '100%',
+                    resize: 'vertical',
+                    minHeight: '260px',
+                    padding: '14px',
+                    borderRadius: '12px',
+                    border: `1px solid ${BORDER}`,
+                    background: 'rgba(255,255,255,0.03)',
+                    color: TEXT1,
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: '13px',
+                    lineHeight: 1.65,
+                    outline: 'none',
+                  }}
+                />
+                <div style={{
+                  marginTop: '8px',
+                  color: TEXT3,
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: '12px',
+                  lineHeight: 1.6,
+                }}>
+                  Paste numbered questions with options A, B, C, and D. Questions are parsed locally, then answers and explanations are prepared in the background.
+                </div>
+              </div>
+            )}
           </>
         )}
 
         {/* ── NUMBER OF QUESTIONS ────────────────────────────────────────── */}
+        {!isManualInputMode && (
         <div>
           <label style={{
             display: 'block',
@@ -484,6 +551,7 @@ export default function TestConfigModal({
             ))}
           </div>
         </div>
+        )}
 
         {/* ── DIFFICULTY ─────────────────────────────────────────────────── */}
         <div>

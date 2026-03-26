@@ -2,17 +2,32 @@
  * TestResultsView.jsx — Display test results with detailed question review.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { analyzeWeakAreas, calculateAccuracyByDifficulty, formatTime } from '@/utils/testScoring'
 import PerformanceChart from '@/components/tests/PerformanceChart'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
 
-function ReviewOptions({ question, userAnswer }) {
+function getResolvedCorrectAnswer(question, explanationItem = null) {
+  return String(explanationItem?.correctAnswer || question?.correctAnswer || '').trim().toLowerCase()
+}
+
+function hasAnswerKey(question, explanationItem = null) {
+  return ['a', 'b', 'c', 'd'].includes(getResolvedCorrectAnswer(question, explanationItem))
+}
+
+function getResolvedExplanation(question, explanationItem = null) {
+  return String(explanationItem?.explanation || question?.explanation || '').trim()
+}
+
+function ReviewOptions({ question, userAnswer, explanationItem = null, isReviewProcessing = false }) {
+  const isGradedQuestion = hasAnswerKey(question, explanationItem)
+  const resolvedCorrectAnswer = getResolvedCorrectAnswer(question, explanationItem)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {question.options.map((opt) => {
         const isUserAnswer = userAnswer === opt.id
-        const isCorrectAnswer = question.correctAnswer === opt.id
+        const isCorrectAnswer = isGradedQuestion && resolvedCorrectAnswer === opt.id
 
         return (
           <div
@@ -29,10 +44,30 @@ function ReviewOptions({ question, userAnswer }) {
           >
             <strong>{opt.id.toUpperCase()}.</strong> {opt.text}
             {isCorrectAnswer && <span style={{ marginLeft: '8px', color: '#22c55e' }}>✓ Correct</span>}
-            {isUserAnswer && !isCorrectAnswer && <span style={{ marginLeft: '8px', color: '#ef4444' }}>Your answer</span>}
+            {isUserAnswer && !isCorrectAnswer && (
+              <span style={{ marginLeft: '8px', color: isGradedQuestion ? '#ef4444' : '#a78bfa' }}>
+                {isGradedQuestion ? 'Your answer' : 'Selected'}
+              </span>
+            )}
           </div>
         )
       })}
+      {!isGradedQuestion && (
+        <div style={{
+          padding: '10px 12px',
+          borderRadius: '8px',
+          border: '1px solid rgba(245,158,11,0.24)',
+          background: 'rgba(245,158,11,0.08)',
+          color: '#fbbf24',
+          fontFamily: "'DM Sans', sans-serif",
+          fontSize: '12px',
+          lineHeight: 1.5,
+        }}>
+          {isReviewProcessing
+            ? 'Answer key and explanation are still being prepared for this question.'
+            : 'No answer key was found for this manually parsed question, so it is shown for practice only.'}
+        </div>
+      )}
     </div>
   )
 }
@@ -55,10 +90,60 @@ export default function TestResultsView({
     percentage, 
     passed, 
     timeTaken,
+    scorableQuestions = totalQuestions,
+    ungradedQuestions = 0,
     bookmarkedQuestions = [],
     hintsUsed = [],
-    metadata 
+    metadata,
+    removedQuestionIds = [],
+    removedQuestionsCount: rawRemovedQuestionsCount,
   } = testAttempt
+  const reviewExplanations = (
+    testAttempt?.reviewExplanations && typeof testAttempt.reviewExplanations === 'object'
+      ? testAttempt.reviewExplanations
+      : {}
+  )
+  const removedQuestionsCount = Number.isFinite(rawRemovedQuestionsCount)
+    ? rawRemovedQuestionsCount
+    : Array.isArray(removedQuestionIds)
+      ? removedQuestionIds.length
+      : 0
+  const reviewGeneration = metadata?.reviewGeneration || null
+  const isReviewProcessing = Boolean(reviewGeneration?.isAiProcessing)
+  const isAwaitingAiResults = isReviewProcessing && Number(reviewGeneration?.totalQuestions || 0) > 0
+  const isUngradedAttempt = Number(scorableQuestions || 0) === 0
+  const isPartiallyGraded = !isUngradedAttempt && Number(ungradedQuestions || 0) > 0
+  const headerTone = isAwaitingAiResults
+    ? {
+      background: 'linear-gradient(135deg, rgba(56,189,248,0.12), rgba(56,189,248,0.05))',
+      border: 'rgba(56,189,248,0.28)',
+      icon: '⏳',
+      title: 'Preparing Results',
+      accent: '#38bdf8',
+    }
+    : isUngradedAttempt
+    ? {
+      background: 'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.05))',
+      border: 'rgba(245,158,11,0.28)',
+      icon: '📝',
+      title: 'Practice Review',
+      accent: '#f59e0b',
+    }
+    : passed
+      ? {
+        background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))',
+        border: 'rgba(34,197,94,0.3)',
+        icon: '🎉',
+        title: 'Test Passed!',
+        accent: '#22c55e',
+      }
+      : {
+        background: 'linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.05))',
+        border: 'rgba(239,68,68,0.3)',
+        icon: '📚',
+        title: 'Keep Learning!',
+        accent: '#ef4444',
+      }
 
   const toggleQuestion = (questionId) => {
     const newExpanded = new Set(expandedQuestions)
@@ -77,45 +162,74 @@ export default function TestResultsView({
     .filter(({ question }) => bookmarkedQuestions.includes(question.id))
   const weakestTopic = weakAreas.weakAreas[0] || null
 
+  useEffect(() => {
+    setExpandedQuestions(new Set())
+  }, [testAttempt?.id])
+
   return (
     <div className="animate-fade-in" style={{ maxWidth: '900px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{
-        background: passed ? 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))' : 'linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.05))',
-        border: `1px solid ${passed ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+        background: headerTone.background,
+        border: `1px solid ${headerTone.border}`,
         borderRadius: '16px',
         padding: 'clamp(20px, 6vw, 32px)',
         textAlign: 'center',
         marginBottom: '24px',
       }}>
         <div style={{ fontSize: '48px', marginBottom: '12px' }}>
-          {passed ? '🎉' : '📚'}
+          {headerTone.icon}
         </div>
         <h1 style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '28px', fontWeight: '800', margin: '0 0 8px' }}>
-          {passed ? 'Test Passed!' : 'Keep Learning!'}
+          {headerTone.title}
         </h1>
         <p style={{ color: TEXT2, fontFamily: "'DM Sans', sans-serif", fontSize: '16px', margin: 0 }}>
           {title}
         </p>
+        {isAwaitingAiResults && (
+          <p style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '13px', margin: '10px 0 0' }}>
+            Preparing explanations and answer keys in the background. Results will update automatically.
+          </p>
+        )}
+        {!isAwaitingAiResults && isUngradedAttempt && (
+          <p style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '13px', margin: '10px 0 0' }}>
+            Manual parsing found questions and options, but no answer key was available for scoring.
+          </p>
+        )}
+        {!isAwaitingAiResults && isPartiallyGraded && (
+          <p style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '13px', margin: '10px 0 0' }}>
+            {ungradedQuestions} question{ungradedQuestions === 1 ? '' : 's'} did not include an answer key, so only graded questions affected your score.
+          </p>
+        )}
+        {removedQuestionsCount > 0 && (
+          <p style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '13px', margin: '10px 0 0' }}>
+            {removedQuestionsCount} invalid question{removedQuestionsCount === 1 ? '' : 's'} were removed during the test and excluded from scoring.
+          </p>
+        )}
+        {reviewGeneration && !reviewGeneration.isComplete && !isAwaitingAiResults && (
+          <p style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '13px', margin: '10px 0 0' }}>
+            Stored answer keys and explanations were prepared for {reviewGeneration.availableQuestions} of {reviewGeneration.totalQuestions} questions before the test.
+          </p>
+        )}
       </div>
 
       {/* Score Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
-          <div style={{ fontSize: '32px', fontWeight: '800', color: passed ? '#22c55e' : '#ef4444', fontFamily: "'DM Sans', sans-serif" }}>
-            {percentage}%
+          <div style={{ fontSize: '32px', fontWeight: '800', color: isAwaitingAiResults ? '#38bdf8' : isUngradedAttempt ? '#f59e0b' : headerTone.accent, fontFamily: "'DM Sans', sans-serif" }}>
+            {isAwaitingAiResults ? '...' : isUngradedAttempt ? 'NA' : `${percentage}%`}
           </div>
           <div style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', marginTop: '4px' }}>
-            Score
+            {isAwaitingAiResults ? 'Preparing' : isUngradedAttempt ? 'Scored' : 'Score'}
           </div>
         </div>
 
         <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
           <div style={{ fontSize: '32px', fontWeight: '800', color: '#8b5cf6', fontFamily: "'DM Sans', sans-serif" }}>
-            {score}/{totalQuestions}
+            {isAwaitingAiResults ? 'Pending' : isUngradedAttempt ? 'No key' : `${score}/${scorableQuestions}`}
           </div>
           <div style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', marginTop: '4px' }}>
-            Correct
+            {isAwaitingAiResults ? 'Answer Key' : isUngradedAttempt ? 'Result Type' : 'Correct'}
           </div>
         </div>
 
@@ -138,10 +252,32 @@ export default function TestResultsView({
             </div>
           </div>
         )}
+
+        {!isAwaitingAiResults && (isUngradedAttempt || isPartiallyGraded) && (
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
+            <div style={{ fontSize: '32px', fontWeight: '800', color: '#f59e0b', fontFamily: "'DM Sans', sans-serif" }}>
+              {ungradedQuestions || totalQuestions}
+            </div>
+            <div style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', marginTop: '4px' }}>
+              Ungraded
+            </div>
+          </div>
+        )}
+
+        {removedQuestionsCount > 0 && (
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
+            <div style={{ fontSize: '32px', fontWeight: '800', color: '#f97316', fontFamily: "'DM Sans', sans-serif" }}>
+              {removedQuestionsCount}
+            </div>
+            <div style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', marginTop: '4px' }}>
+              Removed
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Performance Chart */}
-      {weakAreas.allTopics.length > 0 && (
+      {!isUngradedAttempt && weakAreas.allTopics.length > 0 && (
         <PerformanceChart
           accuracyByDifficulty={accuracyByDifficulty}
           topicPerformance={weakAreas.allTopics}
@@ -149,7 +285,7 @@ export default function TestResultsView({
         />
       )}
 
-      {(weakAreas.weakSubjects.length > 0 || weakAreas.weakAreas.length > 0) && (
+      {!isUngradedAttempt && (weakAreas.weakSubjects.length > 0 || weakAreas.weakAreas.length > 0) && (
         <div
           style={{
             marginTop: '24px',
@@ -256,20 +392,63 @@ export default function TestResultsView({
         <h3 style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>
           Question Review
         </h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {questions.map((question, index) => {
+        {questions.length === 0 ? (
+          <div style={{
+            padding: '18px',
+            background: 'rgba(255,255,255,0.02)',
+            border: `1px solid ${BORDER}`,
+            borderRadius: '12px',
+            color: TEXT3,
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: '13px',
+            lineHeight: 1.6,
+          }}>
+            No questions remain in this attempt. Removed questions were excluded from review and scoring.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {questions.map((question, index) => {
             const userAnswer = answers[question.id]
-            const isCorrect = userAnswer === question.correctAnswer
+            const explanationItem = reviewExplanations[question.id] || null
+            const resolvedCorrectAnswer = getResolvedCorrectAnswer(question, explanationItem)
+            const isGradedQuestion = hasAnswerKey(question, explanationItem)
+            const isCorrect = isGradedQuestion && userAnswer === resolvedCorrectAnswer
             const isExpanded = expandedQuestions.has(question.id)
+            const resolvedExplanation = getResolvedExplanation(question, explanationItem)
+            const explanationFallbackMessage = isReviewProcessing
+              ? 'Preparing explanations for this question...'
+              : isGradedQuestion
+              ? 'Explanation was unavailable for this question, so review is based on the stored answer key only.'
+              : 'Explanation and answer key were unavailable for this question, so it is shown for practice only.'
             const usedHint = hintsUsed.includes(question.id)
             const isBookmarked = bookmarkedQuestions.includes(question.id)
+            const reviewTone = isGradedQuestion
+              ? (isCorrect
+                  ? {
+                    border: 'rgba(34,197,94,0.3)',
+                    badgeBackground: 'rgba(34,197,94,0.12)',
+                    badgeColor: '#22c55e',
+                    icon: '✓',
+                  }
+                  : {
+                    border: 'rgba(239,68,68,0.3)',
+                    badgeBackground: 'rgba(239,68,68,0.12)',
+                    badgeColor: '#ef4444',
+                    icon: '✗',
+                  })
+              : {
+                border: 'rgba(245,158,11,0.28)',
+                badgeBackground: 'rgba(245,158,11,0.12)',
+                badgeColor: '#f59e0b',
+                icon: '•',
+              }
 
             return (
               <div
                 key={question.id}
                 style={{
                   background: 'rgba(255,255,255,0.02)',
-                  border: `1px solid ${isCorrect ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                  border: `1px solid ${reviewTone.border}`,
                   borderRadius: '12px',
                   overflow: 'hidden',
                 }}
@@ -293,8 +472,8 @@ export default function TestResultsView({
                     width: '32px',
                     height: '32px',
                     borderRadius: '8px',
-                    background: isCorrect ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-                    color: isCorrect ? '#22c55e' : '#ef4444',
+                    background: reviewTone.badgeBackground,
+                    color: reviewTone.badgeColor,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -302,7 +481,7 @@ export default function TestResultsView({
                     fontWeight: '700',
                     flexShrink: 0,
                   }}>
-                    {isCorrect ? '✓' : '✗'}
+                    {reviewTone.icon}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: '600' }}>
@@ -312,6 +491,22 @@ export default function TestResultsView({
                       {question.question.slice(0, 80)}...
                     </div>
                   </div>
+                  {!isGradedQuestion && (
+                    <span
+                      style={{
+                        borderRadius: '999px',
+                        padding: '4px 8px',
+                        background: 'rgba(245,158,11,0.12)',
+                        border: '1px solid rgba(245,158,11,0.22)',
+                        color: '#fbbf24',
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: '11px',
+                        fontWeight: '700',
+                      }}
+                    >
+                      No Key
+                    </span>
+                  )}
                   {isBookmarked && (
                     <span
                       style={{
@@ -338,24 +533,45 @@ export default function TestResultsView({
                       <p style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: '600', margin: '0 0 12px' }}>
                         {question.question}
                       </p>
-                      <ReviewOptions question={question} userAnswer={userAnswer} />
+                      <ReviewOptions
+                        question={question}
+                        userAnswer={userAnswer}
+                        explanationItem={explanationItem}
+                        isReviewProcessing={isReviewProcessing}
+                      />
                     </div>
-                    {question.explanation && (
-                      <div style={{ padding: '12px', background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '8px' }}>
-                        <div style={{ color: '#a78bfa', fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: '700', marginBottom: '4px' }}>
-                          💡 Explanation:
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {resolvedExplanation ? (
+                        <div style={{ padding: '12px', background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '8px' }}>
+                          <div style={{ color: '#a78bfa', fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: '700', marginBottom: '4px' }}>
+                            💡 Explanation
+                          </div>
+                          <p style={{ color: TEXT2, fontFamily: "'Poppins', 'DM Sans', sans-serif", fontSize: '15px', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                            {resolvedExplanation}
+                          </p>
                         </div>
-                        <p style={{ color: TEXT2, fontFamily: "'DM Sans', sans-serif", fontSize: '13px', margin: 0, lineHeight: 1.6 }}>
-                          {question.explanation}
-                        </p>
-                      </div>
-                    )}
+                      ) : (
+                        <div style={{
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(245,158,11,0.24)',
+                          background: 'rgba(245,158,11,0.08)',
+                        color: '#fbbf24',
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: '12px',
+                        lineHeight: 1.5,
+                      }}>
+                          {explanationFallbackMessage}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
             )
-          })}
-        </div>
+            })}
+          </div>
+        )}
       </div>
 
       {bookmarkedQuestionItems.length > 0 && (
@@ -366,14 +582,23 @@ export default function TestResultsView({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {bookmarkedQuestionItems.map(({ question, index }) => {
               const userAnswer = answers[question.id]
-              const isCorrect = userAnswer === question.correctAnswer
+              const explanationItem = reviewExplanations[question.id] || null
+              const resolvedCorrectAnswer = getResolvedCorrectAnswer(question, explanationItem)
+              const isGradedQuestion = hasAnswerKey(question, explanationItem)
+              const isCorrect = isGradedQuestion && userAnswer === resolvedCorrectAnswer
+              const resolvedExplanation = getResolvedExplanation(question, explanationItem)
+              const explanationFallbackMessage = isReviewProcessing
+                ? 'Preparing explanations for this question...'
+                : isGradedQuestion
+                ? 'Explanation was unavailable for this question, so review is based on the stored answer key only.'
+                : 'Explanation and answer key were unavailable for this question, so it is shown for practice only.'
 
               return (
                 <div
                   key={question.id}
                   style={{
                     background: 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${isCorrect ? 'rgba(34,197,94,0.26)' : 'rgba(124,58,237,0.24)'}`,
+                    border: `1px solid ${isGradedQuestion && isCorrect ? 'rgba(34,197,94,0.26)' : isGradedQuestion ? 'rgba(124,58,237,0.24)' : 'rgba(245,158,11,0.24)'}`,
                     borderRadius: '14px',
                     padding: '16px',
                   }}
@@ -393,7 +618,7 @@ export default function TestResultsView({
                         Question {index + 1}
                       </div>
                       <div style={{ color: TEXT3, fontFamily: "'DM Sans', sans-serif", fontSize: '12px', marginTop: '4px' }}>
-                        {isCorrect ? 'Answered correctly' : 'Saved for revision'}
+                        {isGradedQuestion ? (isCorrect ? 'Answered correctly' : 'Saved for revision') : 'Saved for practice review'}
                       </div>
                     </div>
                     <span
@@ -415,17 +640,37 @@ export default function TestResultsView({
                   <p style={{ color: TEXT1, fontFamily: "'DM Sans', sans-serif", fontSize: '14px', fontWeight: '600', margin: '0 0 12px', lineHeight: 1.6 }}>
                     {question.question}
                   </p>
-                  <ReviewOptions question={question} userAnswer={userAnswer} />
-                  {question.explanation && (
-                    <div style={{ padding: '12px', background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '8px', marginTop: '12px' }}>
-                      <div style={{ color: '#a78bfa', fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: '700', marginBottom: '4px' }}>
-                        💡 Explanation:
+                  <ReviewOptions
+                    question={question}
+                    userAnswer={userAnswer}
+                    explanationItem={explanationItem}
+                    isReviewProcessing={isReviewProcessing}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
+                    {resolvedExplanation ? (
+                      <div style={{ padding: '12px', background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '8px' }}>
+                        <div style={{ color: '#a78bfa', fontFamily: "'DM Sans', sans-serif", fontSize: '12px', fontWeight: '700', marginBottom: '4px' }}>
+                          💡 Explanation
+                        </div>
+                        <p style={{ color: TEXT2, fontFamily: "'Poppins', 'DM Sans', sans-serif", fontSize: '15px', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                          {resolvedExplanation}
+                        </p>
                       </div>
-                      <p style={{ color: TEXT2, fontFamily: "'DM Sans', sans-serif", fontSize: '13px', margin: 0, lineHeight: 1.6 }}>
-                        {question.explanation}
-                      </p>
-                    </div>
-                  )}
+                    ) : (
+                      <div style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(245,158,11,0.24)',
+                        background: 'rgba(245,158,11,0.08)',
+                        color: '#fbbf24',
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: '12px',
+                        lineHeight: 1.5,
+                      }}>
+                        {explanationFallbackMessage}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             })}

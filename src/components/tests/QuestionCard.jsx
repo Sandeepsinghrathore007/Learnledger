@@ -4,6 +4,7 @@
 
 import { BookmarkIcon } from '@/components/ui/Icons'
 import { BORDER, TEXT1, TEXT2, TEXT3 } from '@/constants/theme'
+import { extractHintFromExplanation } from '@/utils/explanationFormatting'
 
 export default function QuestionCard({
   question,
@@ -17,8 +18,11 @@ export default function QuestionCard({
   hasUsedHint,
   questionLanguage = 'english',
   onChangeQuestionLanguage,
+  showLanguageToggle = true,
   isTranslationLoading = false,
   translationError = '',
+  showRemoveQuestion = false,
+  onRemoveQuestion = null,
 }) {
   return (
     <div className="p-4 sm:p-6" style={{
@@ -43,45 +47,47 @@ export default function QuestionCard({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            padding: '4px',
-            borderRadius: '10px',
-            border: `1px solid ${BORDER}`,
-            background: 'rgba(255,255,255,0.03)',
-          }}>
-            {[
-              { id: 'english', label: 'English' },
-              { id: 'hindi', label: 'Hindi' },
-            ].map((language) => {
-              const isActive = questionLanguage === language.id
+          {showLanguageToggle && (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px',
+              borderRadius: '10px',
+              border: `1px solid ${BORDER}`,
+              background: 'rgba(255,255,255,0.03)',
+            }}>
+              {[
+                { id: 'english', label: 'English' },
+                { id: 'hindi', label: 'Hindi' },
+              ].map((language) => {
+                const isActive = questionLanguage === language.id
 
-              return (
-                <button
-                  key={language.id}
-                  type="button"
-                  onClick={() => onChangeQuestionLanguage?.(language.id)}
-                  disabled={isTranslationLoading && isActive}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: isActive ? 'rgba(14,165,233,0.16)' : 'transparent',
-                    color: isActive ? '#dbeafe' : TEXT2,
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    opacity: isTranslationLoading && isActive ? 0.75 : 1,
-                  }}
-                >
-                  {language.label}
-                </button>
-              )
-            })}
-          </div>
+                return (
+                  <button
+                    key={language.id}
+                    type="button"
+                    onClick={() => onChangeQuestionLanguage?.(language.id)}
+                    disabled={isTranslationLoading && isActive}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: isActive ? 'rgba(14,165,233,0.16)' : 'transparent',
+                      color: isActive ? '#dbeafe' : TEXT2,
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      opacity: isTranslationLoading && isActive ? 0.75 : 1,
+                    }}
+                  >
+                    {language.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
           <button
             type="button"
@@ -105,6 +111,26 @@ export default function QuestionCard({
               <BookmarkIcon filled={isBookmarked} />
             </span>
           </button>
+
+          {showRemoveQuestion && typeof onRemoveQuestion === 'function' && (
+            <button
+              type="button"
+              onClick={onRemoveQuestion}
+              style={{
+                padding: '8px 12px',
+                background: 'rgba(239,68,68,0.12)',
+                border: '1px solid rgba(239,68,68,0.28)',
+                borderRadius: '8px',
+                color: '#fca5a5',
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: '11px',
+                fontWeight: '700',
+                cursor: 'pointer',
+              }}
+            >
+              Remove Question
+            </button>
+          )}
         </div>
       </div>
 
@@ -121,7 +147,7 @@ export default function QuestionCard({
           fontSize: '12px',
           lineHeight: 1.5,
         }}>
-          {translationError || `Translating question to ${questionLanguage === 'hindi' ? 'Hindi' : 'English'}...`}
+          {translationError || `Preparing ${questionLanguage === 'hindi' ? 'Hindi' : 'English'} translation...`}
         </div>
       )}
 
@@ -209,7 +235,7 @@ export default function QuestionCard({
             💡 Hint:
           </div>
           <p style={{ color: TEXT2, fontFamily: "'DM Sans', sans-serif", fontSize: '13px', margin: 0, lineHeight: 1.6 }}>
-            {question.explanation ? question.explanation.split('.')[0] + '.' : 'Think about the fundamental concepts.'}
+            {extractHintFromExplanation(question.explanation)}
           </p>
         </div>
       )}
