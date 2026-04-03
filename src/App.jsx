@@ -828,7 +828,7 @@ export default function App() {
           className={
             showAppTopBar
               ? "flex-1 min-w-0 px-4 py-5 sm:px-6 sm:py-6 lg:px-[30px] lg:py-[28px]"
-              : "flex-1 min-w-0 px-4 pt-0 pb-5 sm:px-6 sm:pt-0 sm:pb-6 lg:px-[30px] lg:pt-0 lg:pb-[28px]"
+              : "flex-1 min-w-full"
           }
           style={{
             minHeight: 0,
